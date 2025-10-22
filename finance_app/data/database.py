@@ -91,6 +91,70 @@ def _apply_account_type_migration(conn: sqlite3.Connection) -> None:
         logger.info("Account type migration completed")
 
 
+def _apply_journal_entries_migration(conn: sqlite3.Connection) -> None:
+    """
+    Apply journal entries migration (002_create_journal_entries.sql).
+
+    This creates the journal_entries table for double-entry accounting.
+    Story: US-002A - Journal Entry Foundation
+
+    Args:
+        conn: Database connection
+    """
+    cursor = conn.cursor()
+
+    # Check if migration is needed
+    cursor.execute("""
+        SELECT name FROM sqlite_master
+        WHERE type='table' AND name='journal_entries'
+    """)
+
+    if cursor.fetchone() is None:
+        logger.info("Applying journal entries migration (002)...")
+
+        # Read and execute migration file
+        migration_path = Path(__file__).parent / "migrations" / "002_create_journal_entries.sql"
+
+        if not migration_path.exists():
+            logger.warning(f"Migration file not found: {migration_path}")
+            return
+
+        with open(migration_path, 'r') as f:
+            migration_sql = f.read()
+
+        # Execute migration (split on semicolons but keep transaction together)
+        cursor.executescript(migration_sql)
+
+        conn.commit()
+        logger.info("Journal entries migration (002) completed")
+
+        # Verify migration
+        cursor.execute("""
+            SELECT name FROM sqlite_master
+            WHERE type='table' AND name IN ('journal_entries', 'trigger_audit')
+        """)
+        tables = [row[0] for row in cursor.fetchall()]
+
+        if 'journal_entries' in tables and 'trigger_audit' in tables:
+            logger.info("Migration verification: ✓ Tables created")
+        else:
+            logger.error(f"Migration verification failed. Tables found: {tables}")
+
+        # Verify triggers
+        cursor.execute("""
+            SELECT name FROM sqlite_master
+            WHERE type='trigger' AND tbl_name='journal_entries'
+        """)
+        triggers = [row[0] for row in cursor.fetchall()]
+
+        if len(triggers) == 6:
+            logger.info(f"Migration verification: ✓ All 6 triggers created")
+        else:
+            logger.warning(f"Migration verification: Found {len(triggers)}/6 triggers: {triggers}")
+    else:
+        logger.debug("Journal entries table already exists, skipping migration")
+
+
 class Database:
     """
     Database manager with connection pooling and lifecycle management.
@@ -135,7 +199,7 @@ class Database:
                 # Enable foreign keys
                 cursor.execute("PRAGMA foreign_keys = ON")
 
-                # Accounts table
+                # Accounts table (with double-entry accounting fields)
                 cursor.execute("""
                     CREATE TABLE IF NOT EXISTS accounts (
                         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -143,15 +207,32 @@ class Database:
                         type TEXT NOT NULL CHECK(type IN ('bank', 'cash', 'credit', 'investment')),
                         balance REAL NOT NULL DEFAULT 0.0,
                         currency TEXT DEFAULT 'USD',
+                        account_type TEXT NOT NULL DEFAULT 'asset',
+                        account_subtype TEXT NOT NULL DEFAULT 'checking',
+                        normal_balance TEXT NOT NULL DEFAULT 'debit',
+                        parent_account_id INTEGER,
+                        legacy_type TEXT,
                         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                     )
                 """)
 
-                # Create index on account name
+                # Create indices on accounts
                 cursor.execute("""
                     CREATE INDEX IF NOT EXISTS idx_accounts_name
                     ON accounts(name)
+                """)
+                cursor.execute("""
+                    CREATE INDEX IF NOT EXISTS idx_accounts_type
+                    ON accounts(account_type)
+                """)
+                cursor.execute("""
+                    CREATE INDEX IF NOT EXISTS idx_accounts_subtype
+                    ON accounts(account_subtype)
+                """)
+                cursor.execute("""
+                    CREATE INDEX IF NOT EXISTS idx_accounts_parent
+                    ON accounts(parent_account_id)
                 """)
 
                 # Transactions table
@@ -222,6 +303,9 @@ class Database:
                 conn.commit()
                 logger.info("Database schema created successfully")
 
+                # Apply journal entries migration for new databases
+                _apply_journal_entries_migration(conn)
+
                 # Add sample data if empty
                 self._add_sample_data(conn)
 
@@ -234,6 +318,7 @@ class Database:
         try:
             with self.get_connection() as conn:
                 _apply_account_type_migration(conn)
+                _apply_journal_entries_migration(conn)
                 logger.info("All migrations applied successfully")
         except Exception as e:
             logger.error(f"Failed to apply migrations: {e}")
