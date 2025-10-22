@@ -1,14 +1,17 @@
 """
 Business logic service for transactions.
+
+Updated for US-002A: Now creates journal entries for double-entry accounting.
 """
 from decimal import Decimal
 from typing import List, Optional
 
-from finance_app.data.models import Transaction
+from finance_app.data.models import Transaction, EntryType
 from finance_app.data.database import Database
 from finance_app.data.repositories.transaction_repository import TransactionRepository
 from finance_app.data.repositories.account_repository import AccountRepository
 from finance_app.business.validators import TransactionValidator
+from finance_app.business.double_entry_service import DoubleEntryService
 from finance_app.utils.logger import setup_logger
 from finance_app.utils.exceptions import ValidationError, BusinessRuleError, NotFoundError
 
@@ -29,6 +32,7 @@ class TransactionService:
         self.transaction_repo = TransactionRepository(database)
         self.account_repo = AccountRepository(database)
         self.validator = TransactionValidator()
+        self.double_entry_service = DoubleEntryService(database)  # US-002A
 
     def create_transaction(
         self,
@@ -90,24 +94,37 @@ class TransactionService:
         # Save transaction
         created_transaction = self.transaction_repo.create(transaction)
 
-        # Update account balance
+        # US-002A: Create journal entry for double-entry accounting
+        # This will automatically update the account balance via database triggers
         try:
-            self.account_repo.update_balance(account_id, validated_amount)
+            journal_entry = self.double_entry_service.create_simple_transaction(
+                account_id=account_id,
+                amount=validated_amount,
+                date=validated_date,
+                description=validated_description,
+                entry_type=EntryType.TRANSACTION,
+                transaction_id=created_transaction.id,
+                reference_number=None,
+                notes=f"Category: {validated_category}"
+            )
             logger.info(
-                f"Transaction created and balance updated: {created_transaction.id} "
-                f"({validated_amount} for account {account_id})"
+                f"Transaction created with journal entry: txn={created_transaction.id}, "
+                f"journal={journal_entry.id}, amount={validated_amount}"
             )
         except Exception as e:
-            # Rollback transaction if balance update fails
+            # Rollback transaction if journal entry creation fails
             self.transaction_repo.delete(created_transaction.id)
-            logger.error(f"Failed to update balance, transaction rolled back: {e}")
-            raise BusinessRuleError(f"Failed to update account balance: {e}") from e
+            logger.error(f"Failed to create journal entry, transaction rolled back: {e}")
+            raise BusinessRuleError(f"Failed to create journal entry: {e}") from e
 
         return created_transaction
 
     def delete_transaction(self, transaction_id: int) -> bool:
         """
         Delete a transaction and revert balance.
+
+        US-002A: Journal entries are automatically deleted via CASCADE,
+        and the database triggers automatically revert the balance.
 
         Args:
             transaction_id: Transaction ID
@@ -117,27 +134,22 @@ class TransactionService:
 
         Raises:
             NotFoundError: If transaction doesn't exist
-            BusinessRuleError: If balance update fails
         """
-        # Get transaction to revert balance
+        # Get transaction to verify it exists
         transaction = self.transaction_repo.get_by_id(transaction_id)
         if not transaction:
             raise NotFoundError(f"Transaction with ID {transaction_id} not found")
 
         # Delete transaction
+        # US-002A: This will CASCADE delete the journal entry,
+        # which will trigger the balance update automatically
         deleted = self.transaction_repo.delete(transaction_id)
 
         if deleted:
-            # Revert balance (subtract the transaction amount)
-            try:
-                self.account_repo.update_balance(transaction.account_id, -transaction.amount)
-                logger.info(f"Transaction deleted and balance reverted: {transaction_id}")
-            except Exception as e:
-                logger.error(f"Failed to revert balance after deletion: {e}")
-                # Note: Transaction is already deleted, this is a data inconsistency issue
-                raise BusinessRuleError(
-                    f"Transaction deleted but failed to revert balance: {e}"
-                ) from e
+            logger.info(
+                f"Transaction deleted (journal entry cascade deleted, "
+                f"balance auto-reverted): {transaction_id}"
+            )
 
         return deleted
 
