@@ -199,75 +199,95 @@ class TestJournalEntryTriggers:
     # VALIDATION TRIGGER TESTS
     # ========================================================================
 
-    def test_trigger_rejects_both_debit_and_credit(self, journal_repo, checking_account):
+    def test_trigger_rejects_both_debit_and_credit(self, test_db, checking_account):
         """Test trigger rejects entry with both debit and credit amounts."""
-        entry = JournalEntry(
-            id=None,
-            account_id=checking_account.id,
-            entry_date="2025-10-22",
-            description="Invalid",
-            debit_amount=Decimal("100.00"),
-            credit_amount=Decimal("50.00"),  # ❌ INVALID!
-            balance_after=Decimal("1050.00"),
-            entry_type=EntryType.TRANSACTION
-        )
-
+        # Bypass model validation by using raw SQL to test trigger
         with pytest.raises(DatabaseError, match="cannot have both debit and credit"):
-            journal_repo.create(entry)
+            with test_db.get_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute("""
+                    INSERT INTO journal_entries (
+                        account_id, entry_date, description, debit_amount,
+                        credit_amount, balance_after, entry_type
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?)
+                """, (
+                    checking_account.id,
+                    "2025-10-22",
+                    "Invalid - both debit and credit",
+                    100.00,  # Debit
+                    50.00,   # Credit - ❌ INVALID!
+                    1050.00,
+                    'transaction'
+                ))
 
-    def test_trigger_rejects_zero_amounts(self, journal_repo, checking_account):
+    def test_trigger_rejects_zero_amounts(self, test_db, checking_account):
         """Test trigger rejects entry with zero debit and credit."""
-        entry = JournalEntry(
-            id=None,
-            account_id=checking_account.id,
-            entry_date="2025-10-22",
-            description="Invalid",
-            debit_amount=Decimal("0"),
-            credit_amount=Decimal("0"),  # ❌ INVALID!
-            balance_after=Decimal("1000.00"),
-            entry_type=EntryType.TRANSACTION
-        )
-
+        # Bypass model validation by using raw SQL to test trigger
         with pytest.raises(DatabaseError, match="must have either debit or credit"):
-            journal_repo.create(entry)
+            with test_db.get_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute("""
+                    INSERT INTO journal_entries (
+                        account_id, entry_date, description, debit_amount,
+                        credit_amount, balance_after, entry_type
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?)
+                """, (
+                    checking_account.id,
+                    "2025-10-22",
+                    "Invalid - zero amounts",
+                    0.00,  # ❌ INVALID!
+                    0.00,  # ❌ INVALID!
+                    1000.00,
+                    'transaction'
+                ))
 
-    def test_trigger_rejects_negative_amounts(self, journal_repo, checking_account):
+    def test_trigger_rejects_negative_amounts(self, test_db, checking_account):
         """Test trigger rejects entry with negative amounts."""
-        entry = JournalEntry(
-            id=None,
-            account_id=checking_account.id,
-            entry_date="2025-10-22",
-            description="Invalid",
-            debit_amount=Decimal("-100.00"),  # ❌ INVALID!
-            credit_amount=Decimal("0"),
-            balance_after=Decimal("900.00"),
-            entry_type=EntryType.TRANSACTION
-        )
-
+        # Bypass model validation by using raw SQL to test trigger
         with pytest.raises(DatabaseError, match="must be non-negative"):
-            journal_repo.create(entry)
+            with test_db.get_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute("""
+                    INSERT INTO journal_entries (
+                        account_id, entry_date, description, debit_amount,
+                        credit_amount, balance_after, entry_type
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?)
+                """, (
+                    checking_account.id,
+                    "2025-10-22",
+                    "Invalid - negative amount",
+                    -100.00,  # ❌ INVALID!
+                    0.00,
+                    900.00,
+                    'transaction'
+                ))
 
     # ========================================================================
     # TRANSACTION ROLLBACK TESTS
     # ========================================================================
 
-    def test_trigger_rollback_on_error(self, journal_repo, account_repo, checking_account):
+    def test_trigger_rollback_on_error(self, test_db, account_repo, checking_account):
         """Test that failed journal entry doesn't corrupt balance."""
         initial_balance = checking_account.balance
 
-        # Try to create invalid entry (both debit and credit)
+        # Try to create invalid entry (both debit and credit) using raw SQL
         with pytest.raises(DatabaseError):
-            entry = JournalEntry(
-                id=None,
-                account_id=checking_account.id,
-                entry_date="2025-10-22",
-                description="Invalid",
-                debit_amount=Decimal("100.00"),
-                credit_amount=Decimal("50.00"),  # Invalid
-                balance_after=Decimal("1050.00"),
-                entry_type=EntryType.TRANSACTION
-            )
-            journal_repo.create(entry)
+            with test_db.get_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute("""
+                    INSERT INTO journal_entries (
+                        account_id, entry_date, description, debit_amount,
+                        credit_amount, balance_after, entry_type
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?)
+                """, (
+                    checking_account.id,
+                    "2025-10-22",
+                    "Invalid - rollback test",
+                    100.00,
+                    50.00,  # Invalid - both amounts
+                    1050.00,
+                    'transaction'
+                ))
 
         # Verify balance unchanged (transaction rolled back)
         account = account_repo.get_by_id(checking_account.id)
