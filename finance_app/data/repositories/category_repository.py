@@ -43,14 +43,14 @@ class CategoryRepository:
 
                 if category_type:
                     cursor.execute("""
-                        SELECT id, name, type, created_at
+                        SELECT id, name, type
                         FROM categories
                         WHERE type = ?
                         ORDER BY name
                     """, (category_type,))
                 else:
                     cursor.execute("""
-                        SELECT id, name, type, created_at
+                        SELECT id, name, type
                         FROM categories
                         ORDER BY name
                     """)
@@ -94,7 +94,7 @@ class CategoryRepository:
             with self.db.get_connection() as conn:
                 cursor = conn.cursor()
                 cursor.execute("""
-                    SELECT id, name, type, created_at
+                    SELECT id, name, type
                     FROM categories
                     WHERE id = ?
                 """, (category_id,))
@@ -174,5 +174,5 @@ class CategoryRepository:
             id=row['id'],
             name=row['name'],
             type=row['type'],
-            created_at=row['created_at']
+            created_at=None  # Not in current schema
         )

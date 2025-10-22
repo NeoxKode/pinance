@@ -44,7 +44,10 @@ class AddTransactionDialog(QDialog):
         # Account selection
         self.account_combo = QComboBox()
         for account in self.accounts:
-            self.account_combo.addItem(f"{account.name} ({account.type})", account.id)
+            # Handle both enum and string for account_subtype
+            subtype = account.account_subtype.value if hasattr(account.account_subtype, 'value') else account.account_subtype
+            subtype_display = subtype.replace('_', ' ').title()
+            self.account_combo.addItem(f"{account.name} ({subtype_display})", account.id)
         layout.addRow("Account:", self.account_combo)
 
         # Date

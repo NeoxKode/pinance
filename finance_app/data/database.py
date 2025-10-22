@@ -12,6 +12,85 @@ from finance_app.utils.exceptions import DatabaseError
 logger = setup_logger(__name__)
 
 
+def _apply_account_type_migration(conn: sqlite3.Connection) -> None:
+    """
+    Apply account type migration if needed.
+
+    This adds the double-entry accounting fields to existing databases.
+
+    Args:
+        conn: Database connection
+    """
+    cursor = conn.cursor()
+
+    # Check if migration is needed
+    cursor.execute("PRAGMA table_info(accounts)")
+    columns = {row[1] for row in cursor.fetchall()}
+
+    if 'account_type' not in columns:
+        logger.info("Applying account type migration...")
+
+        # Add new columns
+        cursor.execute("""
+            ALTER TABLE accounts
+            ADD COLUMN account_type TEXT NOT NULL DEFAULT 'asset'
+        """)
+        cursor.execute("""
+            ALTER TABLE accounts
+            ADD COLUMN account_subtype TEXT NOT NULL DEFAULT 'checking'
+        """)
+        cursor.execute("""
+            ALTER TABLE accounts
+            ADD COLUMN normal_balance TEXT NOT NULL DEFAULT 'debit'
+        """)
+        cursor.execute("""
+            ALTER TABLE accounts
+            ADD COLUMN parent_account_id INTEGER
+        """)
+        cursor.execute("""
+            ALTER TABLE accounts
+            ADD COLUMN legacy_type TEXT
+        """)
+
+        # Preserve old type column
+        if 'type' in columns:
+            cursor.execute("UPDATE accounts SET legacy_type = type")
+
+        # Create indexes
+        cursor.execute("""
+            CREATE INDEX IF NOT EXISTS idx_accounts_type
+            ON accounts(account_type)
+        """)
+        cursor.execute("""
+            CREATE INDEX IF NOT EXISTS idx_accounts_subtype
+            ON accounts(account_subtype)
+        """)
+        cursor.execute("""
+            CREATE INDEX IF NOT EXISTS idx_accounts_parent
+            ON accounts(parent_account_id)
+        """)
+
+        # Migrate existing data
+        legacy_type_mapping = {
+            'bank': ('asset', 'checking', 'debit'),
+            'cash': ('asset', 'cash', 'debit'),
+            'credit': ('liability', 'credit_card', 'credit'),
+            'investment': ('asset', 'investment', 'debit'),
+        }
+
+        for legacy_type, (acc_type, acc_subtype, normal_bal) in legacy_type_mapping.items():
+            cursor.execute("""
+                UPDATE accounts
+                SET account_type = ?,
+                    account_subtype = ?,
+                    normal_balance = ?
+                WHERE legacy_type = ? OR type = ?
+            """, (acc_type, acc_subtype, normal_bal, legacy_type, legacy_type))
+
+        conn.commit()
+        logger.info("Account type migration completed")
+
+
 class Database:
     """
     Database manager with connection pooling and lifecycle management.
@@ -38,9 +117,14 @@ class Database:
     def _ensure_database_exists(self) -> None:
         """Ensure database file and directory exist."""
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
-        if not self.db_path.exists():
+        is_new_database = not self.db_path.exists()
+
+        if is_new_database:
             logger.info(f"Creating new database at {self.db_path}")
             self._create_schema()
+        else:
+            # Apply migrations for existing database
+            self._apply_migrations()
 
     def _create_schema(self) -> None:
         """Create database schema."""
@@ -144,6 +228,16 @@ class Database:
         except sqlite3.Error as e:
             logger.error(f"Failed to create database schema: {e}")
             raise DatabaseError(f"Schema creation failed: {e}") from e
+
+    def _apply_migrations(self) -> None:
+        """Apply database migrations for existing databases."""
+        try:
+            with self.get_connection() as conn:
+                _apply_account_type_migration(conn)
+                logger.info("All migrations applied successfully")
+        except Exception as e:
+            logger.error(f"Failed to apply migrations: {e}")
+            # Don't raise - allow app to continue with what we have
 
     def _add_sample_data(self, conn: sqlite3.Connection) -> None:
         """Add sample data if database is empty."""

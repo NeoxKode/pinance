@@ -4,7 +4,7 @@ Business logic service for accounts.
 from decimal import Decimal
 from typing import List, Optional
 
-from finance_app.data.models import Account
+from finance_app.data.models import Account, AccountType, AccountSubtype, NormalBalance
 from finance_app.data.database import Database
 from finance_app.data.repositories.account_repository import AccountRepository
 from finance_app.business.validators import AccountValidator
@@ -31,7 +31,8 @@ class AccountService:
     def create_account(
         self,
         name: str,
-        account_type: str,
+        account_type: AccountType,
+        account_subtype: AccountSubtype,
         initial_balance: str = "0.00",
         currency: str = "USD"
     ) -> Account:
@@ -40,7 +41,8 @@ class AccountService:
 
         Args:
             name: Account name
-            account_type: Account type (bank, cash, credit, investment)
+            account_type: Primary account type (asset, liability, equity, income, expense)
+            account_subtype: Account subtype (checking, savings, credit_card, etc.)
             initial_balance: Initial balance as string
             currency: Currency code (3 letters)
 
@@ -52,13 +54,21 @@ class AccountService:
         """
         # Validate inputs
         validated_name = self.validator.validate_name(name)
-        validated_type = self.validator.validate_account_type(account_type)
+        validated_type, validated_subtype = self.validator.validate_account_type_combination(
+            account_type, account_subtype
+        )
         validated_currency = self.validator.validate_currency(currency)
+
+        # Get normal balance based on account type
+        normal_balance = self.validator.get_normal_balance(account_type)
 
         # Parse and validate balance
         try:
             balance = Decimal(initial_balance)
-            validated_balance = self.validator.validate_balance(balance, allow_negative=True)
+            # Allow negative balance for credit-type accounts
+            validated_balance = self.validator.validate_balance(
+                balance, allow_negative=(normal_balance == NormalBalance.CREDIT)
+            )
         except Exception as e:
             raise ValidationError(f"Invalid initial balance: {initial_balance}") from e
 
@@ -66,14 +76,20 @@ class AccountService:
         account = Account(
             id=None,
             name=validated_name,
-            type=validated_type,
+            account_type=validated_type,
+            account_subtype=validated_subtype,
             balance=validated_balance,
+            normal_balance=normal_balance,
             currency=validated_currency
         )
 
         # Save account
         created_account = self.account_repo.create(account)
-        logger.info(f"Account created: {created_account.name} (ID: {created_account.id})")
+        logger.info(
+            f"Account created: {created_account.name} "
+            f"({created_account.account_type.value}/{created_account.account_subtype.value}, "
+            f"ID: {created_account.id})"
+        )
 
         return created_account
 
@@ -81,7 +97,8 @@ class AccountService:
         self,
         account_id: int,
         name: Optional[str] = None,
-        account_type: Optional[str] = None,
+        account_type: Optional[AccountType] = None,
+        account_subtype: Optional[AccountSubtype] = None,
         currency: Optional[str] = None
     ) -> Account:
         """
@@ -90,7 +107,8 @@ class AccountService:
         Args:
             account_id: Account ID
             name: New name (optional)
-            account_type: New type (optional)
+            account_type: New account type (optional)
+            account_subtype: New account subtype (optional)
             currency: New currency (optional)
 
         Returns:
@@ -109,8 +127,21 @@ class AccountService:
         if name is not None:
             account.name = self.validator.validate_name(name)
 
-        if account_type is not None:
-            account.type = self.validator.validate_account_type(account_type)
+        # If type or subtype is updated, validate the combination
+        if account_type is not None or account_subtype is not None:
+            new_type = account_type if account_type is not None else account.account_type
+            new_subtype = account_subtype if account_subtype is not None else account.account_subtype
+
+            validated_type, validated_subtype = self.validator.validate_account_type_combination(
+                new_type, new_subtype
+            )
+
+            account.account_type = validated_type
+            account.account_subtype = validated_subtype
+
+            # Update normal balance if type changed
+            if account_type is not None:
+                account.normal_balance = self.validator.get_normal_balance(validated_type)
 
         if currency is not None:
             account.currency = self.validator.validate_currency(currency)

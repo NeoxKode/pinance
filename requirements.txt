@@ -14,7 +14,7 @@ pytest-mock==3.14.0
 
 # Type Checking
 mypy==1.14.0
-types-PyQt6==6.7.1.20241016
+# Note: Using PySide6, not PyQt6 - type stubs included in PySide6 package
 
 # Code Quality
 black==24.10.0

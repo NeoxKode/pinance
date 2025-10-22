@@ -3,9 +3,10 @@ Validation utilities for business logic.
 """
 from decimal import Decimal, InvalidOperation
 from datetime import datetime
-from typing import Optional
+from typing import Optional, Tuple
 
 from finance_app.utils.exceptions import ValidationError
+from finance_app.data.models import AccountType, AccountSubtype, NormalBalance
 
 
 class TransactionValidator:
@@ -127,7 +128,48 @@ class TransactionValidator:
 
 
 class AccountValidator:
-    """Validator for account data."""
+    """Validator for account data with double-entry support."""
+
+    # Valid subtype combinations for each account type
+    VALID_SUBTYPES = {
+        AccountType.ASSET: [
+            AccountSubtype.CHECKING,
+            AccountSubtype.SAVINGS,
+            AccountSubtype.CASH,
+            AccountSubtype.INVESTMENT,
+            AccountSubtype.OTHER_ASSET,
+        ],
+        AccountType.LIABILITY: [
+            AccountSubtype.CREDIT_CARD,
+            AccountSubtype.LOAN,
+            AccountSubtype.MORTGAGE,
+            AccountSubtype.LINE_OF_CREDIT,
+            AccountSubtype.OTHER_LIABILITY,
+        ],
+        AccountType.EQUITY: [
+            AccountSubtype.OPENING_BALANCE,
+            AccountSubtype.RETAINED_EARNINGS,
+        ],
+        AccountType.INCOME: [
+            AccountSubtype.SALARY,
+            AccountSubtype.BUSINESS_INCOME,
+            AccountSubtype.INTEREST,
+            AccountSubtype.DIVIDENDS,
+            AccountSubtype.OTHER_INCOME,
+        ],
+        AccountType.EXPENSE: [
+            AccountSubtype.EXPENSE_CATEGORY,
+        ],
+    }
+
+    # Normal balance by account type (double-entry accounting rules)
+    NORMAL_BALANCE_MAP = {
+        AccountType.ASSET: NormalBalance.DEBIT,
+        AccountType.EXPENSE: NormalBalance.DEBIT,
+        AccountType.LIABILITY: NormalBalance.CREDIT,
+        AccountType.EQUITY: NormalBalance.CREDIT,
+        AccountType.INCOME: NormalBalance.CREDIT,
+    }
 
     @staticmethod
     def validate_name(name: str, max_length: int = 100) -> str:
@@ -154,10 +196,82 @@ class AccountValidator:
 
         return cleaned
 
+    @classmethod
+    def validate_account_type_combination(
+        cls,
+        account_type: AccountType,
+        account_subtype: AccountSubtype
+    ) -> Tuple[AccountType, AccountSubtype]:
+        """
+        Validate account type and subtype combination.
+
+        Args:
+            account_type: Primary account type
+            account_subtype: Account subtype
+
+        Returns:
+            Validated (account_type, account_subtype) tuple
+
+        Raises:
+            ValidationError: If combination is invalid
+        """
+        # Convert string to enum if needed
+        if isinstance(account_type, str):
+            try:
+                account_type = AccountType(account_type)
+            except ValueError:
+                raise ValidationError(
+                    f"Invalid account type: {account_type}. "
+                    f"Valid types: {', '.join([t.value for t in AccountType])}"
+                )
+
+        if isinstance(account_subtype, str):
+            try:
+                account_subtype = AccountSubtype(account_subtype)
+            except ValueError:
+                raise ValidationError(
+                    f"Invalid account subtype: {account_subtype}. "
+                    f"Valid subtypes: {', '.join([s.value for s in AccountSubtype])}"
+                )
+
+        # Validate combination
+        if account_subtype not in cls.VALID_SUBTYPES.get(account_type, []):
+            valid_subtypes = ', '.join(
+                [s.value for s in cls.VALID_SUBTYPES[account_type]]
+            )
+            raise ValidationError(
+                f"Invalid subtype '{account_subtype.value}' for account type "
+                f"'{account_type.value}'. Valid subtypes: {valid_subtypes}"
+            )
+
+        return account_type, account_subtype
+
+    @classmethod
+    def get_normal_balance(cls, account_type: AccountType) -> NormalBalance:
+        """
+        Get normal balance for account type.
+
+        Args:
+            account_type: Account type
+
+        Returns:
+            Normal balance (debit or credit)
+
+        Raises:
+            ValidationError: If account type is invalid
+        """
+        if isinstance(account_type, str):
+            try:
+                account_type = AccountType(account_type)
+            except ValueError:
+                raise ValidationError(f"Invalid account type: {account_type}")
+
+        return cls.NORMAL_BALANCE_MAP[account_type]
+
     @staticmethod
     def validate_account_type(account_type: str) -> str:
         """
-        Validate account type.
+        Validate legacy account type (for backward compatibility).
 
         Args:
             account_type: Account type

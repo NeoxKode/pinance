@@ -1,8 +1,9 @@
 # Finance App - Software Architecture Documentation
 
-**Version:** 2.0.0
-**Date:** October 21, 2025
+**Version:** 2.1.0
+**Date:** October 22, 2025
 **Status:** Production Ready
+**Last Updated:** Account Type Taxonomy Implementation (US-001)
 
 ---
 
@@ -253,18 +254,93 @@ def get_all(self, account_id=None, limit=None):
 
 ## Data Models
 
+### Account Type Enumerations (US-001)
+
+The application uses a comprehensive account type taxonomy for double-entry accounting:
+
+```python
+class AccountType(str, Enum):
+    """Primary account types for double-entry accounting."""
+    ASSET = 'asset'           # Things you own
+    LIABILITY = 'liability'   # Money you owe
+    EQUITY = 'equity'         # Net worth
+    INCOME = 'income'         # Money received
+    EXPENSE = 'expense'       # Money spent
+
+class AccountSubtype(str, Enum):
+    """Account subtypes for classification."""
+    # Asset subtypes
+    CHECKING = 'checking'
+    SAVINGS = 'savings'
+    CASH = 'cash'
+    INVESTMENT = 'investment'
+    OTHER_ASSET = 'other_asset'
+
+    # Liability subtypes
+    CREDIT_CARD = 'credit_card'
+    LOAN = 'loan'
+    MORTGAGE = 'mortgage'
+    LINE_OF_CREDIT = 'line_of_credit'
+    OTHER_LIABILITY = 'other_liability'
+
+    # Equity subtypes
+    OPENING_BALANCE = 'opening_balance'
+    RETAINED_EARNINGS = 'retained_earnings'
+
+    # Income subtypes
+    SALARY = 'salary'
+    BUSINESS_INCOME = 'business_income'
+    INTEREST = 'interest'
+    DIVIDENDS = 'dividends'
+    OTHER_INCOME = 'other_income'
+
+    # Expense subtypes
+    EXPENSE_CATEGORY = 'expense_category'
+
+class NormalBalance(str, Enum):
+    """Normal balance type for double-entry accounting."""
+    DEBIT = 'debit'    # Assets, Expenses increase with debits
+    CREDIT = 'credit'  # Liabilities, Equity, Income increase with credits
+```
+
+**Design Rationale:**
+- Inherits from `str` for seamless database serialization
+- Enum values match database string values
+- Provides type safety at compile time
+- Enables IDE autocomplete and validation
+
 ### Account
 ```python
 @dataclass
 class Account:
+    """Account model with double-entry support."""
     id: Optional[int]
     name: str
-    type: str  # 'bank', 'cash', 'credit', 'investment'
+    account_type: AccountType          # Primary type (asset, liability, etc.)
+    account_subtype: AccountSubtype    # Subtype (checking, credit_card, etc.)
     balance: Decimal
+    normal_balance: NormalBalance      # Debit or credit
     currency: str = 'USD'
+    parent_account_id: Optional[int] = None
+    legacy_type: Optional[str] = None  # Backward compatibility
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
+
+    def __post_init__(self):
+        """Convert string values to enums automatically."""
+        if isinstance(self.account_type, str):
+            self.account_type = AccountType(self.account_type)
+        if isinstance(self.account_subtype, str):
+            self.account_subtype = AccountSubtype(self.account_subtype)
+        if isinstance(self.normal_balance, str):
+            self.normal_balance = NormalBalance(self.normal_balance)
 ```
+
+**Key Features:**
+- `__post_init__` handles string-to-enum conversion for database compatibility
+- `legacy_type` maintains backward compatibility with v1.0 schema
+- `normal_balance` auto-assigned based on `account_type`
+- Supports hierarchical accounts via `parent_account_id` (future)
 
 ### Transaction
 ```python
@@ -295,19 +371,46 @@ class Category:
 
 ## Database Schema
 
+### Schema Version: 2.0 (with US-001 Account Type Taxonomy)
+
 ```sql
--- Accounts table
+-- Accounts table (updated for double-entry accounting)
 CREATE TABLE accounts (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     name TEXT NOT NULL UNIQUE,
-    type TEXT NOT NULL CHECK(type IN ('bank', 'cash', 'credit', 'investment')),
+
+    -- New double-entry fields (US-001)
+    account_type TEXT NOT NULL CHECK(account_type IN
+        ('asset', 'liability', 'equity', 'income', 'expense')),
+    account_subtype TEXT NOT NULL CHECK(account_subtype IN
+        ('checking', 'savings', 'cash', 'investment', 'other_asset',
+         'credit_card', 'loan', 'mortgage', 'line_of_credit', 'other_liability',
+         'opening_balance', 'retained_earnings',
+         'salary', 'business_income', 'interest', 'dividends', 'other_income',
+         'expense_category')),
+    normal_balance TEXT NOT NULL CHECK(normal_balance IN ('debit', 'credit')),
+    parent_account_id INTEGER,
+
+    -- Core fields
     balance REAL NOT NULL DEFAULT 0.0,
     currency TEXT DEFAULT 'USD',
+
+    -- Backward compatibility
+    legacy_type TEXT CHECK(legacy_type IN ('bank', 'cash', 'credit', 'investment')),
+
+    -- Timestamps
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+
+    -- Foreign keys
+    FOREIGN KEY (parent_account_id) REFERENCES accounts (id) ON DELETE SET NULL
 );
 
+-- Indices for performance
 CREATE INDEX idx_accounts_name ON accounts(name);
+CREATE INDEX idx_accounts_type ON accounts(account_type);
+CREATE INDEX idx_accounts_subtype ON accounts(account_subtype);
+CREATE INDEX idx_accounts_parent ON accounts(parent_account_id);
 
 -- Transactions table
 CREATE TABLE transactions (
@@ -337,6 +440,111 @@ CREATE TABLE categories (
 
 CREATE INDEX idx_categories_type ON categories(type);
 ```
+
+### Account Type Validation Rules (US-001)
+
+The application enforces strict validation rules for account type/subtype combinations:
+
+```python
+# In AccountValidator class
+VALID_SUBTYPES = {
+    AccountType.ASSET: [
+        AccountSubtype.CHECKING,
+        AccountSubtype.SAVINGS,
+        AccountSubtype.CASH,
+        AccountSubtype.INVESTMENT,
+        AccountSubtype.OTHER_ASSET,
+    ],
+    AccountType.LIABILITY: [
+        AccountSubtype.CREDIT_CARD,
+        AccountSubtype.LOAN,
+        AccountSubtype.MORTGAGE,
+        AccountSubtype.LINE_OF_CREDIT,
+        AccountSubtype.OTHER_LIABILITY,
+    ],
+    AccountType.EQUITY: [
+        AccountSubtype.OPENING_BALANCE,
+        AccountSubtype.RETAINED_EARNINGS,
+    ],
+    AccountType.INCOME: [
+        AccountSubtype.SALARY,
+        AccountSubtype.BUSINESS_INCOME,
+        AccountSubtype.INTEREST,
+        AccountSubtype.DIVIDENDS,
+        AccountSubtype.OTHER_INCOME,
+    ],
+    AccountType.EXPENSE: [
+        AccountSubtype.EXPENSE_CATEGORY,
+    ],
+}
+
+# Normal balance rules for double-entry accounting
+NORMAL_BALANCE_MAP = {
+    AccountType.ASSET: NormalBalance.DEBIT,
+    AccountType.EXPENSE: NormalBalance.DEBIT,
+    AccountType.LIABILITY: NormalBalance.CREDIT,
+    AccountType.EQUITY: NormalBalance.CREDIT,
+    AccountType.INCOME: NormalBalance.CREDIT,
+}
+```
+
+**Validation Flow:**
+1. User selects account type in UI → subtype dropdown filters valid options
+2. On save → `AccountValidator.validate_account_type_combination()` checks validity
+3. If valid → `AccountValidator.get_normal_balance()` auto-assigns normal balance
+4. Account created with validated types
+
+**Example:**
+```python
+# ✅ Valid combination
+account_type = AccountType.ASSET
+account_subtype = AccountSubtype.CHECKING
+# → normal_balance auto-assigned as DEBIT
+
+# ❌ Invalid combination
+account_type = AccountType.ASSET
+account_subtype = AccountSubtype.CREDIT_CARD
+# → ValidationError: "Invalid subtype 'credit_card' for account type 'asset'"
+```
+
+### Migration Strategy (v1.0 → v2.0)
+
+**Legacy Type Mapping:**
+```python
+LEGACY_TYPE_MAPPING = {
+    'bank': {
+        'account_type': 'asset',
+        'account_subtype': 'checking',
+        'normal_balance': 'debit'
+    },
+    'cash': {
+        'account_type': 'asset',
+        'account_subtype': 'cash',
+        'normal_balance': 'debit'
+    },
+    'credit': {
+        'account_type': 'liability',
+        'account_subtype': 'credit_card',
+        'normal_balance': 'credit'
+    },
+    'investment': {
+        'account_type': 'asset',
+        'account_subtype': 'investment',
+        'normal_balance': 'debit'
+    }
+}
+```
+
+**Migration Process:**
+1. New columns added to `accounts` table (ALTER TABLE)
+2. Existing accounts migrated using `LEGACY_TYPE_MAPPING`
+3. `legacy_type` column preserved for reference
+4. Old `type` column renamed to `legacy_type`
+5. Migration runs automatically on database initialization
+
+**Files:**
+- `finance_app/data/migrations/001_add_account_types.sql` - Schema changes
+- `finance_app/data/migrations/migrate_account_types.py` - Data migration script
 
 ---
 

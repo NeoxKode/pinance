@@ -5,7 +5,7 @@ import sqlite3
 from decimal import Decimal
 from typing import List, Optional
 
-from finance_app.data.models import Account
+from finance_app.data.models import Account, AccountType, AccountSubtype, NormalBalance
 from finance_app.data.database import Database
 from finance_app.utils.logger import setup_logger
 from finance_app.utils.exceptions import DatabaseError, NotFoundError
@@ -39,9 +39,11 @@ class AccountRepository:
             with self.db.get_connection() as conn:
                 cursor = conn.cursor()
                 cursor.execute("""
-                    SELECT id, name, type, balance, currency, created_at, updated_at
+                    SELECT id, name, account_type, account_subtype, balance,
+                           normal_balance, currency, parent_account_id,
+                           legacy_type
                     FROM accounts
-                    ORDER BY name
+                    ORDER BY account_type, name
                 """)
                 rows = cursor.fetchall()
                 return [self._row_to_account(row) for row in rows]
@@ -66,7 +68,9 @@ class AccountRepository:
             with self.db.get_connection() as conn:
                 cursor = conn.cursor()
                 cursor.execute("""
-                    SELECT id, name, type, balance, currency, created_at, updated_at
+                    SELECT id, name, account_type, account_subtype, balance,
+                           normal_balance, currency, parent_account_id,
+                           legacy_type
                     FROM accounts
                     WHERE id = ?
                 """, (account_id,))
@@ -92,12 +96,48 @@ class AccountRepository:
         try:
             with self.db.get_connection() as conn:
                 cursor = conn.cursor()
+                # Map new account type to legacy type for backward compatibility
+                legacy_type_map = {
+                    'checking': 'bank',
+                    'savings': 'bank',
+                    'cash': 'cash',
+                    'investment': 'investment',
+                    'credit_card': 'credit',
+                    'loan': 'credit',
+                    'mortgage': 'credit',
+                    'line_of_credit': 'credit',
+                }
+
+                # Handle both enum and string values
+                subtype_val = account.account_subtype.value if hasattr(account.account_subtype, 'value') else account.account_subtype
+                type_val = account.account_type.value if hasattr(account.account_type, 'value') else account.account_type
+                normal_bal_val = account.normal_balance.value if hasattr(account.normal_balance, 'value') else account.normal_balance
+
+                legacy_type = legacy_type_map.get(subtype_val, 'bank')
+
                 cursor.execute("""
-                    INSERT INTO accounts (name, type, balance, currency)
-                    VALUES (?, ?, ?, ?)
-                """, (account.name, account.type, float(account.balance), account.currency))
+                    INSERT INTO accounts (
+                        name, type, account_type, account_subtype, balance,
+                        normal_balance, currency, parent_account_id, legacy_type
+                    )
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """, (
+                    account.name,
+                    legacy_type,  # Old type column for backward compatibility
+                    type_val,
+                    subtype_val,
+                    float(account.balance),
+                    normal_bal_val,
+                    account.currency,
+                    account.parent_account_id,
+                    legacy_type  # Also store in legacy_type
+                ))
                 account.id = cursor.lastrowid
-                logger.info(f"Created account: {account.name} (ID: {account.id})")
+                logger.info(
+                    f"Created account: {account.name} "
+                    f"({type_val}/{subtype_val}, "
+                    f"ID: {account.id})"
+                )
                 return account
         except sqlite3.IntegrityError as e:
             logger.error(f"Account with name '{account.name}' already exists")
@@ -126,12 +166,48 @@ class AccountRepository:
         try:
             with self.db.get_connection() as conn:
                 cursor = conn.cursor()
+
+                # Map new account type to legacy type for backward compatibility
+                legacy_type_map = {
+                    'checking': 'bank',
+                    'savings': 'bank',
+                    'cash': 'cash',
+                    'investment': 'investment',
+                    'credit_card': 'credit',
+                    'loan': 'credit',
+                    'mortgage': 'credit',
+                    'line_of_credit': 'credit',
+                }
+
+                # Handle both enum and string values
+                subtype_val = account.account_subtype.value if hasattr(account.account_subtype, 'value') else account.account_subtype
+                type_val = account.account_type.value if hasattr(account.account_type, 'value') else account.account_type
+                normal_bal_val = account.normal_balance.value if hasattr(account.normal_balance, 'value') else account.normal_balance
+
+                legacy_type = legacy_type_map.get(subtype_val, 'bank')
+
                 cursor.execute("""
                     UPDATE accounts
-                    SET name = ?, type = ?, balance = ?, currency = ?
+                    SET name = ?,
+                        type = ?,
+                        account_type = ?,
+                        account_subtype = ?,
+                        balance = ?,
+                        normal_balance = ?,
+                        currency = ?,
+                        parent_account_id = ?
                     WHERE id = ?
-                """, (account.name, account.type, float(account.balance),
-                      account.currency, account.id))
+                """, (
+                    account.name,
+                    legacy_type,  # Update legacy type for backward compatibility
+                    type_val,
+                    subtype_val,
+                    float(account.balance),
+                    normal_bal_val,
+                    account.currency,
+                    account.parent_account_id,
+                    account.id
+                ))
 
                 if cursor.rowcount == 0:
                     raise NotFoundError(f"Account with ID {account.id} not found")
@@ -230,9 +306,13 @@ class AccountRepository:
         return Account(
             id=row['id'],
             name=row['name'],
-            type=row['type'],
+            account_type=row['account_type'],
+            account_subtype=row['account_subtype'],
             balance=Decimal(str(row['balance'])),
+            normal_balance=row['normal_balance'],
             currency=row['currency'],
-            created_at=row['created_at'],
-            updated_at=row['updated_at']
+            parent_account_id=row['parent_account_id'],
+            legacy_type=row['legacy_type'] if 'legacy_type' in row.keys() else None,
+            created_at=None,  # Not in current schema
+            updated_at=None   # Not in current schema
         )

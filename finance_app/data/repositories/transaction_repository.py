@@ -45,8 +45,7 @@ class TransactionRepository:
 
                 if account_id:
                     query = """
-                        SELECT id, account_id, date, description, category, amount, type,
-                               created_at, updated_at
+                        SELECT id, account_id, date, description, category, amount, type
                         FROM transactions
                         WHERE account_id = ?
                         ORDER BY date DESC, id DESC
@@ -54,8 +53,7 @@ class TransactionRepository:
                     params = (account_id,)
                 else:
                     query = """
-                        SELECT id, account_id, date, description, category, amount, type,
-                               created_at, updated_at
+                        SELECT id, account_id, date, description, category, amount, type
                         FROM transactions
                         ORDER BY date DESC, id DESC
                     """
@@ -88,8 +86,7 @@ class TransactionRepository:
             with self.db.get_connection() as conn:
                 cursor = conn.cursor()
                 cursor.execute("""
-                    SELECT id, account_id, date, description, category, amount, type,
-                           created_at, updated_at
+                    SELECT id, account_id, date, description, category, amount, type
                     FROM transactions
                     WHERE id = ?
                 """, (transaction_id,))
@@ -210,16 +207,14 @@ class TransactionRepository:
 
                 if account_id:
                     cursor.execute("""
-                        SELECT id, account_id, date, description, category, amount, type,
-                               created_at, updated_at
+                        SELECT id, account_id, date, description, category, amount, type
                         FROM transactions
                         WHERE category = ? AND account_id = ?
                         ORDER BY date DESC
                     """, (category, account_id))
                 else:
                     cursor.execute("""
-                        SELECT id, account_id, date, description, category, amount, type,
-                               created_at, updated_at
+                        SELECT id, account_id, date, description, category, amount, type
                         FROM transactions
                         WHERE category = ?
                         ORDER BY date DESC
@@ -257,16 +252,14 @@ class TransactionRepository:
 
                 if account_id:
                     cursor.execute("""
-                        SELECT id, account_id, date, description, category, amount, type,
-                               created_at, updated_at
+                        SELECT id, account_id, date, description, category, amount, type
                         FROM transactions
                         WHERE date BETWEEN ? AND ? AND account_id = ?
                         ORDER BY date DESC
                     """, (start_date, end_date, account_id))
                 else:
                     cursor.execute("""
-                        SELECT id, account_id, date, description, category, amount, type,
-                               created_at, updated_at
+                        SELECT id, account_id, date, description, category, amount, type
                         FROM transactions
                         WHERE date BETWEEN ? AND ?
                         ORDER BY date DESC
@@ -297,6 +290,6 @@ class TransactionRepository:
             category=row['category'],
             amount=Decimal(str(row['amount'])),
             type=row['type'],
-            created_at=row['created_at'],
-            updated_at=row['updated_at']
+            created_at=None,  # Not in current schema
+            updated_at=None   # Not in current schema
         )
