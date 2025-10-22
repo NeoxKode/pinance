@@ -2,13 +2,14 @@
 
 **Story ID:** US-002A
 **Epic:** [EPIC-001 - Account Management & Double-Entry Foundation](../../epics/epic-01-account-management.md)
-**Status:** 📋 Ready for Development
+**Status:** ✅ Ready for Sprint 2 (Tech Lead Approved)
 **Priority:** P0 (Must Have - Blocking)
 **Story Points:** 8
 **Sprint:** Sprint 2
-**Assignee:** TBD
+**Assignee:** Backend Developer (Primary), Frontend Developer (Support Day 8-9)
 **Created:** October 22, 2025
-**Updated:** October 22, 2025
+**Updated:** October 22, 2025 (Tech Lead Review Complete)
+**Tech Lead Review:** ✅ Approved with corrections applied
 **Related Stories:** US-002B (Balanced Transaction Groups)
 
 ---
@@ -80,22 +81,16 @@
 
 ## 🔧 Technical Implementation
 
+**⚠️ TECH LEAD NOTE:** This story (US-002A) focuses ONLY on single-entry journal foundation. TransactionGroup and balanced multi-entry transactions are deferred to US-002B.
+
+**Migration File:** `/finance_app/data/migrations/002_create_journal_entries.sql`
+**Integration Tests:** `/finance_app/tests/integration/test_journal_triggers.py`
+
 ### New Database Tables
 
 ```sql
 -- Migration: 002_create_journal_entries.sql
-
--- Transaction groups (for multi-entry transactions like transfers)
-CREATE TABLE transaction_groups (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    group_date TEXT NOT NULL,
-    description TEXT NOT NULL,
-    notes TEXT,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    created_by TEXT
-);
-
-CREATE INDEX idx_transaction_groups_date ON transaction_groups(group_date DESC);
+-- Full migration file available at: finance_app/data/migrations/002_create_journal_entries.sql
 
 -- Journal entries (double-entry ledger)
 CREATE TABLE journal_entries (
@@ -248,40 +243,7 @@ class JournalEntry:
         return self.credit_amount > 0
 
 
-@dataclass
-class TransactionGroup:
-    """Group of related journal entries (for transfers, splits)."""
-    id: Optional[int]
-    group_date: str
-    description: str
-    notes: Optional[str] = None
-    created_at: Optional[datetime] = None
-    created_by: Optional[str] = None
-
-    def validate_balance(self, entries: List[JournalEntry]) -> bool:
-        """
-        Validate that entries in this group balance (debits = credits).
-
-        Args:
-            entries: List of journal entries in this group
-
-        Returns:
-            True if balanced, False otherwise
-        """
-        total_debits = sum(e.debit_amount for e in entries)
-        total_credits = sum(e.credit_amount for e in entries)
-        difference = abs(total_debits - total_credits)
-
-        # Allow for tiny rounding differences (1 cent)
-        return difference < Decimal('0.01')
-
-    def get_total_debits(self, entries: List[JournalEntry]) -> Decimal:
-        """Get total debit amount."""
-        return sum(e.debit_amount for e in entries)
-
-    def get_total_credits(self, entries: List[JournalEntry]) -> Decimal:
-        """Get total credit amount."""
-        return sum(e.credit_amount for e in entries)
+**⚠️ TECH LEAD NOTE:** TransactionGroup model is NOT in US-002A scope. Moved to US-002B.
 ```
 
 ### Repository Layer
@@ -338,98 +300,8 @@ class JournalEntryRepository:
             logger.error(f"Failed to create journal entry: {e}")
             raise DatabaseError(f"Failed to create journal entry: {e}") from e
 
-    def create_balanced_group(
-        self,
-        entries: List[JournalEntry],
-        group: TransactionGroup
-    ) -> tuple[TransactionGroup, List[JournalEntry]]:
-        """
-        Create a group of balanced journal entries atomically.
-
-        Args:
-            entries: List of journal entries
-            group: Transaction group
-
-        Returns:
-            Tuple of (created_group, created_entries)
-
-        Raises:
-            ValidationError: If entries are not balanced
-            DatabaseError: If creation fails
-        """
-        # Validate balance
-        if not group.validate_balance(entries):
-            total_debits = group.get_total_debits(entries)
-            total_credits = group.get_total_credits(entries)
-            raise ValidationError(
-                f"Journal entries not balanced: "
-                f"Debits={total_debits}, Credits={total_credits}"
-            )
-
-        try:
-            with self.db.get_connection() as conn:
-                conn.execute("BEGIN TRANSACTION")
-                cursor = conn.cursor()
-
-                try:
-                    # Create transaction group
-                    cursor.execute("""
-                        INSERT INTO transaction_groups (group_date, description, notes)
-                        VALUES (?, ?, ?)
-                    """, (group.group_date, group.description, group.notes))
-                    group.id = cursor.lastrowid
-
-                    # Create all journal entries
-                    created_entries = []
-                    for entry in entries:
-                        entry.group_id = group.id
-
-                        # Calculate balance_after for this entry
-                        # Get current account balance
-                        cursor.execute(
-                            "SELECT balance FROM accounts WHERE id = ?",
-                            (entry.account_id,)
-                        )
-                        current_balance = Decimal(str(cursor.fetchone()[0]))
-                        entry.balance_after = current_balance + entry.amount
-
-                        # Insert entry (triggers will update account balance)
-                        cursor.execute("""
-                            INSERT INTO journal_entries (
-                                group_id, account_id, entry_date, description,
-                                debit_amount, credit_amount, balance_after,
-                                entry_type, reference_number, notes
-                            )
-                            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                        """, (
-                            entry.group_id,
-                            entry.account_id,
-                            entry.entry_date,
-                            entry.description,
-                            float(entry.debit_amount),
-                            float(entry.credit_amount),
-                            float(entry.balance_after),
-                            entry.entry_type.value,
-                            entry.reference_number,
-                            entry.notes
-                        ))
-                        entry.id = cursor.lastrowid
-                        created_entries.append(entry)
-
-                    conn.commit()
-                    logger.info(
-                        f"Created transaction group {group.id} with "
-                        f"{len(created_entries)} entries"
-                    )
-                    return group, created_entries
-
-                except Exception as e:
-                    conn.rollback()
-                    raise
-
-        except sqlite3.Error as e:
-            logger.error(f"Failed to create journal entry group: {e}")
-            raise DatabaseError(f"Failed to create journal entry group: {e}") from e
+    # ⚠️ TECH LEAD NOTE: create_balanced_group() is US-002B scope, not US-002A
+    # Deferred to US-002B: Balanced Transaction Groups
 
     def get_by_account(
         self,
@@ -806,20 +678,56 @@ def test_running_balance_calculation(journal_repo, test_account):
 
 ## ✅ Definition of Done
 
+### Database & Schema
 - [ ] journal_entries table created with migration script
+- [ ] trigger_audit table created (for debugging)
 - [ ] Database triggers working correctly (insert/update/delete balance updates)
+- [ ] Composite index added (account_id, entry_date)
+- [ ] Migration rollback script tested
+- [ ] Foreign key constraints enforced
+
+### Code Implementation
 - [ ] JournalEntry model implemented with validation
+- [ ] EntryType enum implemented
 - [ ] JournalEntryRepository CRUD operations complete
+- [ ] balance_after calculated correctly (before insert)
+- [ ] Transaction isolation implemented (BEGIN IMMEDIATE)
 - [ ] DoubleEntryService single-entry operations working
 - [ ] TransactionService updated to create journal entries
 - [ ] Balance validation function working correctly
-- [ ] All unit tests passing (15+ tests)
-- [ ] Integration tests passing (3+ tests)
+- [ ] Decimal arithmetic handled correctly (no float precision errors)
+
+### Testing
+- [ ] All unit tests passing (15+ tests for models/repository)
+- [ ] Integration tests passing (12+ tests for triggers)
+- [ ] Trigger integration tests passing (test_journal_triggers.py)
+- [ ] Backward compatibility verified (old transactions still work)
+- [ ] Race condition testing (concurrent inserts)
+- [ ] Rollback testing (failed operations don't corrupt data)
 - [ ] Performance test: Query 10,000 journal entries in < 500ms ✅
+- [ ] Performance test: Balance calculation from 10k entries < 100ms ✅
+
+### Quality & Review
 - [ ] No regression in existing transaction creation UI
 - [ ] Code reviewed and approved by tech lead
-- [ ] Documentation complete with examples
+- [ ] All code review feedback addressed
+- [ ] Logging added for debugging
+- [ ] Error handling robust and clear
+- [ ] No technical debt added
+
+### Documentation
+- [ ] ARCHITECTURE.md updated with journal entry system
+- [ ] Trigger behavior documented
+- [ ] Migration notes added
+- [ ] Code examples provided
 - [ ] Manual testing: Create transaction and verify journal entry created
+
+### Tech Lead Sign-Off
+- [ ] Database design approved
+- [ ] Code quality meets standards
+- [ ] Test coverage adequate
+- [ ] Performance benchmarks met
+- [ ] Ready for production
 
 ---
 
