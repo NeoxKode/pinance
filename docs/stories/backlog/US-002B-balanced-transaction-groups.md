@@ -4,8 +4,8 @@
 **Epic:** [EPIC-001 - Account Management & Double-Entry Foundation](../../epics/epic-01-account-management.md)
 **Status:** 📋 Backlog
 **Priority:** P0 (Must Have - Blocking)
-**Story Points:** 5
-**Sprint:** Sprint 2 or 3
+**Story Points:** 8
+**Sprint:** Sprint 3
 **Assignee:** TBD
 **Created:** October 22, 2025
 **Related Stories:** US-002A (Journal Entry Foundation) - DEPENDENCY
@@ -14,43 +14,83 @@
 
 ## 📖 User Story
 
-**As a** power user managing transfers between accounts
-**I want** transfers to be automatically balanced (debit one account, credit another)
-**So that** my books always balance and I can track money movement accurately
+**As a** finance app user
+**I want** my existing account balances to have journal entries AND support transfers between accounts
+**So that** my journal is complete from day one and I can track money movement accurately
 
-**Technical Implementation:** This story builds on US-002A to enable multi-entry balanced transactions, including transfers, split transactions, and complex journal entries.
+**Technical Implementation:** This story builds on US-002A to:
+1. Migrate existing account balances to opening balance journal entries
+2. Enable balanced multi-entry transactions (transfers)
+3. Provide validation tools to ensure data integrity
 
 ---
 
 ## 🎯 Business Value
 
+- **Complete Journal History:** Existing accounts get opening balance entries for full audit trail
 - **Account Transfers:** Enable moving money between accounts with perfect accuracy
-- **Split Transactions:** Support transactions affecting multiple accounts
 - **Accounting Balance:** Guarantee debits always equal credits
 - **Financial Integrity:** Prevent unbalanced books through validation
-- **Advanced Workflows:** Foundation for paycheck splits, bill payments, etc.
+- **Data Migration Safety:** Automated migration with validation tools
 
-**Scope:** This story (Phase 2) adds transaction groups and balanced multi-entry capabilities on top of the foundation built in US-002A.
+**Scope:** This story (Phase 2) migrates existing balances to journal entries and adds transaction groups for balanced multi-entry capabilities on top of the foundation built in US-002A.
+
+---
+
+## 📝 Story Refinement Notes
+
+**Refinement Date:** October 22, 2025
+**Reviewed By:** Tech Lead
+
+### Changes Made During Refinement:
+1. **ADDED:** AC1 - Opening Balance Migration (CRITICAL - was missing)
+2. **REMOVED:** AC4 - Split Transactions (deferred to US-002C)
+3. **UPDATED:** Story points from 5 to 8 (added 16 hours for migration work)
+4. **UPDATED:** User story to include opening balance migration
+5. **ADDED:** Opening balance migration technical implementation section
+6. **ADDED:** 9 new tasks for migration work (Phase 1)
+7. **UPDATED:** Definition of Done with migration criteria
+8. **ADDED:** Migration test scenarios
+
+### Rationale:
+- **Opening balance migration is ESSENTIAL** for Sprint 3 because without it, journal entries don't exist for existing account balances, making the journal incomplete
+- **Split transactions add complexity** and should be deferred to keep this story focused on core foundation
+- **Story points increased** to reflect additional scope (migration = 2 points, transfer UI = 2 points)
+
+### Deferred to Future Stories:
+- **US-002C:** Split Transactions (paycheck splits, bill splits)
+- **US-007:** Advanced Transfer UI (may be combined with Phase 4 if needed)
 
 ---
 
 ## ✅ Acceptance Criteria
 
-### AC1: Transaction Groups
+### AC1: Opening Balance Migration (CRITICAL)
+**Given** I have existing accounts with non-zero balances (from US-001)
+**When** I run the opening balance migration script
+**Then** a journal entry is created for each account's current balance
+**And** the entry type is OPENING
+**And** the entry date is the account creation date (or migration date if unknown)
+**And** for Asset accounts with positive balance: debit journal entry
+**And** for Liability accounts with positive balance: credit journal entry
+**And** after migration, `scripts/validate_balances.py` shows all accounts VALID
+**And** the journal balance matches the account table balance for every account
+
+### AC2: Transaction Groups
 **Given** I have the journal entry foundation (US-002A complete)
 **When** I create a transfer between two accounts
 **Then** a transaction group is created linking the journal entries
 **And** the group has a date and description
 **And** all entries in the group share the same group_id
 
-### AC2: Balanced Multi-Entry Transactions
+### AC3: Balanced Multi-Entry Transactions
 **Given** I create a transaction with multiple journal entries
 **When** the entries are saved
 **Then** the sum of all debits must equal the sum of all credits
 **And** if unbalanced, the transaction must be rejected with clear error message
 **And** no partial data is saved (transaction rollback)
 
-### AC3: Account Transfers
+### AC4: Account Transfers
 **Given** I want to transfer $500 from Checking to Savings
 **When** I initiate the transfer
 **Then** two journal entries are created:
@@ -61,17 +101,7 @@
 **And** savings balance increases by $500
 **And** total debits = total credits = $500
 
-### AC4: Split Transactions (Advanced)
-**Given** I receive a $5000 paycheck
-**When** I split it into multiple accounts (e.g., 70% Checking, 20% Savings, 10% Investment)
-**Then** multiple journal entries are created in one balanced group:
-  - Credit: Income -$5000
-  - Debit: Checking +$3500
-  - Debit: Savings +$1000
-  - Debit: Investment +$500
-**And** all entries balance (total debits = total credits = $5000)
-
-### AC5: User Experience
+### AC5: User Experience (Transfer UI)
 **Given** I use the transfer feature in the UI
 **When** I complete a transfer
 **Then** I see confirmation "Transfer successful"
@@ -82,6 +112,116 @@
 ---
 
 ## 🔧 Technical Implementation
+
+### Opening Balance Migration
+
+**Migration Script:** `scripts/migrate_opening_balances.py`
+
+```python
+#!/usr/bin/env python3
+"""
+Migrate existing account balances to opening balance journal entries.
+
+Usage:
+    python scripts/migrate_opening_balances.py [--dry-run] [--date YYYY-MM-DD]
+
+This script creates OPENING journal entries for all accounts with non-zero balances.
+"""
+import sys
+from pathlib import Path
+from decimal import Decimal
+from datetime import datetime
+
+project_root = Path(__file__).parent.parent
+sys.path.insert(0, str(project_root))
+
+from finance_app.data.database import Database
+from finance_app.data.repositories.account_repository import AccountRepository
+from finance_app.data.repositories.journal_entry_repository import JournalEntryRepository
+from finance_app.business.double_entry_service import DoubleEntryService
+from finance_app.data.models import EntryType
+
+def migrate_opening_balances(dry_run: bool = False, opening_date: str = None):
+    """
+    Create opening balance journal entries for all accounts.
+
+    Args:
+        dry_run: If True, only print what would be done
+        opening_date: Date for opening entries (default: today)
+    """
+    db = Database()
+    account_repo = AccountRepository(db)
+    double_entry_service = DoubleEntryService(db)
+
+    if opening_date is None:
+        opening_date = datetime.now().strftime("%Y-%m-%d")
+
+    print(f"\n{'DRY RUN: ' if dry_run else ''}Migrating opening balances...")
+    print(f"Opening balance date: {opening_date}\n")
+
+    accounts = account_repo.get_all()
+    migrated_count = 0
+    skipped_count = 0
+
+    for account in accounts:
+        if account.balance == Decimal("0"):
+            print(f"  SKIP: {account.name} (zero balance)")
+            skipped_count += 1
+            continue
+
+        print(f"  {'WOULD CREATE' if dry_run else 'CREATING'}: {account.name} "
+              f"opening balance = ${account.balance}")
+
+        if not dry_run:
+            # Create opening balance journal entry
+            entry = double_entry_service.create_simple_transaction(
+                account_id=account.id,
+                amount=abs(account.balance),
+                date=opening_date,
+                description=f"Opening balance for {account.name}",
+                entry_type=EntryType.OPENING,
+                transaction_id=None,  # Opening balances don't link to transactions
+                reference_number="OPENING-BALANCE",
+                notes="Automatically created by opening balance migration"
+            )
+            print(f"    ✓ Created journal entry {entry.id}")
+            migrated_count += 1
+        else:
+            migrated_count += 1
+
+    print(f"\n{'DRY RUN ' if dry_run else ''}Summary:")
+    print(f"  Accounts migrated: {migrated_count}")
+    print(f"  Accounts skipped: {skipped_count}")
+    print(f"  Total accounts: {len(accounts)}")
+
+    if not dry_run:
+        print("\n✓ Migration complete!")
+        print("Run: python scripts/validate_balances.py to verify")
+
+    return migrated_count, skipped_count
+
+if __name__ == "__main__":
+    import argparse
+
+    parser = argparse.ArgumentParser(description="Migrate opening balances")
+    parser.add_argument("--dry-run", action="store_true",
+                       help="Print what would be done without making changes")
+    parser.add_argument("--date", type=str,
+                       help="Opening balance date (default: today)")
+
+    args = parser.parse_args()
+
+    migrate_opening_balances(dry_run=args.dry_run, opening_date=args.date)
+```
+
+**Validation After Migration:**
+```bash
+# Verify all accounts balanced
+python scripts/validate_balances.py
+
+# Expected output:
+# ✓ All accounts valid (100%)
+```
 
 ### New Database Table
 
@@ -319,72 +459,79 @@ def test_reject_unbalanced_group(journal_repo):
         journal_repo.create_balanced_group(entries, group)
 ```
 
-### Test 3: Split Transaction
+### Test 3: Opening Balance Migration
 ```python
-def test_split_transaction(double_entry_service, income_account, checking_account,
-                          savings_account, investment_account):
-    """Test splitting income across multiple accounts."""
-    group = TransactionGroup(
-        group_date="2025-10-22",
-        description="Paycheck split"
+def test_migrate_opening_balances(account_repo, journal_repo, double_entry_service):
+    """Test creating opening balance journal entries."""
+    # Create accounts with balances
+    checking = create_account(name="Checking", balance=Decimal("1000.00"))
+    savings = create_account(name="Savings", balance=Decimal("5000.00"))
+    zero_account = create_account(name="Zero", balance=Decimal("0"))
+
+    # Run migration
+    from scripts.migrate_opening_balances import migrate_opening_balances
+    migrated, skipped = migrate_opening_balances(
+        dry_run=False,
+        opening_date="2025-01-01"
     )
 
-    entries = [
-        # Credit income
-        JournalEntry(
-            account_id=income_account.id,
-            debit_amount=Decimal("0"),
-            credit_amount=Decimal("5000.00"),
-            ...
-        ),
-        # Debit checking (70%)
-        JournalEntry(
-            account_id=checking_account.id,
-            debit_amount=Decimal("3500.00"),
-            credit_amount=Decimal("0"),
-            ...
-        ),
-        # Debit savings (20%)
-        JournalEntry(
-            account_id=savings_account.id,
-            debit_amount=Decimal("1000.00"),
-            credit_amount=Decimal("0"),
-            ...
-        ),
-        # Debit investment (10%)
-        JournalEntry(
-            account_id=investment_account.id,
-            debit_amount=Decimal("500.00"),
-            credit_amount=Decimal("0"),
-            ...
-        )
-    ]
+    assert migrated == 2  # Checking and Savings
+    assert skipped == 1   # Zero account
 
-    created_group, created_entries = journal_repo.create_balanced_group(entries, group)
+    # Verify journal entries created
+    checking_entries = journal_repo.get_by_account(checking.id)
+    assert len(checking_entries) == 1
+    assert checking_entries[0].entry_type == EntryType.OPENING
+    assert checking_entries[0].debit_amount == Decimal("1000.00")
 
-    assert created_group.id is not None
-    assert len(created_entries) == 4
-    assert group.validate_balance(created_entries) is True
+    # Verify balances match
+    from finance_app.utils.admin_tools import AdminTools
+    admin = AdminTools(db)
+    results = admin.validate_all_account_balances()
+    assert all(r.is_valid for r in results)
 ```
 
 ---
 
 ## 📋 Tasks Breakdown
 
-- [ ] **Task 2B.1:** Create transaction_groups table migration (1 hour)
-- [ ] **Task 2B.2:** Create TransactionGroup model (1 hour)
-- [ ] **Task 2B.3:** Create TransactionGroupRepository (2 hours)
-- [ ] **Task 2B.4:** Enhance JournalEntryRepository with create_balanced_group() (3 hours)
-- [ ] **Task 2B.5:** Add transfer functionality to DoubleEntryService (3 hours)
-- [ ] **Task 2B.6:** Write unit tests for TransactionGroup (2 hours)
-- [ ] **Task 2B.7:** Write integration tests for balanced groups (3 hours)
-- [ ] **Task 2B.8:** Write integration tests for transfers (3 hours)
-- [ ] **Task 2B.9:** Add UI for transfers (optional - may be separate story) (4 hours)
-- [ ] **Task 2B.10:** Documentation and examples (2 hours)
+### Phase 1: Opening Balance Migration (Days 1-3, 16 hours)
+- [ ] **Task 2B.1:** Create opening balance migration script (`scripts/migrate_opening_balances.py`) (3 hours)
+- [ ] **Task 2B.2:** Add --dry-run flag for safe testing (1 hour)
+- [ ] **Task 2B.3:** Write unit tests for migration script (3 hours)
+- [ ] **Task 2B.4:** Integration test: Migrate real data and validate (2 hours)
+- [ ] **Task 2B.5:** Run migration on production data (with backup) (1 hour)
+- [ ] **Task 2B.6:** Validate all accounts with `scripts/validate_balances.py` (1 hour)
+- [ ] **Task 2B.7:** Document migration process in story (1 hour)
+- [ ] **Task 2B.8:** Add rollback instructions if needed (1 hour)
+- [ ] **Task 2B.9:** Handle edge cases (negative balances, equity accounts) (3 hours)
 
-**Total Estimated Time:** 24 hours (approx. 3 days = 5 story points)
+**Day 3 Checkpoint:** All accounts have opening balance journal entries, validation passes 100%
 
-**Note:** If UI for transfers is complex, consider splitting into US-007 (Transfer UI)
+### Phase 2: Transaction Groups (Days 4-5, 12 hours)
+- [ ] **Task 2B.10:** Create transaction_groups table migration (1 hour)
+- [ ] **Task 2B.11:** Create TransactionGroup model with balance validation (2 hours)
+- [ ] **Task 2B.12:** Create TransactionGroupRepository (2 hours)
+- [ ] **Task 2B.13:** Enhance JournalEntryRepository with create_balanced_group() (3 hours)
+- [ ] **Task 2B.14:** Write unit tests for TransactionGroup model (2 hours)
+- [ ] **Task 2B.15:** Write integration tests for balanced groups (2 hours)
+
+### Phase 3: Transfer Service (Days 6-7, 12 hours)
+- [ ] **Task 2B.16:** Add create_transfer() to DoubleEntryService (3 hours)
+- [ ] **Task 2B.17:** Add validation (same account, negative amount) (1 hour)
+- [ ] **Task 2B.18:** Write unit tests for transfer service (3 hours)
+- [ ] **Task 2B.19:** Write integration tests for transfers (3 hours)
+- [ ] **Task 2B.20:** Test edge cases (zero balance accounts, large transfers) (2 hours)
+
+### Phase 4: Transfer UI (Day 8, 8 hours - OPTIONAL)
+- [ ] **Task 2B.21:** Create TransferDialog UI component (3 hours)
+- [ ] **Task 2B.22:** Add account selection dropdowns (2 hours)
+- [ ] **Task 2B.23:** Add "Transfer" button to main window (1 hour)
+- [ ] **Task 2B.24:** Manual UI testing (2 hours)
+
+**Total Estimated Time:** 48 hours (6 days implementation + 2 days buffer = 8 story points)
+
+**Note:** Phase 4 (Transfer UI) can be deferred to US-007 if time is tight. Core backend work (Phases 1-3) is 40 hours = 5 points.
 
 ---
 
@@ -392,28 +539,62 @@ def test_split_transaction(double_entry_service, income_account, checking_accoun
 
 ### Blocked By
 - US-002A (Journal Entry Foundation) - MUST be completed first
+  - Requires: JournalEntry model, JournalEntryRepository, DoubleEntryService
+  - Requires: EntryType.OPENING enum value
+  - Requires: Database triggers for balance updates
 
 ### Blocks
-- US-004 (Opening Balances) - needs transfer capability
+- US-002C (Split Transactions) - deferred advanced feature
 - US-006 (Account Hierarchy) - may use transfer logic
 - Future transfer UI features
+
+### Notes
+- Opening balance migration (previously US-004) is now included in this story
+- Split transactions deferred to US-002C to keep this story focused
 
 ---
 
 ## ✅ Definition of Done
 
+### Phase 1: Opening Balance Migration
+- [ ] `scripts/migrate_opening_balances.py` created and tested
+- [ ] --dry-run flag works correctly
+- [ ] Migration creates OPENING journal entries for all non-zero accounts
+- [ ] `scripts/validate_balances.py` shows 100% valid after migration
+- [ ] Migration unit tests passing (5+ tests)
+- [ ] Migration integration test passing
+- [ ] Edge cases handled (negative balances, equity accounts)
+- [ ] Rollback instructions documented
+
+### Phase 2: Transaction Groups
 - [ ] transaction_groups table created with migration
 - [ ] TransactionGroup model implemented with balance validation
 - [ ] TransactionGroupRepository CRUD operations complete
 - [ ] JournalEntryRepository.create_balanced_group() working
-- [ ] DoubleEntryService.create_transfer() working
-- [ ] All unit tests passing (10+ tests)
-- [ ] Integration tests passing (5+ tests)
-- [ ] Transfer validation rejects unbalanced entries
+- [ ] Unit tests passing (10+ tests for groups)
+- [ ] Integration tests passing (5+ tests for balanced groups)
 - [ ] Atomicity verified (rollback on failure)
-- [ ] Code reviewed and approved by tech lead
-- [ ] Documentation complete with transfer examples
+
+### Phase 3: Transfer Service
+- [ ] DoubleEntryService.create_transfer() working
+- [ ] Transfer validation rejects unbalanced entries
+- [ ] Transfer validation rejects same-account transfers
+- [ ] Unit tests passing (8+ tests for transfers)
+- [ ] Integration tests passing (5+ tests for transfers)
+- [ ] Edge cases tested (zero balance, large amounts)
+
+### Phase 4: Transfer UI (OPTIONAL)
+- [ ] TransferDialog UI component created
+- [ ] "Transfer" button added to main window
 - [ ] Manual testing: Transfer between accounts successful
+- [ ] UI shows success confirmation
+
+### Overall
+- [ ] All tests passing (30+ total tests)
+- [ ] Code reviewed and approved by tech lead
+- [ ] Documentation complete with examples
+- [ ] Performance: Transfers complete < 100ms
+- [ ] Zero regression in existing functionality
 
 ---
 
@@ -427,5 +608,8 @@ def test_split_transaction(double_entry_service, income_account, checking_accoun
 ---
 
 **Story Created:** October 22, 2025
+**Last Refined:** October 22, 2025 (Tech Lead review - added opening balance migration)
 **Dependencies:** US-002A must be completed first
-**Estimated Start:** Sprint 2 or 3 (after US-002A)
+**Estimated Start:** Sprint 3 (after US-002A completion)
+**Story Points:** 8 (6 days implementation + 2 days buffer)
+**Critical Path:** Opening balance migration → Transaction groups → Transfers → UI
