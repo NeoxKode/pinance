@@ -2,16 +2,17 @@
 
 **Story ID:** US-002A
 **Epic:** [EPIC-001 - Account Management & Double-Entry Foundation](../../epics/epic-01-account-management.md)
-**Status:** 🚧 In Progress (Days 1-4 Complete - Ahead of Schedule!)
+**Status:** 🚧 In Progress (Days 1-5 Complete - Ahead of Schedule!)
 **Priority:** P0 (Must Have - Blocking)
 **Story Points:** 8
 **Sprint:** Sprint 2
 **Assignee:** Backend Developer (Primary), Frontend Developer (Support Day 8-9)
 **Created:** October 22, 2025
-**Updated:** October 22, 2025 (Implementation In Progress)
+**Updated:** October 22, 2025 (Core Implementation Complete - 65 Tests Passing)
 **Tech Lead Review:** ✅ Approved with corrections applied
 **Related Stories:** US-002B (Balanced Transaction Groups)
-**Progress:** 50% (5/10 days completed, core foundation done)
+**Progress:** 50% (5/10 days completed, foundation + service layer done)
+**Test Status:** ✅ 65/65 tests passing (100% pass rate)
 
 ---
 
@@ -743,7 +744,7 @@ def test_running_balance_calculation(journal_repo, test_account):
 
 ## 📊 Implementation Progress
 
-### ✅ Completed Tasks (Days 1-4)
+### ✅ Completed Tasks (Days 1-5)
 
 **Day 1-2: Database Foundation** ✓
 - [x] **Task 2A.1:** Migration 002 implemented and running
@@ -785,19 +786,25 @@ def test_running_balance_calculation(journal_repo, test_account):
   - ✅ Tests for validation, type conversion, helper properties, edge cases
   - Commit: d26468d
 
-### 🚧 In Progress
+- [x] **Task 2A.8:** Unit tests for JournalEntryRepository
+  - ✅ 19 unit tests - ALL PASSING
+  - ✅ 100% test code coverage, 89% repository coverage
+  - ✅ Tests for CRUD, filtering, balance calculation, error handling
+  - ✅ Mock-based testing for isolation
+  - Commit: 235f190
 
-**Day 4 (Current):**
-- [ ] **Task 2A.8:** Unit tests for JournalEntryRepository (in progress)
+**Day 5: Service Layer** ✓
+- [x] **Task 2A.5:** Create DoubleEntryService
+  - ✅ create_simple_transaction() with automatic debit/credit logic
+  - ✅ validate_account_balance() for reconciliation
+  - ✅ get_account_balance() - authoritative balance query
+  - ✅ get_journal_entries() with date filtering
+  - ✅ Debit/credit logic based on normal_balance
+  - ✅ 17 service unit tests - ALL PASSING
+  - ✅ 92% service coverage
+  - Commit: 4760154
 
-### 📋 Remaining Tasks (Days 5-10)
-
-**Day 5: Service Layer**
-- [ ] **Task 2A.5:** Create DoubleEntryService
-  - create_simple_transaction()
-  - validate_account_balance()
-  - Debit/credit logic based on normal_balance
-  - Service layer tests
+### 📋 Remaining Tasks (Days 6-10)
 
 **Days 6-7: Integration & Performance**
 - [ ] **Task 2A.6:** Update TransactionService
@@ -838,18 +845,19 @@ def test_running_balance_calculation(journal_repo, test_account):
 |-----------|-------|--------|----------|
 | Database Triggers | 11 | ✅ Passing | 100% |
 | JournalEntry Model | 18 | ✅ Passing | 100% |
-| JournalEntryRepository | 0 | 🚧 In Progress | ~50% |
-| DoubleEntryService | 0 | ⏳ Pending | 0% |
-| Integration Tests | 0 | ⏳ Pending | 0% |
-| **TOTAL** | **29** | **29/29 passing** | **~40%** |
+| JournalEntryRepository | 19 | ✅ Passing | 89% |
+| DoubleEntryService | 17 | ✅ Passing | 92% |
+| End-to-End Integration | 0 | ⏳ Pending | 0% |
+| **TOTAL** | **65** | **65/65 passing** | **48%** |
 
 ### 🎯 Sprint Status
 
-**Overall Progress:** 50% complete (Days 1-4 of 10)
-**Status:** ✅ Ahead of schedule - core foundation complete
-**Risk Level:** 🟢 Low (solid progress, well-tested foundation)
+**Overall Progress:** 50% complete (Days 1-5 of 10)
+**Status:** ✅ Ahead of schedule - core foundation and service layer complete!
+**Risk Level:** 🟢 Low (solid progress, well-tested, all 65 tests passing)
 **Blockers:** None
-**Next Milestone:** Complete repository unit tests, begin service layer (Day 5)
+**Test Quality:** 100% pass rate, comprehensive coverage
+**Next Milestone:** Integrate with TransactionService (Day 6)
 
 ---
 
