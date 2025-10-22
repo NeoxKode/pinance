@@ -1,60 +1,80 @@
-# US-002: Double-Entry Account Model
+# US-002A: Journal Entry Foundation (Double-Entry Phase 1)
 
-**Story ID:** US-002
-**Epic:** [EPIC-001 - Account Management & Double-Entry Foundation](../epics/epic-01-account-management.md)
+**Story ID:** US-002A
+**Epic:** [EPIC-001 - Account Management & Double-Entry Foundation](../../epics/epic-01-account-management.md)
 **Status:** 📋 Ready for Development
 **Priority:** P0 (Must Have - Blocking)
-**Story Points:** 13
-**Sprint:** Sprint 1
+**Story Points:** 8
+**Sprint:** Sprint 2
 **Assignee:** TBD
 **Created:** October 22, 2025
+**Updated:** October 22, 2025
+**Related Stories:** US-002B (Balanced Transaction Groups)
 
 ---
 
 ## 📖 User Story
 
-**As a** developer
-**I want** accounts to support double-entry accounting with journal entries
-**So that** every transaction automatically creates balanced debit/credit records
+**As a** power user tracking my finances
+**I want** every transaction to be recorded with professional double-entry accuracy
+**So that** I can trust my financial reports and account balances are always correct
+
+**Technical Implementation:** This story establishes the journal entry foundation that enables double-entry accounting behind the scenes, without adding complexity to the user interface.
 
 ---
 
 ## 🎯 Business Value
 
-- **Professional Accuracy:** Maintains accounting integrity (debits = credits)
+- **Professional Accuracy:** Maintains accounting integrity behind the scenes
 - **Audit Trail:** Every balance change is traceable through journal entries
-- **Foundation for Features:** Enables transfers, reconciliation, and accounting reports
-- **Data Integrity:** Prevents data corruption through validation
-- **Trust:** Users can trust their financial data is accurate
+- **Foundation for Features:** Enables transfers, reconciliation, and accounting reports (US-002B)
+- **Data Integrity:** Prevents data corruption through automatic validation
+- **User Trust:** Users can trust their financial data is always accurate
+
+**Scope:** This story (Phase 1) focuses on the backend foundation - database tables, models, and single-entry journal creation. Multi-entry balanced transactions and transfers are in US-002B (Phase 2).
 
 ---
 
 ## ✅ Acceptance Criteria
 
-### AC1: Journal Entry Creation
+### AC1: Journal Entry Creation (Backend)
 **Given** any account balance changes
-**When** the change occurs (transaction, transfer, adjustment)
+**When** the change occurs (single transaction or adjustment)
 **Then** a corresponding journal entry must be created
 **And** the journal entry must have either debit OR credit amount (not both)
 **And** the entry must update the account's cached balance
+**And** the database triggers must handle the balance update automatically
 
-### AC2: Balanced Transactions
-**Given** I create a transaction with multiple journal entries
-**When** the entries are saved
-**Then** the sum of all debits must equal the sum of all credits
-**And** if unbalanced, the transaction must be rejected with clear error
+**Note:** Multi-entry balanced transactions (transfers) are in US-002B.
 
-### AC3: Balance Integrity
+### AC2: Balance Integrity (Backend)
 **Given** an account exists with journal entries
 **When** I query the account balance
 **Then** the cached balance in accounts table must equal the sum of journal entries
 **And** calculated_balance = SUM(debit_amount - credit_amount) for that account
+**And** validation function confirms balance within 1 cent tolerance
 
-### AC4: Running Balance
+### AC3: Running Balance (Backend)
 **Given** journal entries are ordered by date
-**When** I view journal entries for an account
+**When** I query journal entries for an account
 **Then** each entry shows the running balance_after amount
 **And** the final entry's balance_after equals the current account balance
+
+### AC4: Database Constraints (Backend)
+**Given** I attempt to create an invalid journal entry
+**When** the entry violates rules (negative amount, both debit and credit, zero amount)
+**Then** the database trigger must reject it with clear error
+**And** no partial data is saved (transaction rollback)
+
+### AC5: User Experience (Frontend)
+**Given** I create a new transaction in the UI
+**When** I save it
+**Then** I should NOT see any double-entry complexity (technical details hidden)
+**And** the transaction should appear in my account immediately
+**And** the account balance should update correctly
+**And** the UI should feel exactly the same as before (no regression)
+
+**Note:** This ensures the technical foundation doesn't disrupt the user experience.
 
 ---
 
@@ -746,51 +766,60 @@ def test_running_balance_calculation(journal_repo, test_account):
 
 ---
 
-## 📋 Tasks Breakdown
+## 📋 Tasks Breakdown (US-002A: Phase 1 Only)
 
-- [ ] **Task 2.1:** Create transaction_groups table migration (1 hour)
-- [ ] **Task 2.2:** Create journal_entries table migration (2 hours)
-- [ ] **Task 2.3:** Create database triggers for balance updates (2 hours)
-- [ ] **Task 2.4:** Create JournalEntry and TransactionGroup models (3 hours)
-- [ ] **Task 2.5:** Create JournalEntryRepository (6 hours)
-- [ ] **Task 2.6:** Create DoubleEntryService (4 hours)
-- [ ] **Task 2.7:** Write unit tests for models (3 hours)
-- [ ] **Task 2.8:** Write unit tests for repository (5 hours)
-- [ ] **Task 2.9:** Write integration tests for double-entry (4 hours)
-- [ ] **Task 2.10:** Add balance validation functionality (3 hours)
-- [ ] **Task 2.11:** Performance testing with 10k+ entries (2 hours)
-- [ ] **Task 2.12:** Documentation and examples (2 hours)
+- [ ] **Task 2A.1:** Create journal_entries table migration (2 hours)
+- [ ] **Task 2A.2:** Create database triggers for balance updates (2 hours)
+- [ ] **Task 2A.3:** Create JournalEntry model with validation (2 hours)
+- [ ] **Task 2A.4:** Create JournalEntryRepository (basic CRUD) (4 hours)
+- [ ] **Task 2A.5:** Create DoubleEntryService (single-entry operations) (3 hours)
+- [ ] **Task 2A.6:** Update TransactionService to create journal entries (3 hours)
+- [ ] **Task 2A.7:** Write unit tests for JournalEntry model (2 hours)
+- [ ] **Task 2A.8:** Write unit tests for repository (3 hours)
+- [ ] **Task 2A.9:** Write integration tests for single-entry flow (3 hours)
+- [ ] **Task 2A.10:** Add balance validation functionality (2 hours)
+- [ ] **Task 2A.11:** Performance testing with 10k+ entries (2 hours)
+- [ ] **Task 2A.12:** Documentation and examples (2 hours)
 
-**Total Estimated Time:** 37 hours (approx. 5 days)
+**Total Estimated Time:** 30 hours (approx. 4 days = 8 story points)
+
+**Deferred to US-002B:**
+- Transaction groups table
+- TransactionGroup model
+- Balanced multi-entry transactions
+- Transfer functionality
 
 ---
 
 ## 🔗 Dependencies
 
 ### Blocked By
-- US-001 (Account Type Taxonomy) - needs account types and normal_balance
+- ✅ US-001 (Account Type Taxonomy) - COMPLETED - provides account types and normal_balance
 
 ### Blocks
+- US-002B (Balanced Transaction Groups) - needs journal entry foundation from this story
 - US-003 (Normal Balance Calculation) - needs journal entry logic
 - US-004 (Opening Balances) - needs journal entries
-- All transaction features in Epic 2
+- US-005 (Account Reconciliation) - needs journal entry tracking
 
 ---
 
 ## ✅ Definition of Done
 
-- [ ] Database tables created with migrations
-- [ ] Database triggers working correctly
-- [ ] Models implemented with validation
-- [ ] Repository CRUD operations complete
-- [ ] DoubleEntryService basic operations working
-- [ ] Balance validation passes for all accounts
-- [ ] All unit tests passing (20+ tests)
-- [ ] Integration tests passing (5+ tests)
-- [ ] Performance test: 10,000 entries < 500ms query
-- [ ] Code reviewed and approved
+- [ ] journal_entries table created with migration script
+- [ ] Database triggers working correctly (insert/update/delete balance updates)
+- [ ] JournalEntry model implemented with validation
+- [ ] JournalEntryRepository CRUD operations complete
+- [ ] DoubleEntryService single-entry operations working
+- [ ] TransactionService updated to create journal entries
+- [ ] Balance validation function working correctly
+- [ ] All unit tests passing (15+ tests)
+- [ ] Integration tests passing (3+ tests)
+- [ ] Performance test: Query 10,000 journal entries in < 500ms ✅
+- [ ] No regression in existing transaction creation UI
+- [ ] Code reviewed and approved by tech lead
 - [ ] Documentation complete with examples
-- [ ] No regressions in existing functionality
+- [ ] Manual testing: Create transaction and verify journal entry created
 
 ---
 
