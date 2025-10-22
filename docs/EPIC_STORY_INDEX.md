@@ -1,7 +1,7 @@
 # Epic and Story Index
 
-**Last Updated:** 2025-10-21
-**Project:** Personal Finance Manager v2.0
+**Last Updated:** 2025-10-22
+**Project:** Personal Finance Manager v2.1
 
 ---
 
@@ -9,13 +9,13 @@
 
 | Metric | Count |
 |--------|-------|
-| **Total Epics** | 1 |
-| **Total Stories** | 1 |
-| **Stories in Backlog** | 1 |
+| **Total Epics** | 2 |
+| **Total Stories** | 3 |
+| **Stories in Backlog** | 2 |
 | **Stories in Progress** | 0 |
-| **Stories Completed** | 0 |
-| **Total Story Points** | 3 |
-| **Points Completed** | 0 |
+| **Stories Completed** | 1 |
+| **Total Story Points** | 11+ |
+| **Points Completed** | 8 |
 
 ---
 
@@ -25,7 +25,8 @@
 
 | ID | Epic | Priority | Status | Stories | Points | Target Release |
 |----|------|----------|--------|---------|--------|----------------|
-| [EPIC-001](epics/EPIC-001-search-filter-transactions.md) | Search and Filter Transactions | High | Ready | 1/6 | 3/21 | v2.1.0 |
+| [epic-01](epics/epic-01-account-management.md) | Account Management & Double-Entry Foundation | P0 | 🟢 In Progress | 1/6 | 8/50+ | v2.1.0 |
+| [EPIC-001](epics/EPIC-001-search-filter-transactions.md) | Search and Filter Transactions | High | Ready | 0/6 | 0/21 | v2.1.0 |
 
 ### Planned Epics (Not Yet Created)
 
@@ -42,10 +43,11 @@
 
 ## Stories by Status
 
-### 📋 Backlog (1)
+### 📋 Backlog (2)
 
 | ID | Story | Epic | Priority | Points | Assignee |
 |----|-------|------|----------|--------|----------|
+| [US-002](stories/backlog/US-002-double-entry-model.md) | Double-Entry Account Model | epic-01 | P0 | TBD | Unassigned |
 | [STORY-001](stories/backlog/STORY-001-basic-text-search.md) | Basic Text Search | EPIC-001 | High | 3 | Unassigned |
 
 ### 🚧 In Progress (0)
@@ -54,17 +56,30 @@
 |----|-------|------|----------|--------|----------|---------|
 | - | - | - | - | - | - | - |
 
-### ✅ Completed (0)
+### ✅ Completed (1)
 
 | ID | Story | Epic | Points | Completed | Developer |
 |----|-------|------|--------|-----------|-----------|
-| - | - | - | - | - | - |
+| [US-001](stories/completed/US-001-account-type-taxonomy.md) | Account Type Taxonomy | epic-01 | 8 | 2025-10-22 | Full Stack Team |
 
 ---
 
 ## Stories by Epic
 
-### EPIC-001: Search and Filter Transactions (1/6 stories)
+### epic-01: Account Management & Double-Entry Foundation (1/6 stories completed)
+
+| ID | Story | Status | Points | Assignee |
+|----|-------|--------|--------|----------|
+| [US-001](stories/completed/US-001-account-type-taxonomy.md) | Account Type Taxonomy | ✅ Completed | 8 | Full Stack Team |
+| [US-002](stories/backlog/US-002-double-entry-model.md) | Double-Entry Account Model | Backlog | TBD | Unassigned |
+| US-003 | Normal Balance Calculation | Not Created | TBD | - |
+| US-004 | Account Reconciliation | Not Created | TBD | - |
+| US-005 | Opening Balance Equity | Not Created | TBD | - |
+| US-006 | Account Hierarchy | Not Created | TBD | - |
+
+**Progress:** 16% (8/50+ points completed)
+
+### EPIC-001: Search and Filter Transactions (0/6 stories)
 
 | ID | Story | Status | Points | Assignee |
 |----|-------|--------|--------|----------|
@@ -113,11 +128,12 @@
 
 ### Sprint History
 
-| Sprint | Dates | Planned | Completed | Velocity |
-|--------|-------|---------|-----------|----------|
-| Sprint 1 | TBD | TBD | TBD | TBD |
+| Sprint | Dates | Planned | Completed | Velocity | Notes |
+|--------|-------|---------|-----------|----------|-------|
+| Sprint 1 | Oct 22, 2025 | 8 pts | 8 pts | 8 pts | ✅ US-001 completed, foundation work |
 
-**Average Velocity:** TBD (need 3+ sprints)
+**Average Velocity:** 8 points/sprint (based on 1 sprint)
+**Projected Velocity:** 8-12 points/sprint (as team stabilizes)
 
 ---
 
@@ -156,6 +172,8 @@ Low:      0 stories (0%)
 
 | Date | Activity | Story/Epic |
 |------|----------|------------|
+| 2025-10-22 | ✅ Completed US-001 | Account Type Taxonomy (8 pts) |
+| 2025-10-22 | 📝 Committed ba55779 | US-001 implementation with 36 tests |
 | 2025-10-21 | Created EPIC-001 | Search and Filter Transactions |
 | 2025-10-21 | Created STORY-001 | Basic Text Search |
 

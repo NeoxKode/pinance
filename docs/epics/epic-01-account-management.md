@@ -1,12 +1,14 @@
 # Epic 1: Account Management & Double-Entry Foundation
 
-**Epic ID:** EPIC-001
-**Status:** 🟡 Ready for Development
+**Epic ID:** epic-01
+**Status:** 🟢 In Progress (16% complete)
 **Priority:** P0 (Critical - Blocking)
 **Estimated Effort:** 2-3 weeks (80-120 hours)
-**Target Sprint:** Sprint 1-2
+**Target Sprint:** Sprint 1-3
 **Created:** October 22, 2025
+**Started:** October 22, 2025
 **Owner:** Development Team
+**Progress:** 1/6 stories completed (8/50+ points)
 
 ---
 
@@ -103,7 +105,7 @@ This epic contains **10 user stories** organized into 3 phases:
 
 ---
 
-### **US-001: Account Type Taxonomy & Hierarchy**
+### **US-001: Account Type Taxonomy & Hierarchy** ✅ COMPLETED
 
 **As a** power user
 **I want** accounts organized by accounting type (Assets, Liabilities, Equity, Income, Expenses) with subtypes
@@ -112,6 +114,9 @@ This epic contains **10 user stories** organized into 3 phases:
 **Priority:** P0 (Must Have - Blocking)
 **Story Points:** 8
 **Sprint:** Sprint 1
+**Status:** ✅ Completed October 22, 2025
+**Commit:** ba55779
+**Story File:** [US-001](../stories/completed/US-001-account-type-taxonomy.md)
 
 #### Acceptance Criteria
 
