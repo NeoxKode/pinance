@@ -85,6 +85,7 @@ prototype.db
 prototype.db-journal
 .claude
 .bmad
+images
 
 # Temporary files
 *.tmp
