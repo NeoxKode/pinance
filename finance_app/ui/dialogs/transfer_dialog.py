@@ -175,7 +175,7 @@ class TransferDialog(QDialog):
 
         # Required fields note
         note_label = QLabel("* Required fields")
-        note_label.setStyleSheet("color: #666; font-size: 11px; font-style: italic;")
+        note_label.setStyleSheet("color: #888888; font-size: 11px; font-style: italic;")
         main_layout.addWidget(note_label)
 
         # Preview section
@@ -220,131 +220,151 @@ class TransferDialog(QDialog):
         self._validate_and_update_preview()
 
     def apply_styling(self) -> None:
-        """Apply beautiful QSS styling for modern UI."""
+        """Apply QSS styling to match application dark theme."""
         self.setStyleSheet("""
             QDialog {
-                background-color: #f8f9fa;
+                background-color: #2b2b2b;
+                color: #ffffff;
+            }
+
+            QLabel {
+                color: #ffffff;
+                font-size: 13px;
             }
 
             QLabel#titleLabel {
-                font-size: 20px;
+                font-size: 16px;
                 font-weight: bold;
-                color: #1976D2;
-                padding: 8px 0;
+                color: #ffffff;
+                padding: 4px 0 8px 0;
             }
 
             QLabel#descriptionLabel {
-                color: #666;
-                font-size: 13px;
+                color: #b0b0b0;
+                font-size: 12px;
                 padding-bottom: 8px;
             }
 
             QLabel#previewLabel {
                 font-weight: bold;
-                color: #333;
+                color: #ffffff;
                 padding: 8px 0 4px 0;
             }
 
             QLabel#previewText {
-                background-color: #E3F2FD;
-                border-left: 4px solid #2196F3;
-                padding: 12px;
-                border-radius: 4px;
-                color: #333;
+                background-color: #3c3c3c;
+                border-left: 3px solid #0078d4;
+                padding: 10px;
+                border-radius: 3px;
+                color: #ffffff;
             }
 
             QLabel#currencyLabel {
-                font-size: 16px;
+                font-size: 14px;
                 font-weight: bold;
-                color: #666;
+                color: #ffffff;
                 padding-right: 4px;
             }
 
             QLabel#feedbackLabel {
-                background-color: #FFEBEE;
-                border-left: 4px solid #F44336;
+                background-color: #4a2828;
+                border-left: 3px solid #d32f2f;
                 padding: 8px 12px;
-                border-radius: 4px;
-                color: #C62828;
+                border-radius: 3px;
+                color: #ff6b6b;
             }
 
-            QComboBox#accountCombo,
-            QLineEdit#amountInput,
-            QLineEdit#descriptionInput,
-            QLineEdit#referenceInput,
-            QDateEdit#dateInput,
-            QTextEdit#notesInput {
-                padding: 8px 12px;
-                border: 2px solid #e0e0e0;
-                border-radius: 6px;
-                background-color: white;
+            QLineEdit, QComboBox, QDateEdit, QTextEdit {
+                padding: 6px;
+                background-color: #3c3c3c;
+                border: 1px solid #555555;
+                border-radius: 3px;
+                color: #ffffff;
                 font-size: 13px;
-                min-height: 20px;
+                min-height: 24px;
             }
 
-            QComboBox#accountCombo:focus,
-            QLineEdit#amountInput:focus,
-            QLineEdit#descriptionInput:focus,
-            QLineEdit#referenceInput:focus,
-            QDateEdit#dateInput:focus,
-            QTextEdit#notesInput:focus {
-                border-color: #2196F3;
-                background-color: #FAFAFA;
+            QLineEdit:focus, QComboBox:focus, QDateEdit:focus, QTextEdit:focus {
+                border-color: #0078d4;
+                background-color: #404040;
             }
 
-            QLineEdit#amountInput {
-                font-size: 16px;
-                font-weight: 500;
-                min-width: 150px;
-            }
-
-            QPushButton {
-                padding: 10px 20px;
-                border: none;
-                border-radius: 6px;
-                font-size: 14px;
-                font-weight: 500;
-                min-width: 100px;
-            }
-
-            QPushButton#cancelButton {
-                background-color: white;
-                border: 2px solid #e0e0e0;
-                color: #666;
-            }
-
-            QPushButton#cancelButton:hover {
-                background-color: #f5f5f5;
-                border-color: #bdbdbd;
-            }
-
-            QPushButton#primaryButton {
-                background-color: #2196F3;
-                color: white;
-                font-weight: bold;
-            }
-
-            QPushButton#primaryButton:hover {
-                background-color: #1976D2;
-            }
-
-            QPushButton#primaryButton:pressed {
-                background-color: #0D47A1;
-            }
-
-            QPushButton#primaryButton:disabled {
-                background-color: #BDBDBD;
-                color: #757575;
+            QLineEdit::placeholder, QTextEdit::placeholder {
+                color: #888888;
             }
 
             QComboBox::drop-down {
                 border: none;
-                padding-right: 8px;
+                width: 20px;
             }
 
             QComboBox::down-arrow {
-                width: 12px;
-                height: 12px;
+                image: none;
+                border-left: 4px solid transparent;
+                border-right: 4px solid transparent;
+                border-top: 4px solid #ffffff;
+                width: 0;
+                height: 0;
+            }
+
+            QComboBox QAbstractItemView {
+                background-color: #3c3c3c;
+                color: #ffffff;
+                selection-background-color: #0078d4;
+                border: 1px solid #555555;
+            }
+
+            QDateEdit::drop-down {
+                border: none;
+                width: 20px;
+            }
+
+            QDateEdit::down-arrow {
+                image: none;
+                border-left: 4px solid transparent;
+                border-right: 4px solid transparent;
+                border-top: 4px solid #ffffff;
+                width: 0;
+                height: 0;
+            }
+
+            QPushButton {
+                padding: 8px 24px;
+                background-color: #3c3c3c;
+                border: 1px solid #555555;
+                border-radius: 3px;
+                color: #ffffff;
+                font-size: 13px;
+                min-width: 80px;
+            }
+
+            QPushButton:hover {
+                background-color: #4a4a4a;
+                border-color: #666666;
+            }
+
+            QPushButton:pressed {
+                background-color: #2a2a2a;
+            }
+
+            QPushButton#primaryButton {
+                background-color: #0078d4;
+                border-color: #0078d4;
+                font-weight: bold;
+            }
+
+            QPushButton#primaryButton:hover {
+                background-color: #1084e0;
+            }
+
+            QPushButton#primaryButton:pressed {
+                background-color: #006cc1;
+            }
+
+            QPushButton#primaryButton:disabled {
+                background-color: #555555;
+                border-color: #555555;
+                color: #888888;
             }
         """)
 
@@ -432,12 +452,12 @@ class TransferDialog(QDialog):
         preview_html = f"""
         <p><b>Transfer ${amount:,.2f}</b></p>
         <p style='margin-top: 8px;'>
-        <b style='color: #F44336;'>From:</b> {from_account.name}<br/>
+        <b style='color: #ff6b6b;'>From:</b> {from_account.name}<br/>
         Current: ${from_account.balance:,.2f} →
         <b>New: ${from_new_balance:,.2f}</b>
         </p>
         <p style='margin-top: 4px;'>
-        <b style='color: #4CAF50;'>To:</b> {to_account.name}<br/>
+        <b style='color: #69db7c;'>To:</b> {to_account.name}<br/>
         Current: ${to_account.balance:,.2f} →
         <b>New: ${to_new_balance:,.2f}</b>
         </p>
