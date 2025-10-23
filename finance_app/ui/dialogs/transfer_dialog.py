@@ -52,34 +52,19 @@ class TransferDialog(QDialog):
         logger.info("Transfer dialog initialized")
 
     def setup_ui(self) -> None:
-        """Set up user interface with clean, intuitive layout."""
+        """Set up user interface with clean, intuitive layout inspired by HomeBank."""
         self.setWindowTitle("Transfer Money")
         self.setModal(True)
-        self.setMinimumWidth(500)
-        self.setMinimumHeight(400)
+        self.setMinimumWidth(450)
+        self.resize(450, 400)
 
         main_layout = QVBoxLayout(self)
-        main_layout.setSpacing(16)
+        main_layout.setSpacing(10)
+        main_layout.setContentsMargins(12, 12, 12, 12)
 
-        # Header with icon and description
-        header_layout = QVBoxLayout()
-        title_label = QLabel("💸 Transfer Money")
-        title_label.setObjectName("titleLabel")
-        header_layout.addWidget(title_label)
-
-        description_label = QLabel(
-            "Transfer funds between your accounts. "
-            "This creates balanced journal entries automatically."
-        )
-        description_label.setWordWrap(True)
-        description_label.setObjectName("descriptionLabel")
-        header_layout.addWidget(description_label)
-
-        main_layout.addLayout(header_layout)
-
-        # Form layout for input fields
+        # Form layout for input fields - HomeBank style
         form = QFormLayout()
-        form.setSpacing(12)
+        form.setSpacing(10)
         form.setLabelAlignment(Qt.AlignRight | Qt.AlignVCenter)
         form.setFieldGrowthPolicy(QFormLayout.ExpandingFieldsGrow)
 
@@ -166,49 +151,41 @@ class TransferDialog(QDialog):
 
         main_layout.addLayout(form)
 
-        # Validation feedback label
+        # Validation feedback label (compact)
         self.feedback_label = QLabel()
         self.feedback_label.setObjectName("feedbackLabel")
         self.feedback_label.setWordWrap(True)
         self.feedback_label.hide()  # Hidden until validation error
         main_layout.addWidget(self.feedback_label)
 
-        # Required fields note
-        note_label = QLabel("* Required fields")
-        note_label.setStyleSheet("color: #888888; font-size: 11px; font-style: italic;")
-        main_layout.addWidget(note_label)
-
-        # Preview section
-        preview_layout = QVBoxLayout()
-        preview_label = QLabel("Transfer Preview:")
-        preview_label.setObjectName("previewLabel")
-        preview_layout.addWidget(preview_label)
-
-        self.preview_text = QLabel("Select accounts and enter amount to see preview")
+        # Preview section (compact, HomeBank-inspired)
+        self.preview_text = QLabel("Select accounts and enter amount")
         self.preview_text.setObjectName("previewText")
         self.preview_text.setWordWrap(True)
-        preview_layout.addWidget(self.preview_text)
-
-        main_layout.addLayout(preview_layout)
+        self.preview_text.setMinimumHeight(60)
+        main_layout.addWidget(self.preview_text)
 
         # Spacer
         main_layout.addStretch()
 
-        # Button layout
+        # Button layout - HomeBank style
         button_layout = QHBoxLayout()
         button_layout.setSpacing(8)
+
+        close_btn = QPushButton("Close")
+        close_btn.setObjectName("cancelButton")
+        close_btn.clicked.connect(self.reject)
+        close_btn.setMinimumWidth(100)
+        button_layout.addWidget(close_btn)
+
         button_layout.addStretch()
 
-        cancel_btn = QPushButton("Cancel")
-        cancel_btn.setObjectName("cancelButton")
-        cancel_btn.clicked.connect(self.reject)
-        button_layout.addWidget(cancel_btn)
-
-        self.transfer_btn = QPushButton("💸 Transfer Money")
+        self.transfer_btn = QPushButton("Transfer")
         self.transfer_btn.setObjectName("primaryButton")
         self.transfer_btn.setDefault(True)
         self.transfer_btn.clicked.connect(self._on_transfer_clicked)
         self.transfer_btn.setEnabled(False)  # Disabled until valid input
+        self.transfer_btn.setMinimumWidth(100)
         button_layout.addWidget(self.transfer_btn)
 
         main_layout.addLayout(button_layout)
@@ -232,31 +209,13 @@ class TransferDialog(QDialog):
                 font-size: 13px;
             }
 
-            QLabel#titleLabel {
-                font-size: 16px;
-                font-weight: bold;
-                color: #ffffff;
-                padding: 4px 0 8px 0;
-            }
-
-            QLabel#descriptionLabel {
-                color: #b0b0b0;
-                font-size: 12px;
-                padding-bottom: 8px;
-            }
-
-            QLabel#previewLabel {
-                font-weight: bold;
-                color: #ffffff;
-                padding: 8px 0 4px 0;
-            }
-
             QLabel#previewText {
                 background-color: #3c3c3c;
-                border-left: 3px solid #0078d4;
-                padding: 10px;
+                border: 1px solid #555555;
+                padding: 8px;
                 border-radius: 3px;
-                color: #ffffff;
+                color: #b0b0b0;
+                font-size: 12px;
             }
 
             QLabel#currencyLabel {
@@ -448,22 +407,14 @@ class TransferDialog(QDialog):
         from_new_balance = from_account.balance - amount
         to_new_balance = to_account.balance + amount
 
-        # Format preview text
-        preview_html = f"""
-        <p><b>Transfer ${amount:,.2f}</b></p>
-        <p style='margin-top: 8px;'>
-        <b style='color: #ff6b6b;'>From:</b> {from_account.name}<br/>
-        Current: ${from_account.balance:,.2f} →
-        <b>New: ${from_new_balance:,.2f}</b>
-        </p>
-        <p style='margin-top: 4px;'>
-        <b style='color: #69db7c;'>To:</b> {to_account.name}<br/>
-        Current: ${to_account.balance:,.2f} →
-        <b>New: ${to_new_balance:,.2f}</b>
-        </p>
-        """
+        # Format preview text - compact HomeBank style
+        preview_text = (
+            f"Transfer ${amount:,.2f}\n"
+            f"From: {from_account.name} (${from_account.balance:,.2f} → ${from_new_balance:,.2f})\n"
+            f"To: {to_account.name} (${to_account.balance:,.2f} → ${to_new_balance:,.2f})"
+        )
 
-        self.preview_text.setText(preview_html)
+        self.preview_text.setText(preview_text)
 
     def _on_transfer_clicked(self) -> None:
         """Handle transfer button click with final validation."""
