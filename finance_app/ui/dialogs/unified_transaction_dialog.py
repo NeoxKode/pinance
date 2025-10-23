@@ -134,10 +134,12 @@ class UnifiedTransactionDialog(QDialog):
 
         # Compact adjustment buttons - same height as input
         minus_btn = QPushButton("−")
-        minus_btn.setFixedWidth(10)
+        minus_btn.setObjectName("amountButton")
+        minus_btn.setFixedWidth(15)
         minus_btn.clicked.connect(lambda: self._adjust_amount(self.expense_amount, -1))
         plus_btn = QPushButton("+")
-        plus_btn.setFixedWidth(10)
+        plus_btn.setObjectName("amountButton")
+        plus_btn.setFixedWidth(15)
         plus_btn.clicked.connect(lambda: self._adjust_amount(self.expense_amount, 1))
         amount_layout.addWidget(minus_btn, 0)  # No stretch
         amount_layout.addWidget(plus_btn, 0)  # No stretch
@@ -201,10 +203,12 @@ class UnifiedTransactionDialog(QDialog):
         amount_layout.addWidget(self.income_amount, 1)  # Stretch factor 1
 
         minus_btn = QPushButton("−")
-        minus_btn.setFixedWidth(10)
+        minus_btn.setObjectName("amountButton")
+        minus_btn.setFixedWidth(15)
         minus_btn.clicked.connect(lambda: self._adjust_amount(self.income_amount, -1))
         plus_btn = QPushButton("+")
-        plus_btn.setFixedWidth(10)
+        plus_btn.setObjectName("amountButton")
+        plus_btn.setFixedWidth(15)
         plus_btn.clicked.connect(lambda: self._adjust_amount(self.income_amount, 1))
         amount_layout.addWidget(minus_btn, 0)
         amount_layout.addWidget(plus_btn, 0)
@@ -268,10 +272,12 @@ class UnifiedTransactionDialog(QDialog):
         amount_layout.addWidget(self.transfer_amount, 1)  # Stretch factor 1
 
         minus_btn = QPushButton("−")
-        minus_btn.setFixedWidth(10)
+        minus_btn.setObjectName("amountButton")
+        minus_btn.setFixedWidth(15)
         minus_btn.clicked.connect(lambda: self._adjust_amount(self.transfer_amount, -1))
         plus_btn = QPushButton("+")
-        plus_btn.setFixedWidth(10)
+        plus_btn.setObjectName("amountButton")
+        plus_btn.setFixedWidth(15)
         plus_btn.clicked.connect(lambda: self._adjust_amount(self.transfer_amount, 1))
         amount_layout.addWidget(minus_btn, 0)
         amount_layout.addWidget(plus_btn, 0)
@@ -552,6 +558,12 @@ class UnifiedTransactionDialog(QDialog):
                 color: #ffffff;
                 font-size: 13px;
                 min-width: 80px;
+            }
+
+            QPushButton[objectName="amountButton"] {
+                padding: 4px 2px;
+                min-width: 15px;
+                max-width: 15px;
             }
 
             QPushButton:hover {
