@@ -123,7 +123,7 @@ class UnifiedTransactionDialog(QDialog):
         self.expense_date.setDisplayFormat("ddd MM/dd/yyyy")
         form.addRow("Date:", self.expense_date)
 
-        # Amount - HomeBank style: input expands, buttons compact
+        # Amount - HomeBank style: input expands, buttons compact and same height
         amount_layout = QHBoxLayout()
         amount_layout.setSpacing(4)
         self.expense_amount = QLineEdit()
@@ -132,12 +132,12 @@ class UnifiedTransactionDialog(QDialog):
         self.expense_amount.setValidator(validator)
         amount_layout.addWidget(self.expense_amount, 1)  # Stretch factor 1 - takes most space
 
-        # Compact adjustment buttons like HomeBank
+        # Compact adjustment buttons - same height as input
         minus_btn = QPushButton("−")
-        minus_btn.setFixedSize(32, 28)
+        minus_btn.setFixedWidth(32)
         minus_btn.clicked.connect(lambda: self._adjust_amount(self.expense_amount, -1))
         plus_btn = QPushButton("+")
-        plus_btn.setFixedSize(32, 28)
+        plus_btn.setFixedWidth(32)
         plus_btn.clicked.connect(lambda: self._adjust_amount(self.expense_amount, 1))
         amount_layout.addWidget(minus_btn, 0)  # No stretch
         amount_layout.addWidget(plus_btn, 0)  # No stretch
@@ -191,7 +191,7 @@ class UnifiedTransactionDialog(QDialog):
         self.income_date.setDisplayFormat("ddd MM/dd/yyyy")
         form.addRow("Date:", self.income_date)
 
-        # Amount - HomeBank style: input expands, buttons compact
+        # Amount - HomeBank style: input expands, buttons compact and same height
         amount_layout = QHBoxLayout()
         amount_layout.setSpacing(4)
         self.income_amount = QLineEdit()
@@ -201,10 +201,10 @@ class UnifiedTransactionDialog(QDialog):
         amount_layout.addWidget(self.income_amount, 1)  # Stretch factor 1
 
         minus_btn = QPushButton("−")
-        minus_btn.setFixedSize(32, 28)
+        minus_btn.setFixedWidth(32)
         minus_btn.clicked.connect(lambda: self._adjust_amount(self.income_amount, -1))
         plus_btn = QPushButton("+")
-        plus_btn.setFixedSize(32, 28)
+        plus_btn.setFixedWidth(32)
         plus_btn.clicked.connect(lambda: self._adjust_amount(self.income_amount, 1))
         amount_layout.addWidget(minus_btn, 0)
         amount_layout.addWidget(plus_btn, 0)
@@ -258,7 +258,7 @@ class UnifiedTransactionDialog(QDialog):
         self.transfer_date.setDisplayFormat("ddd MM/dd/yyyy")
         form.addRow("Date:", self.transfer_date)
 
-        # Amount - HomeBank style: input expands, buttons compact
+        # Amount - HomeBank style: input expands, buttons compact and same height
         amount_layout = QHBoxLayout()
         amount_layout.setSpacing(4)
         self.transfer_amount = QLineEdit()
@@ -268,10 +268,10 @@ class UnifiedTransactionDialog(QDialog):
         amount_layout.addWidget(self.transfer_amount, 1)  # Stretch factor 1
 
         minus_btn = QPushButton("−")
-        minus_btn.setFixedSize(32, 28)
+        minus_btn.setFixedWidth(32)
         minus_btn.clicked.connect(lambda: self._adjust_amount(self.transfer_amount, -1))
         plus_btn = QPushButton("+")
-        plus_btn.setFixedSize(32, 28)
+        plus_btn.setFixedWidth(32)
         plus_btn.clicked.connect(lambda: self._adjust_amount(self.transfer_amount, 1))
         amount_layout.addWidget(minus_btn, 0)
         amount_layout.addWidget(plus_btn, 0)
