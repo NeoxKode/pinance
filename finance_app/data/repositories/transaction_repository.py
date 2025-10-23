@@ -45,7 +45,8 @@ class TransactionRepository:
 
                 if account_id:
                     query = """
-                        SELECT id, account_id, date, description, category, amount, type
+                        SELECT id, account_id, date, description, category, amount, type,
+                               is_split, split_count
                         FROM transactions
                         WHERE account_id = ?
                         ORDER BY date DESC, id DESC
@@ -53,7 +54,8 @@ class TransactionRepository:
                     params = (account_id,)
                 else:
                     query = """
-                        SELECT id, account_id, date, description, category, amount, type
+                        SELECT id, account_id, date, description, category, amount, type,
+                               is_split, split_count
                         FROM transactions
                         ORDER BY date DESC, id DESC
                     """
@@ -86,7 +88,8 @@ class TransactionRepository:
             with self.db.get_connection() as conn:
                 cursor = conn.cursor()
                 cursor.execute("""
-                    SELECT id, account_id, date, description, category, amount, type
+                    SELECT id, account_id, date, description, category, amount, type,
+                           is_split, split_count
                     FROM transactions
                     WHERE id = ?
                 """, (transaction_id,))
@@ -207,14 +210,16 @@ class TransactionRepository:
 
                 if account_id:
                     cursor.execute("""
-                        SELECT id, account_id, date, description, category, amount, type
+                        SELECT id, account_id, date, description, category, amount, type,
+                               is_split, split_count
                         FROM transactions
                         WHERE category = ? AND account_id = ?
                         ORDER BY date DESC
                     """, (category, account_id))
                 else:
                     cursor.execute("""
-                        SELECT id, account_id, date, description, category, amount, type
+                        SELECT id, account_id, date, description, category, amount, type,
+                               is_split, split_count
                         FROM transactions
                         WHERE category = ?
                         ORDER BY date DESC
@@ -252,14 +257,16 @@ class TransactionRepository:
 
                 if account_id:
                     cursor.execute("""
-                        SELECT id, account_id, date, description, category, amount, type
+                        SELECT id, account_id, date, description, category, amount, type,
+                               is_split, split_count
                         FROM transactions
                         WHERE date BETWEEN ? AND ? AND account_id = ?
                         ORDER BY date DESC
                     """, (start_date, end_date, account_id))
                 else:
                     cursor.execute("""
-                        SELECT id, account_id, date, description, category, amount, type
+                        SELECT id, account_id, date, description, category, amount, type,
+                               is_split, split_count
                         FROM transactions
                         WHERE date BETWEEN ? AND ?
                         ORDER BY date DESC
@@ -290,6 +297,8 @@ class TransactionRepository:
             category=row['category'],
             amount=Decimal(str(row['amount'])),
             type=row['type'],
+            is_split=bool(row['is_split']) if 'is_split' in row.keys() else False,
+            split_count=row['split_count'] if 'split_count' in row.keys() else 0,
             created_at=None,  # Not in current schema
             updated_at=None   # Not in current schema
         )

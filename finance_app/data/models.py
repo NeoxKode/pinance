@@ -94,7 +94,7 @@ class Account:
 
 @dataclass
 class Transaction:
-    """Transaction model."""
+    """Transaction model with split transaction support (US-002C)."""
     id: Optional[int]
     account_id: int
     date: str  # YYYY-MM-DD format
@@ -102,6 +102,8 @@ class Transaction:
     category: str
     amount: Decimal
     type: str  # 'income' or 'expense'
+    is_split: bool = False  # True if transaction has splits
+    split_count: int = 0  # Number of splits (0 if not split)
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
 
@@ -123,10 +125,11 @@ class Transaction:
 
 @dataclass
 class Category:
-    """Category model."""
+    """Category model with optional account linkage (US-002C Option A)."""
     id: Optional[int]
     name: str
     type: str  # 'income' or 'expense'
+    account_id: Optional[int] = None  # Links category to account for journal entries
     created_at: Optional[datetime] = None
 
     def __str__(self) -> str:

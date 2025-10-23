@@ -217,6 +217,68 @@ def _apply_transaction_groups_migration(conn: sqlite3.Connection) -> None:
         logger.debug("Transaction groups table already exists, skipping migration")
 
 
+def _apply_split_transactions_migration(conn: sqlite3.Connection) -> None:
+    """
+    Apply split transactions migration (004_create_split_transactions.sql).
+
+    This creates the transaction_splits table and adds split tracking to transactions.
+    Story: US-002C - Split Transactions (Day 1)
+
+    Args:
+        conn: Database connection
+    """
+    cursor = conn.cursor()
+
+    # Check if migration is needed
+    cursor.execute("""
+        SELECT name FROM sqlite_master
+        WHERE type='table' AND name='transaction_splits'
+    """)
+
+    if cursor.fetchone() is None:
+        logger.info("Applying split transactions migration (004)...")
+
+        # Read and execute migration file
+        migration_path = Path(__file__).parent / "migrations" / "004_create_split_transactions.sql"
+
+        if not migration_path.exists():
+            logger.warning(f"Migration file not found: {migration_path}")
+            return
+
+        with open(migration_path, 'r') as f:
+            migration_sql = f.read()
+
+        # Execute migration (split on semicolons but keep transaction together)
+        cursor.executescript(migration_sql)
+
+        conn.commit()
+        logger.info("Split transactions migration (004) completed")
+
+        # Verify migration
+        cursor.execute("""
+            SELECT name FROM sqlite_master
+            WHERE type='table' AND name='transaction_splits'
+        """)
+        if cursor.fetchone():
+            logger.info("Migration verification: ✓ transaction_splits table created")
+        else:
+            logger.error("Migration verification failed: transaction_splits table not found")
+
+        # Verify indices
+        cursor.execute("""
+            SELECT name FROM sqlite_master
+            WHERE type='index' AND tbl_name='transaction_splits'
+        """)
+        indices = [row[0] for row in cursor.fetchall()]
+
+        if len(indices) >= 4:
+            logger.info(f"Migration verification: ✓ Split transaction indices created")
+        else:
+            logger.warning(f"Migration verification: Found {len(indices)}/4 indices: {indices}")
+    else:
+        logger.debug("Transaction splits table already exists, skipping migration")
+
+
 class Database:
     """
     Database manager with connection pooling and lifecycle management.
@@ -371,6 +433,9 @@ class Database:
                 # Apply transaction groups migration for new databases
                 _apply_transaction_groups_migration(conn)
 
+                # Apply split transactions migration for new databases
+                _apply_split_transactions_migration(conn)
+
                 # Add sample data if empty
                 self._add_sample_data(conn)
 
@@ -385,6 +450,7 @@ class Database:
                 _apply_account_type_migration(conn)
                 _apply_journal_entries_migration(conn)
                 _apply_transaction_groups_migration(conn)
+                _apply_split_transactions_migration(conn)
                 logger.info("All migrations applied successfully")
         except Exception as e:
             logger.error(f"Failed to apply migrations: {e}")
