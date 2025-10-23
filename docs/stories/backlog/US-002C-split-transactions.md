@@ -2,13 +2,194 @@
 
 **Story ID:** US-002C
 **Epic:** [EPIC-001: Account Management & Double-Entry Foundation](../../epics/epic-01-account-management.md)
-**Status:** Ready
+**Status:** 🚀 **IN PROGRESS** - Sprint 4
 **Priority:** P1 (High - Feature Enhancement)
 **Story Points:** 8
-**Sprint:** Sprint 4 (Planned)
-**Assignee:** TBD
+**Sprint:** Sprint 4 (Oct 23-28, 2025)
+**Assignee:** Development Team
+**Assigned Date:** October 23, 2025
 **Created:** October 23, 2025
 **Dependencies:** US-002B (Balanced Transaction Groups) ✅ Complete
+**Technical Review:** ✅ APPROVED (A: 92/100) - See [US-002C-TECH-REVIEW.md](US-002C-TECH-REVIEW.md)
+
+---
+
+## 🎯 Sprint 4 Implementation Guide
+
+### 📚 Required Reading (Context from Sprint 3)
+
+**IMPORTANT:** Before starting implementation, review these completed stories:
+
+1. **[US-002A: Journal Entry Foundation](../completed/US-002A-journal-entry-foundation.md)**
+   - Provides: `JournalEntry` model, `JournalEntryRepository`, double-entry basics
+   - Key learnings: Balance validation patterns, Decimal usage, database transactions
+
+2. **[US-002B: Balanced Transaction Groups](../completed/US-002B-balanced-transaction-groups.md)**
+   - Provides: `TransactionGroup` model, `DoubleEntryService`, `create_balanced_group()` method
+   - Key learnings: Multi-entry transactions, balance validation, opening balance migration patterns
+   - **CRITICAL:** Review Phase 4 - UnifiedTransactionDialog for UI patterns and styling
+
+3. **[US-002C Technical Review](US-002C-TECH-REVIEW.md)**
+   - Grade: A (92/100) - APPROVED WITH CONDITIONS
+   - Critical issues identified: category-account linkage, schema improvements needed
+   - Implementation recommendations and day-by-day plan provided
+
+### 🚨 Critical Prerequisites (MUST COMPLETE DAY 1)
+
+**Issue #1: Category-Account Linkage**
+
+The technical review identified that categories need to link to accounts for journal entry creation.
+
+**Decision Required:** Choose one approach:
+
+**Option A (RECOMMENDED):** Add `account_id` to categories
+```sql
+-- Run migration first:
+ALTER TABLE categories ADD COLUMN account_id INTEGER;
+UPDATE categories SET account_id = (SELECT id FROM accounts WHERE name = 'Groceries Expense') WHERE name = 'Groceries';
+-- Repeat for all categories
+```
+
+**Option B:** Auto-create accounts from categories
+```python
+def _get_or_create_category_account(self, category: Category) -> Account:
+    account_name = f"{category.name} {'Expense' if category.type == 'expense' else 'Income'}"
+    # Create if doesn't exist
+```
+
+**Decision:** (Team to decide on Day 1 standup)
+
+**Issue #2: Database Schema Improvements**
+
+Add these to the schema migration (Day 1):
+
+```sql
+-- Add CHECK constraint for positive amounts
+ALTER TABLE transaction_splits ADD CONSTRAINT check_positive_amount
+CHECK (amount > 0);
+
+-- Add performance indices
+CREATE INDEX idx_splits_transaction ON transaction_splits(transaction_id);
+CREATE INDEX idx_splits_group ON transaction_splits(group_id);
+CREATE INDEX idx_splits_category ON transaction_splits(category_id);
+
+-- Optional: Add split_type column for analytics
+ALTER TABLE transaction_splits ADD COLUMN split_type TEXT DEFAULT 'manual';
+```
+
+### 📋 Implementation Checklist (5-Day Plan)
+
+#### Day 1: Foundation & Schema (8 hours)
+- [ ] **Morning:** Team standup - decide on category-account linkage approach
+- [ ] Create database migration script: `finance_app/data/migrations/004_create_split_transactions.sql`
+- [ ] Add `is_split` and `split_count` columns to transactions table
+- [ ] Create `transaction_splits` table with all constraints and indices
+- [ ] Implement `TransactionSplit` dataclass in `finance_app/data/models.py`
+- [ ] Implement `SplitTransaction` dataclass with validation
+- [ ] Implement `PaycheckSplit` template dataclass
+- [ ] **End of Day:** Run migration on local DB, verify schema with `scripts/check_schema.py`
+
+#### Day 2: Repository Layer (8 hours)
+- [ ] Create `finance_app/data/repositories/transaction_split_repository.py`
+- [ ] Implement `create_splits()` with atomic transactions
+- [ ] Implement `get_splits_by_transaction()`
+- [ ] Implement `update_split()`
+- [ ] Implement `delete_splits()` with cascade
+- [ ] Write unit tests: `finance_app/tests/unit/test_transaction_split_repository.py`
+- [ ] **End of Day:** 100% test coverage for repository layer
+
+#### Day 3: Service Layer (8 hours)
+- [ ] Create `finance_app/business/split_transaction_service.py`
+- [ ] Implement `create_split_transaction()` with balance validation
+- [ ] Implement `create_paycheck_split()` template method
+- [ ] Implement `update_split_transaction()` with atomic update pattern
+- [ ] Implement `get_split_transaction()`
+- [ ] Integrate with `DoubleEntryService` for journal entry creation
+- [ ] Write unit tests: `finance_app/tests/unit/test_split_transaction_service.py`
+- [ ] **End of Day:** Run full test suite, aim for 85%+ coverage
+
+#### Day 4: UI Implementation (8 hours)
+- [ ] Create `finance_app/ui/dialogs/split_transaction_dialog.py`
+- [ ] Implement main dialog layout (account, date, payee, total)
+- [ ] Implement splits table with category/amount/memo columns
+- [ ] Implement real-time balance indicator (green/yellow/red)
+- [ ] Implement "Add Split" and delete split buttons
+- [ ] Implement paycheck template button and logic
+- [ ] Implement shopping template button and logic
+- [ ] Apply dark theme styling (reference UnifiedTransactionDialog)
+- [ ] **End of Day:** Manual UI testing, create screenshots
+
+#### Day 5: Integration & Testing (8 hours)
+- [ ] Integrate `SplitTransactionDialog` into MainWindow
+- [ ] Add "Split Transaction" menu option
+- [ ] Write integration tests: `finance_app/tests/integration/test_split_integration.py`
+- [ ] Test end-to-end workflows (create, edit, delete)
+- [ ] Test paycheck template full workflow
+- [ ] Run full test suite (unit + integration)
+- [ ] Performance testing (10 splits < 100ms)
+- [ ] Code review prep: clean up, add docstrings
+- [ ] **End of Day:** Request tech lead code review
+
+### 🔗 Code Reference Guide
+
+**Key Files to Reference:**
+
+1. **Double-Entry Service** (`finance_app/business/double_entry_service.py`)
+   ```python
+   # Use this pattern for creating journal entries:
+   created_group, created_entries = self.double_entry_service.create_balanced_group(
+       entries=journal_entries,
+       group=group
+   )
+   ```
+
+2. **UnifiedTransactionDialog** (`finance_app/ui/dialogs/unified_transaction_dialog.py:591`)
+   - Reference for dark theme styling
+   - Reference for amount input layout (15px buttons)
+   - Reference for validation patterns
+   - Reference for QDialog structure
+
+3. **JournalEntryRepository** (`finance_app/data/repositories/journal_entry_repository.py`)
+   - Reference for atomic transaction patterns
+   - Reference for balance validation
+
+4. **Models** (`finance_app/data/models.py`)
+   - See `TransactionGroup` (lines ~300) for group model pattern
+   - See `JournalEntry` (lines ~200) for entry model pattern
+   - Add new split models following same conventions
+
+### 📊 Success Metrics
+
+**Code Quality:**
+- [ ] Test coverage > 80% for all new code
+- [ ] All tests passing (unit + integration)
+- [ ] No pylint errors or warnings
+- [ ] Type hints on all public methods
+
+**Performance:**
+- [ ] 2-split transaction creation < 50ms
+- [ ] 10-split transaction creation < 100ms
+- [ ] 20-split transaction creation < 200ms
+
+**Functionality:**
+- [ ] All 6 acceptance criteria met
+- [ ] Balance validation working (UI + service + DB)
+- [ ] Paycheck template working end-to-end
+- [ ] Shopping template working
+- [ ] Delete cascade working correctly
+
+### 🆘 Technical Support
+
+**Questions?** Reference these resources:
+1. Technical review document: `US-002C-TECH-REVIEW.md`
+2. Sprint 3 retrospectives: `SPRINT-03-TECH-LEAD-REVIEW.md`, `SPRINT-03-PO-REVIEW.md`
+3. Architecture doc: `docs/ARCHITECTURE.md`
+
+**Blockers?** Tag tech lead immediately if:
+- Category-account linkage approach unclear
+- Balance validation patterns not working
+- Performance targets not being met
+- UI integration issues with MainWindow
 
 ---
 
