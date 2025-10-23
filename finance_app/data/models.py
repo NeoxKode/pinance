@@ -64,13 +64,17 @@ class EntryType(str, Enum):
 
 @dataclass
 class Account:
-    """Account model with double-entry support."""
+    """
+    Account model with double-entry support.
+
+    US-003: Normal balance is auto-calculated from account_type if not provided.
+    """
     id: Optional[int]
     name: str
     account_type: AccountType
     account_subtype: AccountSubtype
     balance: Decimal
-    normal_balance: NormalBalance
+    normal_balance: Optional[NormalBalance] = None  # US-003: Auto-calculated if None
     currency: str = 'USD'
     parent_account_id: Optional[int] = None
     legacy_type: Optional[str] = None  # For migration compatibility
@@ -78,7 +82,12 @@ class Account:
     updated_at: Optional[datetime] = None
 
     def __post_init__(self):
-        """Ensure balance is Decimal and types are enums."""
+        """
+        Ensure balance is Decimal and types are enums.
+
+        US-003: Auto-calculate normal_balance from account_type if not provided,
+        and validate if explicitly provided.
+        """
         if not isinstance(self.balance, Decimal):
             self.balance = Decimal(str(self.balance))
 
@@ -88,8 +97,58 @@ class Account:
         if isinstance(self.account_subtype, str):
             self.account_subtype = AccountSubtype(self.account_subtype)
 
-        if isinstance(self.normal_balance, str):
+        # US-003: Handle normal_balance (auto-calculate or validate)
+        if self.normal_balance is None:
+            # Auto-calculate normal balance from account type
+            # Use lazy import to avoid circular dependency
+            from finance_app.utils.accounting_helpers import get_normal_balance
+            self.normal_balance = get_normal_balance(self.account_type)
+        elif isinstance(self.normal_balance, str):
+            # Convert string to enum
             self.normal_balance = NormalBalance(self.normal_balance)
+            # Validate after conversion
+            from finance_app.utils.accounting_helpers import validate_normal_balance
+            validate_normal_balance(self.account_type, self.normal_balance)
+        else:
+            # Validate explicitly provided enum value
+            from finance_app.utils.accounting_helpers import validate_normal_balance
+            validate_normal_balance(self.account_type, self.normal_balance)
+
+    def is_debit_account(self) -> bool:
+        """
+        Check if this account has debit normal balance.
+
+        US-003: Helper method for checking normal balance type.
+
+        Returns:
+            True if account has debit normal balance, False otherwise
+        """
+        from finance_app.utils.accounting_helpers import is_debit_account
+        return is_debit_account(self.normal_balance)
+
+    def increases_with_debit(self) -> bool:
+        """
+        Check if this account increases with debit entries.
+
+        US-003: Helper method for journal entry logic.
+
+        Returns:
+            True if account increases with debits, False otherwise
+        """
+        from finance_app.utils.accounting_helpers import increases_with_debit
+        return increases_with_debit(self.normal_balance)
+
+    def increases_with_credit(self) -> bool:
+        """
+        Check if this account increases with credit entries.
+
+        US-003: Helper method for journal entry logic.
+
+        Returns:
+            True if account increases with credits, False otherwise
+        """
+        from finance_app.utils.accounting_helpers import increases_with_credit
+        return increases_with_credit(self.normal_balance)
 
 
 @dataclass
@@ -529,6 +588,11 @@ class PaycheckSplit:
         if self.gross_pay == 0:
             return Decimal('0')
         return (total_taxes / self.gross_pay) * 100
+
+    @property
+    def is_valid(self) -> bool:
+        """Check if paycheck is valid (gross = net + deductions)."""
+        return abs(self.gross_pay - (self.net_pay + self.total_deductions)) < Decimal('0.01')
 
     def to_splits(self) -> list:
         """
