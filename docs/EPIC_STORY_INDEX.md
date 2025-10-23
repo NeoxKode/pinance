@@ -1,6 +1,6 @@
 # Epic and Story Index
 
-**Last Updated:** 2025-10-22
+**Last Updated:** 2025-10-23
 **Project:** Personal Finance Manager v2.1
 
 ---
@@ -10,14 +10,14 @@
 | Metric | Count |
 |--------|-------|
 | **Total Epics** | 2 |
-| **Total Stories** | 4 |
-| **Stories in Backlog** | 3 |
+| **Total Stories** | 7 |
+| **Stories in Backlog** | 2 |
 | **Stories in Progress** | 0 |
-| **Stories Completed** | 1 |
-| **Total Story Points** | 19+ |
-| **Points Completed** | 8 |
-| **Current Sprint** | Sprint 2 |
-| **Sprint 2 Commitment** | 8 points (US-002A) |
+| **Stories Completed** | 5 |
+| **Total Story Points** | 40 |
+| **Points Completed** | 24 |
+| **Current Sprint** | Sprint 6 (Planning) |
+| **Sprint 6 Target** | US-004: Account Reconciliation (8 pts) |
 
 ---
 
@@ -27,7 +27,7 @@
 
 | ID | Epic | Priority | Status | Stories | Points | Target Release |
 |----|------|----------|--------|---------|--------|----------------|
-| [epic-01](epics/epic-01-account-management.md) | Account Management & Double-Entry Foundation | P0 | 🟢 In Progress | 1/6 | 8/50+ | v2.1.0 |
+| [epic-01](epics/epic-01-account-management.md) | Account Management & Double-Entry Foundation | P0 | 🟢 In Progress | 5/8 | 24/58 | v2.1.0 |
 | [EPIC-001](epics/EPIC-001-search-filter-transactions.md) | Search and Filter Transactions | High | Ready | 0/6 | 0/21 | v2.1.0 |
 
 ### Planned Epics (Not Yet Created)
@@ -45,12 +45,11 @@
 
 ## Stories by Status
 
-### 📋 Backlog (3)
+### 📋 Backlog (2)
 
 | ID | Story | Epic | Priority | Points | Assignee | Sprint |
 |----|-------|------|----------|--------|----------|--------|
-| [US-002A](stories/backlog/US-002A-journal-entry-foundation.md) | Journal Entry Foundation | epic-01 | P0 | 8 | Unassigned | **Sprint 2** |
-| [US-002B](stories/backlog/US-002B-balanced-transaction-groups.md) | Balanced Transaction Groups | epic-01 | P0 | 5 | Unassigned | Sprint 2/3 |
+| [US-004](stories/backlog/US-004-account-reconciliation.md) | Account Reconciliation | epic-01 | P0 | 8 | Unassigned | **Sprint 6** |
 | [STORY-001](stories/backlog/STORY-001-basic-text-search.md) | Basic Text Search | EPIC-001 | High | 3 | Unassigned | TBD |
 
 ### 🚧 In Progress (0)
@@ -59,30 +58,37 @@
 |----|-------|------|----------|--------|----------|---------|
 | - | - | - | - | - | - | - |
 
-### ✅ Completed (1)
+### ✅ Completed (5)
 
-| ID | Story | Epic | Points | Completed | Developer |
-|----|-------|------|--------|-----------|-----------|
-| [US-001](stories/completed/US-001-account-type-taxonomy.md) | Account Type Taxonomy | epic-01 | 8 | 2025-10-22 | Full Stack Team |
+| ID | Story | Epic | Points | Completed | Developer | Grade |
+|----|-------|------|--------|-----------|-----------|-------|
+| [US-001](stories/completed/US-001-account-type-taxonomy.md) | Account Type Taxonomy | epic-01 | 8 | 2025-10-22 | Full Stack Team | A |
+| [US-002A](stories/completed/US-002A-journal-entry-foundation.md) | Journal Entry Foundation | epic-01 | 5 | 2025-10-22 | Full Stack Team | A |
+| [US-002B](stories/completed/US-002B-balanced-transaction-groups.md) | Balanced Transaction Groups | epic-01 | 8 | 2025-10-23 | Full Stack Team | A |
+| [US-002C](stories/completed/US-002C-split-transactions.md) | Split Transactions | epic-01 | 8 | 2025-10-23 | Full Stack Team | A (96/100) |
+| [US-003](stories/completed/US-003-normal-balance-calculation.md) | Normal Balance Calculation | epic-01 | 3 | 2025-10-23 | Full Stack Team | A (100%) |
 
 ---
 
 ## Stories by Epic
 
-### epic-01: Account Management & Double-Entry Foundation (1/7 stories completed)
+### epic-01: Account Management & Double-Entry Foundation (5/8 stories completed)
 
 | ID | Story | Status | Points | Assignee | Sprint |
 |----|-------|--------|--------|----------|--------|
-| [US-001](stories/completed/US-001-account-type-taxonomy.md) | Account Type Taxonomy | ✅ Completed | 8 | Full Stack Team | Sprint 1 |
-| [US-002A](stories/backlog/US-002A-journal-entry-foundation.md) | Journal Entry Foundation | 📋 Sprint 2 | 8 | Unassigned | **Sprint 2** |
-| [US-002B](stories/backlog/US-002B-balanced-transaction-groups.md) | Balanced Transaction Groups | Backlog | 5 | Unassigned | Sprint 2/3 |
-| US-003 | Normal Balance Calculation | Not Created | 3 | - | Sprint 3 |
-| US-004 | Account Reconciliation | Not Created | 8 | - | Sprint 3/4 |
-| US-005 | Opening Balance Equity | Not Created | 5 | - | Sprint 3 |
-| US-006 | Account Hierarchy | Not Created | 5 | - | Sprint 4 |
+| [US-001](stories/completed/US-001-account-type-taxonomy.md) | Account Type Taxonomy | ✅ Sprint 1 | 8 | Full Stack Team | Sprint 1 |
+| [US-002A](stories/completed/US-002A-journal-entry-foundation.md) | Journal Entry Foundation | ✅ Sprint 2 | 5 | Full Stack Team | Sprint 2 |
+| [US-002B](stories/completed/US-002B-balanced-transaction-groups.md) | Balanced Transaction Groups | ✅ Sprint 3 | 8 | Full Stack Team | Sprint 3 |
+| [US-002C](stories/completed/US-002C-split-transactions.md) | Split Transactions | ✅ Sprint 4 | 8 | Full Stack Team | Sprint 4 |
+| [US-003](stories/completed/US-003-normal-balance-calculation.md) | Normal Balance Calculation | ✅ Sprint 5 | 3 | Full Stack Team | Sprint 5 |
+| [US-004](stories/backlog/US-004-account-reconciliation.md) | Account Reconciliation | 📋 Ready | 8 | Unassigned | **Sprint 6** |
+| US-005 | Opening Balance Equity | Not Created | 5 | - | Sprint 7 |
+| US-006 | Account Hierarchy | Not Created | 5 | - | Sprint 7 |
 
-**Progress:** 19% (8/42 points completed)
-**Sprint 2 Goal:** Complete US-002A (8 pts), stretch US-002B (5 pts)
+**Progress:** 55% (32/58 points completed)
+**Sprint 5 Status:** ✅ Complete - US-003 delivered (3 pts, Grade A, 100% tests)
+**Sprint 6 Target:** US-004 (Account Reconciliation - 8 pts, 2 days)
+**Velocity:** 6.4 pts/sprint (avg of 5 sprints)
 
 ### EPIC-001: Search and Filter Transactions (0/6 stories)
 
