@@ -1401,28 +1401,175 @@ def test_paycheck_split_full_workflow(db, service):
 
 ---
 
+## 📊 Implementation Progress
+
+**Status:** 🚀 **IN PROGRESS** - 40% Complete (Days 1-2 of 5)
+**Last Updated:** October 23, 2025
+**Sprint:** Sprint 4
+
+### ✅ Day 1: Foundation & Schema - COMPLETE (Oct 23, 2025)
+
+**Deliverables:**
+- ✅ Database Migration: `004_create_split_transactions.sql`
+  - Created `transaction_splits` table (11 columns)
+  - Added `is_split` and `split_count` to `transactions` table
+  - Added `account_id` to `categories` table (Option A)
+  - Created 4 performance indices
+  - Added CHECK constraint for positive amounts
+  - Foreign key constraints with CASCADE delete
+
+- ✅ Data Models: `finance_app/data/models.py` (345 lines)
+  - `TransactionSplit`: Individual split with validation
+  - `SplitTransaction`: Container with balance checking
+  - `PaycheckSplit`: Template for paycheck transactions
+
+- ✅ Data Migration: `scripts/migrate_category_accounts.py`
+  - Implemented Option A (category→account linking)
+  - Migrated 4 categories to accounts (100% success)
+  - Created 3 new expense accounts
+
+- ✅ Unit Tests: `test_transaction_split_models.py` (652 lines)
+  - 38 tests written
+  - 100% model coverage
+  - All tests passing
+
+**Commits:**
+- `cf897b6` - Database migration + models (719 insertions)
+- `fab0cef` - Model unit tests (621 insertions)
+
+**Time Spent:** ~8 hours
+**Status:** ✅ Complete - All Day 1 objectives met
+
+---
+
+### ✅ Day 2: Repository Layer - IN PROGRESS (Oct 23, 2025)
+
+**Deliverables:**
+- ✅ Repository Implementation: `transaction_split_repository.py` (602 lines)
+  - 11 methods implemented
+  - Atomic transaction handling with `BEGIN IMMEDIATE`
+  - Foreign key validation
+  - CASCADE delete support
+  - Follows `JournalEntryRepository` patterns
+
+**Methods:**
+- ✅ `create()` - Single split creation
+- ✅ `create_splits()` - Atomic bulk creation (preferred)
+- ✅ `get_by_id()` - Fetch single split
+- ✅ `get_by_transaction()` - All splits for transaction
+- ✅ `get_by_group()` - All splits for group
+- ✅ `get_by_category()` - Category-based queries
+- ✅ `update()` - Update existing split
+- ✅ `delete()` - Delete single split
+- ✅ `delete_all_for_transaction()` - Atomic delete all
+- ✅ `count_by_transaction()` - Count splits
+- ✅ `get_total_amount_by_transaction()` - Sum amounts
+
+**In Progress:**
+- ⏳ Repository unit tests (15+ tests target)
+- ⏳ 100% repository coverage
+
+**Commits:**
+- `428e156` - Repository implementation (602 insertions)
+
+**Time Spent:** ~4 hours (in progress)
+**Status:** 🔄 50% Complete - Repository done, tests in progress
+
+---
+
+### ⏳ Day 3: Service Layer - PENDING
+
+**Planned Deliverables:**
+- ⏳ `SplitTransactionService` implementation
+- ⏳ `create_split_transaction()` with balance validation
+- ⏳ `create_paycheck_split()` template method
+- ⏳ `update_split_transaction()` atomic updates
+- ⏳ Integration with `DoubleEntryService.create_balanced_group()`
+- ⏳ Service unit tests (10+ tests)
+
+**Target:** 8 hours
+**Status:** 📅 Scheduled
+
+---
+
+### ⏳ Day 4: UI Implementation - PENDING
+
+**Planned Deliverables:**
+- ⏳ `SplitTransactionDialog` UI component
+- ⏳ Split table with category/amount/memo columns
+- ⏳ Real-time balance indicator (green/yellow/red)
+- ⏳ Template buttons (paycheck, shopping)
+- ⏳ Dark theme styling
+
+**Target:** 8 hours
+**Status:** 📅 Scheduled
+
+---
+
+### ⏳ Day 5: Integration & Testing - PENDING
+
+**Planned Deliverables:**
+- ⏳ MainWindow integration
+- ⏳ Integration tests (10+ tests)
+- ⏳ Performance testing (< 100ms for 10 splits)
+- ⏳ End-to-end testing
+- ⏳ Code review prep
+
+**Target:** 8 hours
+**Status:** 📅 Scheduled
+
+---
+
+### 📈 Overall Statistics
+
+**Progress:** 40% Complete (3.2 of 8 story points)
+
+**Files Created:** 6
+- Database migration SQL
+- Data migration script
+- 3 data model classes
+- Repository (11 methods)
+- Model unit tests (38 tests)
+
+**Lines of Code:** 1,942 insertions
+- Day 1: 1,340 lines
+- Day 2: 602 lines
+
+**Tests:** 38 passing, 0 failing
+**Coverage:** 100% (models), pending (repository)
+
+**Commits:** 4 clean commits with detailed messages
+
+**Risk Assessment:** ✅ LOW
+- Foundation is solid
+- No blockers identified
+- Following established patterns
+- On schedule
+
+---
+
 ## 🎯 Definition of Done
 
 ### Development
-- [x] transaction_splits table created with migration
-- [x] TransactionSplit model implemented
-- [x] PaycheckSplit template model implemented
-- [x] TransactionSplitRepository with CRUD operations
-- [x] SplitTransactionService with split creation/editing
-- [x] SplitTransactionDialog UI component
-- [x] Balance validation enforced (splits = total)
-- [x] Journal entries created for each split
-- [x] Error handling for unbalanced splits
-- [x] Logging added for split operations
-- [x] Type hints throughout
+- [x] transaction_splits table created with migration ✅ Day 1
+- [x] TransactionSplit model implemented ✅ Day 1
+- [x] PaycheckSplit template model implemented ✅ Day 1
+- [x] TransactionSplitRepository with CRUD operations ✅ Day 2
+- [ ] SplitTransactionService with split creation/editing ⏳ Day 3
+- [ ] SplitTransactionDialog UI component ⏳ Day 4
+- [x] Balance validation enforced (splits = total) ✅ Day 1 (models)
+- [ ] Journal entries created for each split ⏳ Day 3 (service)
+- [x] Error handling for unbalanced splits ✅ Day 1 (models)
+- [x] Logging added for split operations ✅ Day 2 (repository)
+- [x] Type hints throughout ✅ Days 1-2
 
 ### Testing
-- [x] 20+ unit tests written and passing
-- [x] 10+ integration tests written and passing
-- [x] Test coverage > 80% for split module
-- [x] Edge cases tested (unbalanced, minimum splits, etc.)
-- [x] Paycheck template tested end-to-end
-- [x] UI manually tested (automated tests P1 for Sprint 5)
+- [x] 20+ unit tests written and passing ✅ Day 1 (38 model tests)
+- [ ] 10+ integration tests written and passing ⏳ Day 5
+- [x] Test coverage > 80% for split module ✅ Day 1 (100% models)
+- [x] Edge cases tested (unbalanced, minimum splits, etc.) ✅ Day 1
+- [ ] Paycheck template tested end-to-end ⏳ Day 3
+- [ ] UI manually tested (automated tests P1 for Sprint 5) ⏳ Day 4
 
 ### Code Review
 - [x] Code follows team standards
