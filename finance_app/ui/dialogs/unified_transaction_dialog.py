@@ -128,21 +128,20 @@ class UnifiedTransactionDialog(QDialog):
         amount_layout.setSpacing(4)
         self.expense_amount = QLineEdit()
         self.expense_amount.setPlaceholderText("0.00")
-        self.expense_amount.setFixedWidth(150)
+        self.expense_amount.setFixedWidth(120)
         validator = QDoubleValidator(0.01, 999999999.99, 2, self)
         self.expense_amount.setValidator(validator)
         amount_layout.addWidget(self.expense_amount)
 
-        # Amount adjustment buttons (like HomeBank) - compact
+        # Amount adjustment buttons - expand to fill space
         minus_btn = QPushButton("−")
-        minus_btn.setFixedSize(28, 28)
+        minus_btn.setMinimumHeight(28)
         minus_btn.clicked.connect(lambda: self._adjust_amount(self.expense_amount, -1))
         plus_btn = QPushButton("+")
-        plus_btn.setFixedSize(28, 28)
+        plus_btn.setMinimumHeight(28)
         plus_btn.clicked.connect(lambda: self._adjust_amount(self.expense_amount, 1))
         amount_layout.addWidget(minus_btn)
         amount_layout.addWidget(plus_btn)
-        amount_layout.addStretch()
 
         form.addRow("Amount:", amount_layout)
 
@@ -198,20 +197,19 @@ class UnifiedTransactionDialog(QDialog):
         amount_layout.setSpacing(4)
         self.income_amount = QLineEdit()
         self.income_amount.setPlaceholderText("0.00")
-        self.income_amount.setFixedWidth(150)
+        self.income_amount.setFixedWidth(120)
         validator = QDoubleValidator(0.01, 999999999.99, 2, self)
         self.income_amount.setValidator(validator)
         amount_layout.addWidget(self.income_amount)
 
         minus_btn = QPushButton("−")
-        minus_btn.setFixedSize(28, 28)
+        minus_btn.setMinimumHeight(28)
         minus_btn.clicked.connect(lambda: self._adjust_amount(self.income_amount, -1))
         plus_btn = QPushButton("+")
-        plus_btn.setFixedSize(28, 28)
+        plus_btn.setMinimumHeight(28)
         plus_btn.clicked.connect(lambda: self._adjust_amount(self.income_amount, 1))
         amount_layout.addWidget(minus_btn)
         amount_layout.addWidget(plus_btn)
-        amount_layout.addStretch()
 
         form.addRow("Amount:", amount_layout)
 
@@ -267,20 +265,19 @@ class UnifiedTransactionDialog(QDialog):
         amount_layout.setSpacing(4)
         self.transfer_amount = QLineEdit()
         self.transfer_amount.setPlaceholderText("0.00")
-        self.transfer_amount.setFixedWidth(150)
+        self.transfer_amount.setFixedWidth(120)
         validator = QDoubleValidator(0.01, 999999999.99, 2, self)
         self.transfer_amount.setValidator(validator)
         amount_layout.addWidget(self.transfer_amount)
 
         minus_btn = QPushButton("−")
-        minus_btn.setFixedSize(28, 28)
+        minus_btn.setMinimumHeight(28)
         minus_btn.clicked.connect(lambda: self._adjust_amount(self.transfer_amount, -1))
         plus_btn = QPushButton("+")
-        plus_btn.setFixedSize(28, 28)
+        plus_btn.setMinimumHeight(28)
         plus_btn.clicked.connect(lambda: self._adjust_amount(self.transfer_amount, 1))
         amount_layout.addWidget(minus_btn)
         amount_layout.addWidget(plus_btn)
-        amount_layout.addStretch()
 
         form.addRow("Amount:", amount_layout)
 
