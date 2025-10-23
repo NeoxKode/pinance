@@ -64,13 +64,14 @@ class TransactionSplitRepository:
                 if cursor.fetchone() is None:
                     raise NotFoundError(f"Transaction {split.transaction_id} not found")
 
-                # Verify group exists
-                cursor.execute(
-                    "SELECT id FROM transaction_groups WHERE id = ?",
-                    (split.group_id,)
-                )
-                if cursor.fetchone() is None:
-                    raise NotFoundError(f"Transaction group {split.group_id} not found")
+                # Verify group exists (only if group_id is provided)
+                if split.group_id is not None:
+                    cursor.execute(
+                        "SELECT id FROM transaction_groups WHERE id = ?",
+                        (split.group_id,)
+                    )
+                    if cursor.fetchone() is None:
+                        raise NotFoundError(f"Transaction group {split.group_id} not found")
 
                 # Verify category exists
                 cursor.execute(
@@ -162,13 +163,14 @@ class TransactionSplitRepository:
                     # Ensure split order is set
                     split.split_order = i
 
-                    # Verify group exists
-                    cursor.execute(
-                        "SELECT id FROM transaction_groups WHERE id = ?",
-                        (split.group_id,)
-                    )
-                    if cursor.fetchone() is None:
-                        raise NotFoundError(f"Transaction group {split.group_id} not found")
+                    # Verify group exists (only if group_id is provided)
+                    if split.group_id is not None:
+                        cursor.execute(
+                            "SELECT id FROM transaction_groups WHERE id = ?",
+                            (split.group_id,)
+                        )
+                        if cursor.fetchone() is None:
+                            raise NotFoundError(f"Transaction group {split.group_id} not found")
 
                     # Verify category exists
                     cursor.execute(

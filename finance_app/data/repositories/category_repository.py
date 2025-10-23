@@ -43,14 +43,14 @@ class CategoryRepository:
 
                 if category_type:
                     cursor.execute("""
-                        SELECT id, name, type
+                        SELECT id, name, type, account_id
                         FROM categories
                         WHERE type = ?
                         ORDER BY name
                     """, (category_type,))
                 else:
                     cursor.execute("""
-                        SELECT id, name, type
+                        SELECT id, name, type, account_id
                         FROM categories
                         ORDER BY name
                     """)
@@ -94,7 +94,7 @@ class CategoryRepository:
             with self.db.get_connection() as conn:
                 cursor = conn.cursor()
                 cursor.execute("""
-                    SELECT id, name, type
+                    SELECT id, name, type, account_id
                     FROM categories
                     WHERE id = ?
                 """, (category_id,))
@@ -121,11 +121,11 @@ class CategoryRepository:
             with self.db.get_connection() as conn:
                 cursor = conn.cursor()
                 cursor.execute("""
-                    INSERT INTO categories (name, type)
-                    VALUES (?, ?)
-                """, (category.name, category.type))
+                    INSERT INTO categories (name, type, account_id)
+                    VALUES (?, ?, ?)
+                """, (category.name, category.type, category.account_id))
                 category.id = cursor.lastrowid
-                logger.info(f"Created category: {category.name} (ID: {category.id})")
+                logger.info(f"Created category: {category.name} (ID: {category.id}, account_id: {category.account_id})")
                 return category
         except sqlite3.IntegrityError as e:
             logger.error(f"Category with name '{category.name}' already exists")
@@ -174,5 +174,6 @@ class CategoryRepository:
             id=row['id'],
             name=row['name'],
             type=row['type'],
+            account_id=row['account_id'] if 'account_id' in row.keys() else None,  # Added in migration 004
             created_at=None  # Not in current schema
         )

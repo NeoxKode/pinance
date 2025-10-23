@@ -12,10 +12,11 @@ from PySide6.QtCore import Qt
 from PySide6.QtGui import QAction
 
 from finance_app.data.database import Database
-from finance_app.data.models import AccountType, AccountSubtype
+from finance_app.data.models import AccountType, AccountSubtype, TransactionSplit
 from finance_app.business.transaction_service import TransactionService
 from finance_app.business.account_service import AccountService
 from finance_app.business.double_entry_service import DoubleEntryService
+from finance_app.business.split_transaction_service import SplitTransactionService
 from finance_app.ui.dialogs.transaction_dialog import AddTransactionDialog
 from finance_app.ui.dialogs.account_dialog import AccountDialog
 from finance_app.ui.dialogs.transfer_dialog import TransferDialog
@@ -41,6 +42,7 @@ class MainWindow(QMainWindow):
         self.transaction_service = TransactionService(database)
         self.account_service = AccountService(database)
         self.double_entry_service = DoubleEntryService(database)
+        self.split_service = SplitTransactionService(database)
         self.current_account_id: Optional[int] = None
 
         self.setup_ui()
@@ -375,7 +377,7 @@ class MainWindow(QMainWindow):
                         logger.info(f"Transfer completed via unified dialog: group_id={group.id}")
                     else:
                         # Handle expense/income using transaction service
-                        self.transaction_service.create_transaction(
+                        transaction = self.transaction_service.create_transaction(
                             account_id=data['account_id'],
                             date=data['date'],
                             description=data['description'],
@@ -383,11 +385,48 @@ class MainWindow(QMainWindow):
                             amount=data['amount'],
                             trans_type=data['type']
                         )
-                        self.load_data()
-                        self.statusBar().showMessage(
-                            f"{data['type'].capitalize()} added successfully"
-                        )
-                        logger.info(f"{data['type'].capitalize()} added via unified dialog")
+
+                        # Check if splits exist
+                        if data.get('splits'):
+                            splits_data = data['splits']
+                            logger.info(f"Creating split transaction with {len(splits_data)} splits")
+
+                            # Convert split dictionaries to TransactionSplit objects
+                            splits = []
+                            for i, split_dict in enumerate(splits_data):
+                                split = TransactionSplit(
+                                    id=None,
+                                    transaction_id=transaction.id,
+                                    group_id=None,  # Will be assigned by service
+                                    split_order=i,
+                                    category_id=split_dict['category_id'],
+                                    amount=Decimal(str(split_dict['amount'])),
+                                    memo=split_dict.get('memo'),
+                                    account_id=split_dict.get('account_id')
+                                )
+                                splits.append(split)
+
+                            # Create splits via service
+                            txn, created_splits, group = self.split_service.create_split_transaction(
+                                transaction_id=transaction.id,
+                                splits=splits
+                            )
+
+                            self.load_data()
+                            self.statusBar().showMessage(
+                                f"{data['type'].capitalize()} with {len(created_splits)} splits added successfully"
+                            )
+                            logger.info(
+                                f"Split {data['type']} created: txn_id={txn.id}, "
+                                f"splits={len(created_splits)}, group_id={group.id if group else None}"
+                            )
+                        else:
+                            # Regular transaction without splits
+                            self.load_data()
+                            self.statusBar().showMessage(
+                                f"{data['type'].capitalize()} added successfully"
+                            )
+                            logger.info(f"{data['type'].capitalize()} added via unified dialog")
 
         except FinanceAppError as e:
             logger.error(f"Failed to add transaction: {e}")

@@ -18,6 +18,7 @@ from PySide6.QtGui import QDoubleValidator
 from finance_app.data.database import Database
 from finance_app.data.models import Account
 from finance_app.data.repositories.category_repository import CategoryRepository
+from finance_app.ui.dialogs.split_transaction_dialog import SplitTransactionDialog
 from finance_app.utils.logger import setup_logger
 
 logger = setup_logger(__name__)
@@ -44,6 +45,10 @@ class UnifiedTransactionDialog(QDialog):
         self.accounts = accounts
         self.category_repo = CategoryRepository(database)
         self.transaction_type = "expense"  # Default to expense tab
+
+        # Track split data
+        self.expense_splits = None
+        self.income_splits = None
 
         self.setup_ui()
         self.apply_styling()
@@ -144,6 +149,14 @@ class UnifiedTransactionDialog(QDialog):
         amount_layout.addWidget(minus_btn, 0)  # No stretch
         amount_layout.addWidget(plus_btn, 0)  # No stretch
 
+        # Split button - HomeBank pattern (uses icon, we'll use S for Split)
+        self.expense_split_btn = QPushButton("S")
+        self.expense_split_btn.setObjectName("splitButton")
+        self.expense_split_btn.setFixedWidth(20)
+        self.expense_split_btn.setToolTip("Split transaction across multiple categories")
+        self.expense_split_btn.clicked.connect(lambda: self._open_split_dialog("expense"))
+        amount_layout.addWidget(self.expense_split_btn, 0)
+
         form.addRow("Amount:", amount_layout)
 
         # Account
@@ -212,6 +225,14 @@ class UnifiedTransactionDialog(QDialog):
         plus_btn.clicked.connect(lambda: self._adjust_amount(self.income_amount, 1))
         amount_layout.addWidget(minus_btn, 0)
         amount_layout.addWidget(plus_btn, 0)
+
+        # Split button - HomeBank pattern (uses icon, we'll use S for Split)
+        self.income_split_btn = QPushButton("S")
+        self.income_split_btn.setObjectName("splitButton")
+        self.income_split_btn.setFixedWidth(20)
+        self.income_split_btn.setToolTip("Split transaction across multiple categories")
+        self.income_split_btn.clicked.connect(lambda: self._open_split_dialog("income"))
+        amount_layout.addWidget(self.income_split_btn, 0)
 
         form.addRow("Amount:", amount_layout)
 
@@ -333,6 +354,50 @@ class UnifiedTransactionDialog(QDialog):
         except (InvalidOperation, ValueError):
             line_edit.setText("0.00")
 
+    def _open_split_dialog(self, transaction_type: str) -> None:
+        """
+        Open split transaction dialog (HomeBank pattern).
+
+        Args:
+            transaction_type: "expense" or "income"
+        """
+        # Get existing splits if any
+        existing_splits = None
+        if transaction_type == "expense" and self.expense_splits:
+            existing_splits = self.expense_splits
+        elif transaction_type == "income" and self.income_splits:
+            existing_splits = self.income_splits
+
+        # Open split dialog
+        dialog = SplitTransactionDialog(
+            database=self.db,
+            transaction_type=transaction_type,
+            existing_splits=existing_splits,
+            parent=self
+        )
+
+        if dialog.exec():
+            # Get splits and calculated total
+            splits = dialog.get_splits()
+            total_amount = dialog.get_total_amount()
+
+            if splits:
+                # Store splits
+                if transaction_type == "expense":
+                    self.expense_splits = splits
+                    # Update amount field with calculated total
+                    self.expense_amount.setText(f"{total_amount:.2f}")
+                    # Disable category (splits override single category)
+                    self.expense_category.setEnabled(False)
+                    logger.info(f"Expense splits saved: {len(splits)} splits, total=${total_amount:.2f}")
+                else:
+                    self.income_splits = splits
+                    # Update amount field with calculated total
+                    self.income_amount.setText(f"{total_amount:.2f}")
+                    # Disable category (splits override single category)
+                    self.income_category.setEnabled(False)
+                    logger.info(f"Income splits saved: {len(splits)} splits, total=${total_amount:.2f}")
+
     def _on_tab_changed(self, index: int) -> None:
         """Handle tab change."""
         if index == 0:
@@ -428,7 +493,8 @@ class UnifiedTransactionDialog(QDialog):
                 'description': self.expense_payee.text().strip() or "Expense",
                 'payee': self.expense_payee.text().strip(),
                 'reference': self.expense_number.text().strip(),
-                'memo': self.expense_memo.toPlainText().strip()
+                'memo': self.expense_memo.toPlainText().strip(),
+                'splits': self.expense_splits  # Include split data
             }
         elif current_tab == 1:  # Income
             return {
@@ -440,7 +506,8 @@ class UnifiedTransactionDialog(QDialog):
                 'description': self.income_payer.text().strip() or "Income",
                 'payer': self.income_payer.text().strip(),
                 'reference': self.income_number.text().strip(),
-                'memo': self.income_memo.toPlainText().strip()
+                'memo': self.income_memo.toPlainText().strip(),
+                'splits': self.income_splits  # Include split data
             }
         elif current_tab == 2:  # Transfer
             return {
@@ -564,6 +631,25 @@ class UnifiedTransactionDialog(QDialog):
                 padding: 4px 2px;
                 min-width: 15px;
                 max-width: 15px;
+            }
+
+            QPushButton[objectName="splitButton"] {
+                padding: 4px 2px;
+                min-width: 20px;
+                max-width: 20px;
+                background-color: #0078d4;
+                border-color: #0078d4;
+                font-size: 11px;
+                font-weight: bold;
+                color: #ffffff;
+            }
+
+            QPushButton[objectName="splitButton"]:hover {
+                background-color: #1084e0;
+            }
+
+            QPushButton[objectName="splitButton"]:pressed {
+                background-color: #006cc1;
             }
 
             QPushButton:hover {
