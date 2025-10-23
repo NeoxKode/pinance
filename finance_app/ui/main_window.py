@@ -19,6 +19,7 @@ from finance_app.business.double_entry_service import DoubleEntryService
 from finance_app.ui.dialogs.transaction_dialog import AddTransactionDialog
 from finance_app.ui.dialogs.account_dialog import AccountDialog
 from finance_app.ui.dialogs.transfer_dialog import TransferDialog
+from finance_app.ui.dialogs.unified_transaction_dialog import UnifiedTransactionDialog
 from finance_app.utils.logger import setup_logger
 from finance_app.utils.exceptions import FinanceAppError
 
@@ -95,11 +96,21 @@ class MainWindow(QMainWindow):
 
         # Edit menu
         edit_menu = menubar.addMenu("Edit")
+
+        # Unified transaction dialog (HomeBank-style)
         add_trans_action = QAction("Add Transaction", self)
-        add_trans_action.triggered.connect(self.add_transaction)
+        add_trans_action.setShortcut("Ctrl+N")
+        add_trans_action.triggered.connect(self.add_transaction_unified)
         edit_menu.addAction(add_trans_action)
 
-        transfer_action = QAction("Transfer Money", self)
+        edit_menu.addSeparator()
+
+        # Legacy dialogs (kept for compatibility)
+        add_trans_old_action = QAction("Add Transaction (Old)", self)
+        add_trans_old_action.triggered.connect(self.add_transaction)
+        edit_menu.addAction(add_trans_old_action)
+
+        transfer_action = QAction("Transfer Money (Old)", self)
         transfer_action.setShortcut("Ctrl+Shift+T")
         transfer_action.triggered.connect(self.transfer_money)
         edit_menu.addAction(transfer_action)
@@ -175,7 +186,8 @@ class MainWindow(QMainWindow):
         control_layout.addWidget(transfer_btn)
 
         add_btn = QPushButton("+ Add Transaction")
-        add_btn.clicked.connect(self.add_transaction)
+        add_btn.setToolTip("Add transaction (Ctrl+N)")
+        add_btn.clicked.connect(self.add_transaction_unified)
         control_layout.addWidget(add_btn)
 
         delete_btn = QPushButton("Delete")
@@ -314,7 +326,7 @@ class MainWindow(QMainWindow):
             self.statusBar().showMessage(f"Showing transactions for: {account_name}")
 
     def add_transaction(self) -> None:
-        """Show dialog to add transaction."""
+        """Show dialog to add transaction (legacy)."""
         try:
             accounts = self.account_service.get_all_accounts()
             dialog = AddTransactionDialog(self.db, accounts, self)
@@ -333,6 +345,54 @@ class MainWindow(QMainWindow):
                     self.load_data()
                     self.statusBar().showMessage("Transaction added successfully")
                     logger.info("Transaction added via UI")
+
+        except FinanceAppError as e:
+            logger.error(f"Failed to add transaction: {e}")
+            QMessageBox.critical(self, "Error", f"Failed to add transaction: {e}")
+        except Exception as e:
+            logger.error(f"Unexpected error adding transaction: {e}")
+            QMessageBox.critical(self, "Error", f"Unexpected error: {e}")
+
+    def add_transaction_unified(self) -> None:
+        """Show unified transaction dialog (HomeBank-style with tabs)."""
+        try:
+            accounts = self.account_service.get_all_accounts()
+            dialog = UnifiedTransactionDialog(self.db, accounts, self)
+
+            if dialog.exec():
+                data = dialog.get_transaction_data()
+                if data:
+                    if data['type'] == 'transfer':
+                        # Handle transfer using double-entry service
+                        group, entries = self.double_entry_service.create_transfer(
+                            from_account_id=data['from_account_id'],
+                            to_account_id=data['to_account_id'],
+                            amount=Decimal(data['amount']),
+                            date=data['date'],
+                            description=data.get('description', 'Transfer'),
+                            reference_number=data.get('reference'),
+                            notes=data.get('memo')
+                        )
+                        self.load_data()
+                        self.statusBar().showMessage(
+                            f"Transfer of ${data['amount']} completed successfully"
+                        )
+                        logger.info(f"Transfer completed via unified dialog: group_id={group.id}")
+                    else:
+                        # Handle expense/income using transaction service
+                        self.transaction_service.create_transaction(
+                            account_id=data['account_id'],
+                            date=data['date'],
+                            description=data['description'],
+                            category=data['category'],
+                            amount=data['amount'],
+                            trans_type=data['type']
+                        )
+                        self.load_data()
+                        self.statusBar().showMessage(
+                            f"{data['type'].capitalize()} added successfully"
+                        )
+                        logger.info(f"{data['type'].capitalize()} added via unified dialog")
 
         except FinanceAppError as e:
             logger.error(f"Failed to add transaction: {e}")
