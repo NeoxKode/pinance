@@ -180,11 +180,6 @@ class MainWindow(QMainWindow):
         control_layout.addWidget(QLabel("<b>Transactions</b>"))
         control_layout.addStretch()
 
-        transfer_btn = QPushButton("💸 Transfer")
-        transfer_btn.setToolTip("Transfer money between accounts (Ctrl+Shift+T)")
-        transfer_btn.clicked.connect(self.transfer_money)
-        control_layout.addWidget(transfer_btn)
-
         add_btn = QPushButton("+ Add Transaction")
         add_btn.setToolTip("Add transaction (Ctrl+N)")
         add_btn.clicked.connect(self.add_transaction_unified)
