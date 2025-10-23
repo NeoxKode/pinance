@@ -260,3 +260,349 @@ class TransactionGroup:
     def validate_balance(self) -> bool:
         """Validate that the group is balanced."""
         return self.total_debits == self.total_credits
+
+
+@dataclass
+class TransactionSplit:
+    """
+    Transaction split model for splitting a single transaction across multiple categories.
+
+    Represents a single split within a transaction. For example, in a $100 Walmart
+    transaction split into Groceries ($70) and Household ($30), each would be a
+    TransactionSplit.
+
+    Story: US-002C - Split Transactions (Day 1)
+
+    Key Design Decisions:
+    - Split amounts are ALWAYS positive (sign comes from parent transaction type)
+    - Each split links to a category (which links to an account via account_id)
+    - Splits are ordered for display consistency
+    - Optional memo for per-split notes
+    """
+    id: Optional[int]
+    transaction_id: int
+    group_id: int  # Links to transaction_groups for double-entry
+    split_order: int
+    category_id: int
+    amount: Decimal
+    memo: Optional[str] = None
+    account_id: Optional[int] = None  # For multi-account splits (future)
+    split_type: str = 'manual'  # 'manual', 'paycheck', 'shopping', 'bill'
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
+
+    def __post_init__(self):
+        """Validate split data and ensure types are correct."""
+        # Convert to Decimal if needed
+        if not isinstance(self.amount, Decimal):
+            self.amount = Decimal(str(self.amount))
+
+        # Validation: Split amount must be positive
+        if self.amount <= 0:
+            raise ValueError(f"Split amount must be positive, got {self.amount}")
+
+        # Validation: Split order must be non-negative
+        if self.split_order < 0:
+            raise ValueError(f"Split order must be non-negative, got {self.split_order}")
+
+        # Validation: Split type must be valid
+        valid_types = {'manual', 'paycheck', 'shopping', 'bill'}
+        if self.split_type not in valid_types:
+            raise ValueError(f"Split type must be one of {valid_types}, got {self.split_type}")
+
+        # Trim memo if provided
+        if self.memo:
+            self.memo = self.memo.strip()[:500]  # Limit memo length
+
+    def __repr__(self) -> str:
+        """String representation for debugging."""
+        return f"TransactionSplit(id={self.id}, amount={self.amount}, category={self.category_id})"
+
+
+@dataclass
+class SplitTransaction:
+    """
+    Split transaction model containing parent transaction and all child splits.
+
+    Represents a complete split transaction with validation that splits balance
+    to the transaction amount.
+
+    Example:
+        Transaction: Walmart purchase -$127.50
+        Splits:
+            - Groceries: $85.00
+            - Household: $32.50
+            - Personal Care: $10.00
+            Total: $127.50 ✓ Balanced
+
+    Story: US-002C - Split Transactions (Day 1)
+    """
+    transaction: Transaction
+    splits: list  # List[TransactionSplit]
+
+    def __post_init__(self):
+        """Validate split transaction."""
+        # Validation: Must have at least 2 splits
+        if len(self.splits) < 2:
+            raise ValueError(
+                f"Split transaction must have at least 2 splits, got {len(self.splits)}"
+            )
+
+        # Validation: All splits must belong to this transaction
+        for split in self.splits:
+            if split.transaction_id != self.transaction.id:
+                raise ValueError(
+                    f"Split {split.id} belongs to transaction {split.transaction_id}, "
+                    f"not {self.transaction.id}"
+                )
+
+    @property
+    def total_splits(self) -> Decimal:
+        """Calculate total of all splits."""
+        return sum(split.amount for split in self.splits)
+
+    @property
+    def is_balanced(self) -> bool:
+        """
+        Check if splits equal transaction amount.
+
+        Uses 1-cent tolerance for floating point comparison.
+        """
+        return abs(self.total_splits - abs(self.transaction.amount)) < Decimal('0.01')
+
+    @property
+    def balance_difference(self) -> Decimal:
+        """
+        Get difference between transaction and splits.
+
+        Useful for error messages:
+        - Positive: Need to add more splits
+        - Negative: Total splits exceed transaction amount
+        - Zero: Balanced ✓
+        """
+        return abs(self.transaction.amount) - self.total_splits
+
+    @property
+    def split_count(self) -> int:
+        """Get number of splits."""
+        return len(self.splits)
+
+    def validate_balance(self) -> bool:
+        """
+        Validate that splits balance to transaction amount.
+
+        Returns:
+            True if balanced (within 1-cent tolerance)
+
+        Raises:
+            ValueError: If splits don't balance with detailed error message
+        """
+        if not self.is_balanced:
+            raise ValueError(
+                f"Splits total ${self.total_splits} doesn't match transaction "
+                f"amount ${abs(self.transaction.amount)} "
+                f"(difference: ${abs(self.balance_difference)})"
+            )
+        return True
+
+    def __repr__(self) -> str:
+        """String representation for debugging."""
+        status = "✓ Balanced" if self.is_balanced else f"⚠ Off by ${self.balance_difference}"
+        return (
+            f"SplitTransaction(id={self.transaction.id}, "
+            f"amount={self.transaction.amount}, "
+            f"splits={self.split_count}, "
+            f"{status})"
+        )
+
+
+@dataclass
+class PaycheckSplit:
+    """
+    Template model for paycheck split transactions.
+
+    Represents a paycheck with gross pay and various deductions, automatically
+    calculating net pay. This is the most common use case for split transactions.
+
+    Example:
+        Gross Pay: $5,000.00
+        - Federal Tax: $750.00
+        - State Tax: $250.00
+        - Social Security: $310.00
+        - Medicare: $72.50
+        - 401(k): $500.00
+        - Health Insurance: $200.00
+        = Net Pay: $2,917.50
+
+    Story: US-002C - Split Transactions (Day 1)
+    """
+    gross_pay: Decimal
+    federal_tax: Decimal
+    state_tax: Decimal
+    social_security: Decimal
+    medicare: Decimal
+    retirement_401k: Decimal
+    health_insurance: Decimal
+    other_deductions: Optional[list] = None  # List[Tuple[str, Decimal]]
+
+    def __post_init__(self):
+        """Validate paycheck data and ensure types are correct."""
+        # Convert all to Decimal
+        fields = [
+            'gross_pay', 'federal_tax', 'state_tax',
+            'social_security', 'medicare', 'retirement_401k', 'health_insurance'
+        ]
+
+        for field in fields:
+            value = getattr(self, field)
+            if not isinstance(value, Decimal):
+                setattr(self, field, Decimal(str(value)))
+
+        # Validation: Gross pay must be positive
+        if self.gross_pay <= 0:
+            raise ValueError(f"Gross pay must be positive, got {self.gross_pay}")
+
+        # Validation: Deductions must be non-negative
+        deductions = [
+            ('federal_tax', self.federal_tax),
+            ('state_tax', self.state_tax),
+            ('social_security', self.social_security),
+            ('medicare', self.medicare),
+            ('retirement_401k', self.retirement_401k),
+            ('health_insurance', self.health_insurance),
+        ]
+
+        for name, value in deductions:
+            if value < 0:
+                raise ValueError(f"{name} must be non-negative, got {value}")
+
+        # Validation: Total deductions cannot exceed gross pay
+        if self.total_deductions > self.gross_pay:
+            raise ValueError(
+                f"Total deductions ${self.total_deductions} exceed "
+                f"gross pay ${self.gross_pay}"
+            )
+
+        # Convert other_deductions to Decimal
+        if self.other_deductions:
+            self.other_deductions = [
+                (name, Decimal(str(amt)) if not isinstance(amt, Decimal) else amt)
+                for name, amt in self.other_deductions
+            ]
+
+    @property
+    def total_deductions(self) -> Decimal:
+        """Calculate total deductions."""
+        total = (
+            self.federal_tax +
+            self.state_tax +
+            self.social_security +
+            self.medicare +
+            self.retirement_401k +
+            self.health_insurance
+        )
+
+        if self.other_deductions:
+            total += sum(amt for _, amt in self.other_deductions)
+
+        return total
+
+    @property
+    def net_pay(self) -> Decimal:
+        """Calculate net pay (gross - all deductions)."""
+        return self.gross_pay - self.total_deductions
+
+    @property
+    def deduction_count(self) -> int:
+        """Get number of deductions."""
+        base_count = 6  # Standard deductions
+        other_count = len(self.other_deductions) if self.other_deductions else 0
+        return base_count + other_count
+
+    @property
+    def effective_tax_rate(self) -> Decimal:
+        """Calculate effective tax rate (total taxes / gross pay)."""
+        total_taxes = self.federal_tax + self.state_tax + self.social_security + self.medicare
+        if self.gross_pay == 0:
+            return Decimal('0')
+        return (total_taxes / self.gross_pay) * 100
+
+    def to_splits(self) -> list:
+        """
+        Convert paycheck to list of split dictionaries.
+
+        Returns:
+            List of dicts with 'category_id', 'amount', 'memo' keys
+            Note: category_id will need to be mapped by the service layer
+        """
+        splits = []
+
+        # Income split (gross pay)
+        splits.append({
+            'category': 'Salary',
+            'amount': self.gross_pay,
+            'memo': 'Gross Pay'
+        })
+
+        # Deduction splits
+        if self.federal_tax > 0:
+            splits.append({
+                'category': 'Federal Tax',
+                'amount': self.federal_tax,
+                'memo': 'Federal Income Tax'
+            })
+
+        if self.state_tax > 0:
+            splits.append({
+                'category': 'State Tax',
+                'amount': self.state_tax,
+                'memo': 'State Income Tax'
+            })
+
+        if self.social_security > 0:
+            splits.append({
+                'category': 'Social Security Tax',
+                'amount': self.social_security,
+                'memo': 'Social Security (FICA)'
+            })
+
+        if self.medicare > 0:
+            splits.append({
+                'category': 'Medicare Tax',
+                'amount': self.medicare,
+                'memo': 'Medicare Tax'
+            })
+
+        if self.retirement_401k > 0:
+            splits.append({
+                'category': '401(k) Contribution',
+                'amount': self.retirement_401k,
+                'memo': '401(k) Retirement Contribution'
+            })
+
+        if self.health_insurance > 0:
+            splits.append({
+                'category': 'Health Insurance',
+                'amount': self.health_insurance,
+                'memo': 'Health Insurance Premium'
+            })
+
+        # Other deductions
+        if self.other_deductions:
+            for name, amount in self.other_deductions:
+                if amount > 0:
+                    splits.append({
+                        'category': name,
+                        'amount': amount,
+                        'memo': f'Other Deduction: {name}'
+                    })
+
+        return splits
+
+    def __repr__(self) -> str:
+        """String representation for debugging."""
+        return (
+            f"PaycheckSplit(gross=${self.gross_pay}, "
+            f"deductions=${self.total_deductions}, "
+            f"net=${self.net_pay})"
+        )
