@@ -198,3 +198,65 @@ class JournalEntry:
     def is_credit(self) -> bool:
         """Check if this is a credit entry."""
         return self.credit_amount > 0
+
+
+@dataclass
+class TransactionGroup:
+    """
+    Transaction group model for balanced multi-entry transactions.
+
+    Groups multiple journal entries together ensuring debits equal credits.
+    Used for transfers and other multi-entry transactions.
+
+    Story: US-002B - Balanced Transaction Groups (Phase 2)
+    """
+    id: Optional[int]
+    group_date: str  # YYYY-MM-DD format
+    description: str
+    total_debits: Decimal
+    total_credits: Decimal
+    is_balanced: bool = True
+    notes: Optional[str] = None
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
+
+    def __post_init__(self):
+        """Validate transaction group and ensure types are correct."""
+        # Convert to Decimal if needed
+        if not isinstance(self.total_debits, Decimal):
+            self.total_debits = Decimal(str(self.total_debits))
+        if not isinstance(self.total_credits, Decimal):
+            self.total_credits = Decimal(str(self.total_credits))
+
+        # Validation: Total debits and credits must be non-negative
+        if self.total_debits < 0:
+            raise ValueError("Total debits must be non-negative")
+        if self.total_credits < 0:
+            raise ValueError("Total credits must be non-negative")
+
+        # Validation: Group must be balanced (debits = credits)
+        if self.total_debits != self.total_credits:
+            raise ValueError(
+                f"Transaction group must be balanced: "
+                f"debits ({self.total_debits}) must equal credits ({self.total_credits})"
+            )
+
+        # Set is_balanced based on validation
+        self.is_balanced = (self.total_debits == self.total_credits)
+
+    @property
+    def total_amount(self) -> Decimal:
+        """Get the total amount (debits or credits, they should be equal)."""
+        return self.total_debits
+
+    @property
+    def entry_count(self) -> int:
+        """
+        Get the expected minimum number of entries (at least 2 for balanced group).
+        Note: Actual count must be determined by querying journal_entries.
+        """
+        return 2  # Minimum for a balanced transaction
+
+    def validate_balance(self) -> bool:
+        """Validate that the group is balanced."""
+        return self.total_debits == self.total_credits

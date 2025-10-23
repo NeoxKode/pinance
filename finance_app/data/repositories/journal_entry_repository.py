@@ -1,16 +1,17 @@
 """
 Repository for journal entry data access.
 Story: US-002A - Journal Entry Foundation
+Story: US-002B - Balanced Transaction Groups (create_balanced_group method)
 """
 import sqlite3
 from decimal import Decimal
-from typing import List, Optional
+from typing import List, Optional, Tuple
 from datetime import datetime
 
-from finance_app.data.models import JournalEntry, EntryType
+from finance_app.data.models import JournalEntry, EntryType, TransactionGroup
 from finance_app.data.database import Database
 from finance_app.utils.logger import setup_logger
-from finance_app.utils.exceptions import DatabaseError, NotFoundError
+from finance_app.utils.exceptions import DatabaseError, NotFoundError, ValidationError
 
 logger = setup_logger(__name__)
 
@@ -355,6 +356,210 @@ class JournalEntryRepository:
         except sqlite3.Error as e:
             logger.error(f"Failed to delete journal entry {entry_id}: {e}")
             raise DatabaseError(f"Failed to delete journal entry: {e}") from e
+
+    def create_balanced_group(
+        self,
+        entries: List[JournalEntry],
+        group_date: str,
+        description: str,
+        notes: Optional[str] = None
+    ) -> Tuple[TransactionGroup, List[JournalEntry]]:
+        """
+        Create a balanced group of journal entries atomically.
+
+        This method ensures that:
+        1. All entries are created together in a single transaction
+        2. The sum of debits equals the sum of credits (balanced)
+        3. All entries are linked to the same transaction group
+        4. If any validation fails, entire operation rolls back
+
+        Story: US-002B - Balanced Transaction Groups (Phase 2)
+
+        Args:
+            entries: List of JournalEntry objects (without IDs or group_id)
+            group_date: Date for the transaction group (YYYY-MM-DD)
+            description: Description for the transaction group
+            notes: Optional notes for the transaction group
+
+        Returns:
+            Tuple of (TransactionGroup, List[JournalEntry]) - created group and entries
+
+        Raises:
+            ValidationError: If entries are not balanced or invalid
+            DatabaseError: If creation fails
+
+        Example:
+            # Transfer $500 from Checking (ID=1) to Savings (ID=2)
+            entries = [
+                JournalEntry(
+                    account_id=1,  # Checking
+                    entry_date="2025-10-22",
+                    description="Transfer to savings",
+                    debit_amount=Decimal("0"),
+                    credit_amount=Decimal("500"),  # Decrease asset
+                    balance_after=Decimal("0"),  # Will be calculated
+                    entry_type=EntryType.TRANSFER
+                ),
+                JournalEntry(
+                    account_id=2,  # Savings
+                    entry_date="2025-10-22",
+                    description="Transfer from checking",
+                    debit_amount=Decimal("500"),  # Increase asset
+                    credit_amount=Decimal("0"),
+                    balance_after=Decimal("0"),  # Will be calculated
+                    entry_type=EntryType.TRANSFER
+                )
+            ]
+            group, created_entries = repo.create_balanced_group(
+                entries, "2025-10-22", "Transfer between accounts"
+            )
+        """
+        # Validation: Must have at least 2 entries
+        if len(entries) < 2:
+            raise ValidationError(
+                "Balanced group must have at least 2 journal entries"
+            )
+
+        # Validation: Calculate totals
+        total_debits = sum(entry.debit_amount for entry in entries)
+        total_credits = sum(entry.credit_amount for entry in entries)
+
+        # Validation: Must be balanced
+        if total_debits != total_credits:
+            raise ValidationError(
+                f"Journal entries must be balanced: "
+                f"total debits ({total_debits}) != total credits ({total_credits})"
+            )
+
+        # Validation: All entries must have the same date
+        if not all(entry.entry_date == entries[0].entry_date for entry in entries):
+            raise ValidationError(
+                "All journal entries in a group must have the same date"
+            )
+
+        try:
+            from finance_app.data.repositories.transaction_group_repository import TransactionGroupRepository
+
+            with self.db.get_connection() as conn:
+                # Use IMMEDIATE transaction to prevent race conditions
+                conn.execute("BEGIN IMMEDIATE TRANSACTION")
+                cursor = conn.cursor()
+
+                # Step 1: Create the transaction group
+                group_repo = TransactionGroupRepository(self.db)
+                group = TransactionGroup(
+                    id=None,
+                    group_date=group_date,
+                    description=description,
+                    notes=notes,
+                    total_debits=total_debits,
+                    total_credits=total_credits,
+                    is_balanced=True
+                )
+
+                # Insert group (bypassing repo to stay in same transaction)
+                cursor.execute("""
+                    INSERT INTO transaction_groups (
+                        group_date, description, notes,
+                        total_debits, total_credits, is_balanced
+                    ) VALUES (?, ?, ?, ?, ?, ?)
+                """, (
+                    group.group_date,
+                    group.description,
+                    group.notes,
+                    float(group.total_debits),
+                    float(group.total_credits),
+                    1 if group.is_balanced else 0
+                ))
+
+                group_id = cursor.lastrowid
+                logger.info(
+                    f"Created transaction group {group_id}: {description} "
+                    f"(debits={total_debits}, credits={total_credits})"
+                )
+
+                # Step 2: Create all journal entries with the group_id
+                created_entries = []
+                for entry in entries:
+                    # Set the group_id
+                    entry.group_id = group_id
+
+                    # Calculate balance_after for this entry
+                    cursor.execute(
+                        "SELECT balance FROM accounts WHERE id = ?",
+                        (entry.account_id,)
+                    )
+                    row = cursor.fetchone()
+                    if row is None:
+                        raise NotFoundError(f"Account {entry.account_id} not found")
+
+                    current_balance = Decimal(str(row[0]))
+                    amount_change = entry.debit_amount - entry.credit_amount
+                    entry.balance_after = current_balance + amount_change
+
+                    # Insert journal entry
+                    cursor.execute("""
+                        INSERT INTO journal_entries (
+                            transaction_id, group_id, account_id, entry_date,
+                            description, debit_amount, credit_amount, balance_after,
+                            entry_type, reference_number, is_reconciled,
+                            reconciliation_id, notes
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    """, (
+                        entry.transaction_id,
+                        entry.group_id,
+                        entry.account_id,
+                        entry.entry_date,
+                        entry.description,
+                        float(entry.debit_amount),
+                        float(entry.credit_amount),
+                        float(entry.balance_after),
+                        entry.entry_type.value,
+                        entry.reference_number,
+                        1 if entry.is_reconciled else 0,
+                        entry.reconciliation_id,
+                        entry.notes
+                    ))
+
+                    entry.id = cursor.lastrowid
+                    logger.info(
+                        f"Created journal entry {entry.id} for account {entry.account_id} "
+                        f"in group {group_id}: debit={entry.debit_amount}, "
+                        f"credit={entry.credit_amount}"
+                    )
+
+                    # Fetch the created entry to get timestamps
+                    created_entry = self.get_by_id(entry.id)
+                    created_entries.append(created_entry)
+
+                # Commit the transaction
+                conn.commit()
+
+                # Fetch the created group with timestamps
+                group.id = group_id
+                cursor.execute("""
+                    SELECT created_at, updated_at
+                    FROM transaction_groups
+                    WHERE id = ?
+                """, (group_id,))
+                row = cursor.fetchone()
+                if row:
+                    group.created_at = datetime.fromisoformat(row[0]) if row[0] else None
+                    group.updated_at = datetime.fromisoformat(row[1]) if row[1] else None
+
+                logger.info(
+                    f"Successfully created balanced group {group_id} with "
+                    f"{len(created_entries)} journal entries"
+                )
+
+                return group, created_entries
+
+        except ValidationError:
+            # Re-raise validation errors
+            raise
+        except sqlite3.Error as e:
+            logger.error(f"Failed to create balanced group: {e}")
+            raise DatabaseError(f"Failed to create balanced group: {e}") from e
 
     def _row_to_entry(self, row) -> JournalEntry:
         """

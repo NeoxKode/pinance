@@ -2,13 +2,14 @@
 Business logic service for double-entry accounting.
 
 Story: US-002A - Journal Entry Foundation
+Story: US-002B - Balanced Transaction Groups (create_transfer method)
 """
 from decimal import Decimal
-from typing import Tuple, Optional
+from typing import Tuple, Optional, List
 from datetime import datetime
 
 from finance_app.data.models import (
-    JournalEntry, EntryType, Account, AccountType, NormalBalance
+    JournalEntry, EntryType, Account, AccountType, NormalBalance, TransactionGroup
 )
 from finance_app.data.database import Database
 from finance_app.data.repositories.journal_entry_repository import JournalEntryRepository
@@ -290,3 +291,123 @@ class DoubleEntryService:
         return self.journal_repo.get_by_account(
             account_id, start_date, end_date, limit
         )
+
+    def create_transfer(
+        self,
+        from_account_id: int,
+        to_account_id: int,
+        amount: Decimal,
+        date: str,
+        description: str,
+        reference_number: Optional[str] = None,
+        notes: Optional[str] = None
+    ) -> Tuple[TransactionGroup, List[JournalEntry]]:
+        """
+        Create a transfer between two accounts using balanced transaction groups.
+
+        This method:
+        1. Validates the transfer (different accounts, positive amount)
+        2. Creates two journal entries (credit from_account, debit to_account)
+        3. Links them in a balanced transaction group
+        4. Updates both account balances atomically
+
+        Story: US-002B - Balanced Transaction Groups (Phase 3)
+
+        Args:
+            from_account_id: Source account ID (will be credited/decreased)
+            to_account_id: Destination account ID (will be debited/increased)
+            amount: Transfer amount (must be positive)
+            date: Transfer date (YYYY-MM-DD)
+            description: Transfer description
+            reference_number: Optional reference number
+            notes: Optional notes
+
+        Returns:
+            Tuple of (TransactionGroup, List[JournalEntry]) - created group and entries
+
+        Raises:
+            ValidationError: If transfer is invalid (same account, negative amount, etc.)
+            NotFoundError: If either account doesn't exist
+
+        Example:
+            # Transfer $500 from Checking (ID=1) to Savings (ID=2)
+            group, entries = service.create_transfer(
+                from_account_id=1,
+                to_account_id=2,
+                amount=Decimal("500.00"),
+                date="2025-10-22",
+                description="Monthly savings transfer"
+            )
+            # Result: Checking -$500, Savings +$500
+        """
+        # Validation: Amount must be positive
+        if amount <= 0:
+            raise ValidationError(
+                f"Transfer amount must be positive, got {amount}"
+            )
+
+        # Validation: Cannot transfer to same account
+        if from_account_id == to_account_id:
+            raise ValidationError(
+                "Cannot transfer to the same account "
+                f"(from_account={from_account_id}, to_account={to_account_id})"
+            )
+
+        # Validation: Both accounts must exist
+        from_account = self.account_repo.get_by_id(from_account_id)
+        if from_account is None:
+            raise NotFoundError(f"Source account {from_account_id} not found")
+
+        to_account = self.account_repo.get_by_id(to_account_id)
+        if to_account is None:
+            raise NotFoundError(f"Destination account {to_account_id} not found")
+
+        logger.info(
+            f"Creating transfer: {from_account.name} → {to_account.name}, "
+            f"amount={amount}, date={date}"
+        )
+
+        # Create journal entries for the transfer
+        # Entry 1: Credit the source account (decrease)
+        from_entry = JournalEntry(
+            id=None,
+            account_id=from_account_id,
+            entry_date=date,
+            description=f"{description} (to {to_account.name})",
+            debit_amount=Decimal("0.00"),
+            credit_amount=amount,  # Credit = decrease for asset
+            balance_after=Decimal("0.00"),  # Will be calculated
+            entry_type=EntryType.TRANSFER,
+            reference_number=reference_number,
+            notes=notes
+        )
+
+        # Entry 2: Debit the destination account (increase)
+        to_entry = JournalEntry(
+            id=None,
+            account_id=to_account_id,
+            entry_date=date,
+            description=f"{description} (from {from_account.name})",
+            debit_amount=amount,  # Debit = increase for asset
+            credit_amount=Decimal("0.00"),
+            balance_after=Decimal("0.00"),  # Will be calculated
+            entry_type=EntryType.TRANSFER,
+            reference_number=reference_number,
+            notes=notes
+        )
+
+        # Create balanced group with both entries
+        group, created_entries = self.journal_repo.create_balanced_group(
+            entries=[from_entry, to_entry],
+            group_date=date,
+            description=f"Transfer: {from_account.name} → {to_account.name}",
+            notes=notes
+        )
+
+        logger.info(
+            f"Transfer complete: group_id={group.id}, "
+            f"{from_account.name} balance={self.account_repo.get_by_id(from_account_id).balance}, "
+            f"{to_account.name} balance={self.account_repo.get_by_id(to_account_id).balance}"
+        )
+
+        return group, created_entries

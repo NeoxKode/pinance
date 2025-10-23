@@ -155,6 +155,68 @@ def _apply_journal_entries_migration(conn: sqlite3.Connection) -> None:
         logger.debug("Journal entries table already exists, skipping migration")
 
 
+def _apply_transaction_groups_migration(conn: sqlite3.Connection) -> None:
+    """
+    Apply transaction groups migration (003_create_transaction_groups.sql).
+
+    This creates the transaction_groups table for balanced multi-entry transactions.
+    Story: US-002B - Balanced Transaction Groups (Phase 2)
+
+    Args:
+        conn: Database connection
+    """
+    cursor = conn.cursor()
+
+    # Check if migration is needed
+    cursor.execute("""
+        SELECT name FROM sqlite_master
+        WHERE type='table' AND name='transaction_groups'
+    """)
+
+    if cursor.fetchone() is None:
+        logger.info("Applying transaction groups migration (003)...")
+
+        # Read and execute migration file
+        migration_path = Path(__file__).parent / "migrations" / "003_create_transaction_groups.sql"
+
+        if not migration_path.exists():
+            logger.warning(f"Migration file not found: {migration_path}")
+            return
+
+        with open(migration_path, 'r') as f:
+            migration_sql = f.read()
+
+        # Execute migration (split on semicolons but keep transaction together)
+        cursor.executescript(migration_sql)
+
+        conn.commit()
+        logger.info("Transaction groups migration (003) completed")
+
+        # Verify migration
+        cursor.execute("""
+            SELECT name FROM sqlite_master
+            WHERE type='table' AND name='transaction_groups'
+        """)
+        if cursor.fetchone():
+            logger.info("Migration verification: ✓ transaction_groups table created")
+        else:
+            logger.error("Migration verification failed: transaction_groups table not found")
+
+        # Verify triggers
+        cursor.execute("""
+            SELECT name FROM sqlite_master
+            WHERE type='trigger' AND tbl_name='transaction_groups'
+        """)
+        triggers = [row[0] for row in cursor.fetchall()]
+
+        if len(triggers) == 3:
+            logger.info(f"Migration verification: ✓ All 3 triggers created")
+        else:
+            logger.warning(f"Migration verification: Found {len(triggers)}/3 triggers: {triggers}")
+    else:
+        logger.debug("Transaction groups table already exists, skipping migration")
+
+
 class Database:
     """
     Database manager with connection pooling and lifecycle management.
@@ -306,6 +368,9 @@ class Database:
                 # Apply journal entries migration for new databases
                 _apply_journal_entries_migration(conn)
 
+                # Apply transaction groups migration for new databases
+                _apply_transaction_groups_migration(conn)
+
                 # Add sample data if empty
                 self._add_sample_data(conn)
 
@@ -319,6 +384,7 @@ class Database:
             with self.get_connection() as conn:
                 _apply_account_type_migration(conn)
                 _apply_journal_entries_migration(conn)
+                _apply_transaction_groups_migration(conn)
                 logger.info("All migrations applied successfully")
         except Exception as e:
             logger.error(f"Failed to apply migrations: {e}")
