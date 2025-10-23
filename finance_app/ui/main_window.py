@@ -6,7 +6,7 @@ from decimal import Decimal
 
 from PySide6.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QTableWidget,
-    QTableWidgetItem, QPushButton, QLabel, QSplitter, QMessageBox
+    QTableWidgetItem, QPushButton, QLabel, QSplitter, QMessageBox, QDialog
 )
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QAction
@@ -15,8 +15,10 @@ from finance_app.data.database import Database
 from finance_app.data.models import AccountType, AccountSubtype
 from finance_app.business.transaction_service import TransactionService
 from finance_app.business.account_service import AccountService
+from finance_app.business.double_entry_service import DoubleEntryService
 from finance_app.ui.dialogs.transaction_dialog import AddTransactionDialog
 from finance_app.ui.dialogs.account_dialog import AccountDialog
+from finance_app.ui.dialogs.transfer_dialog import TransferDialog
 from finance_app.utils.logger import setup_logger
 from finance_app.utils.exceptions import FinanceAppError
 
@@ -37,6 +39,7 @@ class MainWindow(QMainWindow):
         self.db = database
         self.transaction_service = TransactionService(database)
         self.account_service = AccountService(database)
+        self.double_entry_service = DoubleEntryService(database)
         self.current_account_id: Optional[int] = None
 
         self.setup_ui()
@@ -95,6 +98,11 @@ class MainWindow(QMainWindow):
         add_trans_action = QAction("Add Transaction", self)
         add_trans_action.triggered.connect(self.add_transaction)
         edit_menu.addAction(add_trans_action)
+
+        transfer_action = QAction("Transfer Money", self)
+        transfer_action.setShortcut("Ctrl+Shift+T")
+        transfer_action.triggered.connect(self.transfer_money)
+        edit_menu.addAction(transfer_action)
 
         # View menu
         view_menu = menubar.addMenu("View")
@@ -160,6 +168,11 @@ class MainWindow(QMainWindow):
         control_layout = QHBoxLayout()
         control_layout.addWidget(QLabel("<b>Transactions</b>"))
         control_layout.addStretch()
+
+        transfer_btn = QPushButton("💸 Transfer")
+        transfer_btn.setToolTip("Transfer money between accounts (Ctrl+Shift+T)")
+        transfer_btn.clicked.connect(self.transfer_money)
+        control_layout.addWidget(transfer_btn)
 
         add_btn = QPushButton("+ Add Transaction")
         add_btn.clicked.connect(self.add_transaction)
@@ -442,6 +455,57 @@ class MainWindow(QMainWindow):
             except Exception as e:
                 logger.error(f"Unexpected error deleting account: {e}")
                 QMessageBox.critical(self, "Error", f"Unexpected error: {e}")
+
+    def transfer_money(self) -> None:
+        """Open transfer dialog and process transfer."""
+        try:
+            # Get all accounts for selection
+            accounts = self.account_service.get_all_accounts()
+
+            if len(accounts) < 2:
+                QMessageBox.warning(
+                    self,
+                    "Insufficient Accounts",
+                    "You need at least 2 accounts to make a transfer."
+                )
+                return
+
+            # Open transfer dialog
+            dialog = TransferDialog(self.db, accounts, self)
+
+            if dialog.exec():
+                transfer_data = dialog.get_transfer_data()
+
+                if transfer_data:
+                    # Execute transfer using double-entry service
+                    group, entries = self.double_entry_service.create_transfer(
+                        from_account_id=transfer_data['from_account_id'],
+                        to_account_id=transfer_data['to_account_id'],
+                        amount=transfer_data['amount'],
+                        date=transfer_data['date'],
+                        description=transfer_data['description'],
+                        reference_number=transfer_data.get('reference_number'),
+                        notes=transfer_data.get('notes')
+                    )
+
+                    # Refresh displays
+                    self._load_accounts()
+                    self._load_transactions()
+
+                    # Show success message
+                    self.statusBar().showMessage(
+                        f"Transfer of ${transfer_data['amount']} completed successfully",
+                        5000
+                    )
+                    logger.info(f"Transfer completed: group_id={group.id}")
+
+        except Exception as e:
+            logger.error(f"Transfer failed: {e}")
+            QMessageBox.critical(
+                self,
+                "Transfer Failed",
+                f"Failed to complete transfer:\n{str(e)}"
+            )
 
     def show_about(self) -> None:
         """Show about dialog."""
