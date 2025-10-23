@@ -14,6 +14,10 @@ This directory contains all documentation for the Personal Finance Manager appli
 
 ## 🎯 Start Here
 
+### End Users
+1. **[USER_GUIDE.md](USER_GUIDE.md)** - How to use the application features
+2. **[../README.md](../README.md)** - Application overview
+
 ### New Developers
 1. **[QUICK_START.md](QUICK_START.md)** - Get up and running in 5 minutes
 2. **[ARCHITECTURE.md](ARCHITECTURE.md)** - Understand the system design
@@ -26,11 +30,26 @@ This directory contains all documentation for the Personal Finance Manager appli
 
 ### Product Owners
 1. **[prd.md](prd.md)** - Product requirements document
-2. **[../README.md](../README.md)** - Features and roadmap
+2. **[USER_GUIDE.md](USER_GUIDE.md)** - User-facing feature documentation
+3. **[../README.md](../README.md)** - Features and roadmap
 
 ---
 
 ## 📖 Document Descriptions
+
+### [USER_GUIDE.md](USER_GUIDE.md)
+**Purpose:** End-user documentation for application features
+**Length:** ~450 lines
+**Topics:**
+- Split transactions feature guide
+- Step-by-step tutorials
+- Best practices and tips
+- Troubleshooting common issues
+- Advanced features roadmap
+
+**Best for:** End users, feature documentation, user training
+
+---
 
 ### [QUICK_START.md](QUICK_START.md)
 **Purpose:** Fast onboarding for developers
