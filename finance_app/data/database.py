@@ -279,6 +279,76 @@ def _apply_split_transactions_migration(conn: sqlite3.Connection) -> None:
         logger.debug("Transaction splits table already exists, skipping migration")
 
 
+def _apply_reconciliation_migration(conn: sqlite3.Connection) -> None:
+    """
+    Apply reconciliation migration (005_create_reconciliation.sql).
+
+    This creates the reconciliations table and adds reconciliation fields to transactions/accounts.
+    Story: US-004 - Account Reconciliation (Day 1)
+
+    Args:
+        conn: Database connection
+    """
+    cursor = conn.cursor()
+
+    # Check if migration is needed
+    cursor.execute("""
+        SELECT name FROM sqlite_master
+        WHERE type='table' AND name='reconciliations'
+    """)
+
+    if cursor.fetchone() is None:
+        logger.info("Applying reconciliation migration (005)...")
+
+        # Read and execute migration file
+        migration_path = Path(__file__).parent / "migrations" / "005_create_reconciliation.sql"
+
+        if not migration_path.exists():
+            logger.warning(f"Migration file not found: {migration_path}")
+            return
+
+        with open(migration_path, 'r') as f:
+            migration_sql = f.read()
+
+        # Execute migration (split on semicolons but keep transaction together)
+        cursor.executescript(migration_sql)
+
+        conn.commit()
+        logger.info("Reconciliation migration (005) completed")
+
+        # Verify migration
+        cursor.execute("""
+            SELECT name FROM sqlite_master
+            WHERE type='table' AND name='reconciliations'
+        """)
+        if cursor.fetchone():
+            logger.info("Migration verification: ✓ reconciliations table created")
+        else:
+            logger.error("Migration verification failed: reconciliations table not found")
+
+        # Verify reconciliation_status column in transactions
+        cursor.execute("PRAGMA table_info(transactions)")
+        columns = [row[1] for row in cursor.fetchall()]
+        if 'reconciliation_status' in columns:
+            logger.info("Migration verification: ✓ reconciliation_status column added to transactions")
+        else:
+            logger.error("Migration verification failed: reconciliation_status column not found in transactions")
+
+        # Verify indices
+        cursor.execute("""
+            SELECT name FROM sqlite_master
+            WHERE type='index' AND name IN ('idx_transactions_reconciliation', 'idx_reconciliations_account')
+        """)
+        indices = [row[0] for row in cursor.fetchall()]
+
+        if len(indices) >= 2:
+            logger.info(f"Migration verification: ✓ Reconciliation indices created")
+        else:
+            logger.warning(f"Migration verification: Found {len(indices)}/2 indices: {indices}")
+    else:
+        logger.debug("Reconciliations table already exists, skipping migration")
+
+
 class Database:
     """
     Database manager with connection pooling and lifecycle management.
@@ -436,6 +506,9 @@ class Database:
                 # Apply split transactions migration for new databases
                 _apply_split_transactions_migration(conn)
 
+                # Apply reconciliation migration for new databases
+                _apply_reconciliation_migration(conn)
+
                 # Add sample data if empty
                 self._add_sample_data(conn)
 
@@ -451,6 +524,7 @@ class Database:
                 _apply_journal_entries_migration(conn)
                 _apply_transaction_groups_migration(conn)
                 _apply_split_transactions_migration(conn)
+                _apply_reconciliation_migration(conn)
                 logger.info("All migrations applied successfully")
         except Exception as e:
             logger.error(f"Failed to apply migrations: {e}")

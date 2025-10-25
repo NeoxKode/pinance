@@ -72,6 +72,7 @@ ui_*.h
 # Backups
 *.bak
 *.backup
+*.backup_*
 *~
 
 # OS
@@ -91,3 +92,10 @@ images
 *.tmp
 temp/
 tmp/
+
+# Node.js (if used for tooling)
+node_modules/
+package-lock.json
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*

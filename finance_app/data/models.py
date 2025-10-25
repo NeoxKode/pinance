@@ -62,12 +62,29 @@ class EntryType(str, Enum):
     TRANSFER = 'transfer'  # Transfer between accounts
 
 
+class ReconciliationStatus(str, Enum):
+    """
+    Reconciliation status for transactions.
+
+    Story: US-004 - Account Reconciliation
+
+    Status progression:
+    - UNRECONCILED: Default state, transaction not yet reconciled
+    - PENDING: Transaction in active reconciliation session (optional)
+    - CLEARED: Transaction confirmed on bank statement
+    """
+    UNRECONCILED = 'unreconciled'
+    PENDING = 'pending'
+    CLEARED = 'cleared'
+
+
 @dataclass
 class Account:
     """
     Account model with double-entry support.
 
     US-003: Normal balance is auto-calculated from account_type if not provided.
+    US-004: Account reconciliation tracking
     """
     id: Optional[int]
     name: str
@@ -78,6 +95,10 @@ class Account:
     currency: str = 'USD'
     parent_account_id: Optional[int] = None
     legacy_type: Optional[str] = None  # For migration compatibility
+
+    # US-004: Reconciliation tracking
+    last_reconciled_date: Optional[str] = None  # ISO 8601: YYYY-MM-DD
+
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
 
@@ -153,7 +174,12 @@ class Account:
 
 @dataclass
 class Transaction:
-    """Transaction model with split transaction support (US-002C)."""
+    """
+    Transaction model with split transaction and reconciliation support.
+
+    US-002C: Split transaction support
+    US-004: Account reconciliation support
+    """
     id: Optional[int]
     account_id: int
     date: str  # YYYY-MM-DD format
@@ -163,13 +189,23 @@ class Transaction:
     type: str  # 'income' or 'expense'
     is_split: bool = False  # True if transaction has splits
     split_count: int = 0  # Number of splits (0 if not split)
+
+    # US-004: Reconciliation fields
+    reconciliation_status: ReconciliationStatus = ReconciliationStatus.UNRECONCILED
+    reconciled_date: Optional[str] = None  # ISO 8601: YYYY-MM-DD
+    statement_date: Optional[str] = None   # Bank statement date
+
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
 
     def __post_init__(self):
-        """Ensure amount is Decimal."""
+        """Ensure amount is Decimal and reconciliation_status is enum."""
         if not isinstance(self.amount, Decimal):
             self.amount = Decimal(str(self.amount))
+
+        # US-004: Convert string to ReconciliationStatus enum if needed
+        if isinstance(self.reconciliation_status, str):
+            self.reconciliation_status = ReconciliationStatus(self.reconciliation_status)
 
     @property
     def is_expense(self) -> bool:
@@ -672,4 +708,96 @@ class PaycheckSplit:
             f"PaycheckSplit(gross=${self.gross_pay}, "
             f"deductions=${self.total_deductions}, "
             f"net=${self.net_pay})"
+        )
+
+
+@dataclass
+class Reconciliation:
+    """
+    Reconciliation record model for account reconciliation.
+
+    Represents a completed reconciliation of an account against a bank statement.
+    Each reconciliation is immutable once created to maintain an audit trail.
+
+    Story: US-004 - Account Reconciliation (Day 1)
+
+    Key Design Decisions:
+    - Reconciliation records are IMMUTABLE (do not modify after creation)
+    - discrepancy = statement_balance - cleared_balance
+    - Positive discrepancy: Missing transactions in app (need to add)
+    - Negative discrepancy: Extra transactions in app (remove or bank error)
+    - Zero discrepancy: Perfect reconciliation ✓
+
+    Critical Fix from Tech Review:
+    - Added __post_init__ for Decimal conversion (prevents type errors)
+    """
+    id: Optional[int]
+    account_id: int
+    reconciliation_date: str  # ISO 8601: YYYY-MM-DD
+    statement_date: str       # Bank statement date (ISO 8601)
+    statement_balance: Decimal
+    cleared_balance: Decimal
+    discrepancy: Decimal
+    transaction_count: int    # Number of transactions marked as cleared
+    notes: Optional[str] = None  # Optional explanation of discrepancy
+    created_at: Optional[str] = None  # Timestamp when reconciliation was saved
+
+    def __post_init__(self):
+        """
+        Convert amounts to Decimal if needed.
+
+        CRITICAL FIX from Tech Lead Review:
+        This prevents type errors when creating Reconciliation objects from database rows
+        or user input where amounts might be floats or strings.
+        """
+        if not isinstance(self.statement_balance, Decimal):
+            self.statement_balance = Decimal(str(self.statement_balance))
+
+        if not isinstance(self.cleared_balance, Decimal):
+            self.cleared_balance = Decimal(str(self.cleared_balance))
+
+        if not isinstance(self.discrepancy, Decimal):
+            self.discrepancy = Decimal(str(self.discrepancy))
+
+    def is_balanced(self) -> bool:
+        """
+        Check if reconciliation is balanced (discrepancy is zero).
+
+        Returns:
+            True if abs(discrepancy) < $0.01 (balanced)
+            False if discrepancy exists (unbalanced)
+        """
+        return abs(self.discrepancy) < Decimal('0.01')
+
+    @property
+    def has_discrepancy(self) -> bool:
+        """Check if reconciliation has a discrepancy."""
+        return not self.is_balanced()
+
+    @property
+    def discrepancy_type(self) -> str:
+        """
+        Get type of discrepancy for user display.
+
+        Returns:
+            'balanced': No discrepancy (perfect reconciliation)
+            'missing': Positive discrepancy (missing transactions)
+            'extra': Negative discrepancy (extra transactions)
+        """
+        if self.is_balanced():
+            return 'balanced'
+        elif self.discrepancy > 0:
+            return 'missing'  # Statement balance > cleared balance
+        else:
+            return 'extra'    # Statement balance < cleared balance
+
+    def __repr__(self) -> str:
+        """String representation for debugging."""
+        status = "✓ BALANCED" if self.is_balanced() else f"⚠ DISCREPANCY: ${self.discrepancy}"
+        return (
+            f"Reconciliation(account={self.account_id}, "
+            f"date={self.reconciliation_date}, "
+            f"statement=${self.statement_balance}, "
+            f"cleared=${self.cleared_balance}, "
+            f"{status})"
         )

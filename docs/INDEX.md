@@ -21,12 +21,14 @@ This directory contains all documentation for the Personal Finance Manager appli
 ### New Developers
 1. **[QUICK_START.md](QUICK_START.md)** - Get up and running in 5 minutes
 2. **[ARCHITECTURE.md](ARCHITECTURE.md)** - Understand the system design
-3. **[../README.md](../README.md)** - Project overview
+3. **[MCP_INTEGRATION.md](MCP_INTEGRATION.md)** - Computer control MCP for testing
+4. **[../README.md](../README.md)** - Project overview
 
 ### Technical Leads
 1. **[ARCHITECTURE.md](ARCHITECTURE.md)** - Full architecture documentation
-2. **[REFACTORING_SUMMARY.md](REFACTORING_SUMMARY.md)** - What changed and why
-3. **[prd.md](prd.md)** - Product requirements
+2. **[MCP_INTEGRATION.md](MCP_INTEGRATION.md)** - MCP integration with BMAD agents
+3. **[REFACTORING_SUMMARY.md](REFACTORING_SUMMARY.md)** - What changed and why
+4. **[prd.md](prd.md)** - Product requirements
 
 ### Product Owners
 1. **[prd.md](prd.md)** - Product requirements document
@@ -82,6 +84,26 @@ This directory contains all documentation for the Personal Finance Manager appli
 - Future roadmap
 
 **Best for:** Understanding system design, making architectural decisions
+
+---
+
+### [MCP_INTEGRATION.md](MCP_INTEGRATION.md)
+**Purpose:** Computer Control MCP integration with BMAD agents
+**Length:** ~600 lines
+**Topics:**
+- Computer-use MCP server setup and configuration
+- Frontend-dev agent MCP capabilities
+- Tech-lead agent MCP capabilities
+- UI testing automation
+- End-to-end testing workflows
+- Performance validation
+- Visual regression testing
+- Security testing
+- CI/CD integration
+- Safety guidelines and best practices
+- Troubleshooting and examples
+
+**Best for:** Automated testing, UI validation, E2E workflows, quality assurance
 
 ---
 

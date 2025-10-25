@@ -41,7 +41,7 @@ class AccountRepository:
                 cursor.execute("""
                     SELECT id, name, account_type, account_subtype, balance,
                            normal_balance, currency, parent_account_id,
-                           legacy_type
+                           legacy_type, last_reconciled_date
                     FROM accounts
                     ORDER BY account_type, name
                 """)
@@ -70,7 +70,7 @@ class AccountRepository:
                 cursor.execute("""
                     SELECT id, name, account_type, account_subtype, balance,
                            normal_balance, currency, parent_account_id,
-                           legacy_type
+                           legacy_type, last_reconciled_date
                     FROM accounts
                     WHERE id = ?
                 """, (account_id,))
@@ -195,7 +195,8 @@ class AccountRepository:
                         balance = ?,
                         normal_balance = ?,
                         currency = ?,
-                        parent_account_id = ?
+                        parent_account_id = ?,
+                        last_reconciled_date = ?
                     WHERE id = ?
                 """, (
                     account.name,
@@ -206,6 +207,7 @@ class AccountRepository:
                     normal_bal_val,
                     account.currency,
                     account.parent_account_id,
+                    account.last_reconciled_date,  # US-004
                     account.id
                 ))
 
@@ -313,6 +315,7 @@ class AccountRepository:
             currency=row['currency'],
             parent_account_id=row['parent_account_id'],
             legacy_type=row['legacy_type'] if 'legacy_type' in row.keys() else None,
+            last_reconciled_date=row['last_reconciled_date'] if 'last_reconciled_date' in row.keys() else None,  # US-004
             created_at=None,  # Not in current schema
             updated_at=None   # Not in current schema
         )

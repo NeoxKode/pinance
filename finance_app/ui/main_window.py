@@ -17,10 +17,12 @@ from finance_app.business.transaction_service import TransactionService
 from finance_app.business.account_service import AccountService
 from finance_app.business.double_entry_service import DoubleEntryService
 from finance_app.business.split_transaction_service import SplitTransactionService
+from finance_app.business.reconciliation_service import ReconciliationService
 from finance_app.ui.dialogs.transaction_dialog import AddTransactionDialog
 from finance_app.ui.dialogs.account_dialog import AccountDialog
 from finance_app.ui.dialogs.transfer_dialog import TransferDialog
 from finance_app.ui.dialogs.unified_transaction_dialog import UnifiedTransactionDialog
+from finance_app.ui.dialogs.reconciliation_dialog import ReconciliationDialog
 from finance_app.utils.logger import setup_logger
 from finance_app.utils.exceptions import FinanceAppError
 
@@ -43,6 +45,7 @@ class MainWindow(QMainWindow):
         self.account_service = AccountService(database)
         self.double_entry_service = DoubleEntryService(database)
         self.split_service = SplitTransactionService(database)
+        self.reconciliation_service = ReconciliationService(database)
         self.current_account_id: Optional[int] = None
 
         self.setup_ui()
@@ -104,6 +107,12 @@ class MainWindow(QMainWindow):
         add_trans_action.setShortcut("Ctrl+N")
         add_trans_action.triggered.connect(self.add_transaction_unified)
         edit_menu.addAction(add_trans_action)
+
+        # Reconciliation dialog (US-004)
+        reconcile_action = QAction("Reconcile Account...", self)
+        reconcile_action.setShortcut("Ctrl+R")
+        reconcile_action.triggered.connect(self.open_reconciliation_dialog)
+        edit_menu.addAction(reconcile_action)
 
         edit_menu.addSeparator()
 
@@ -193,11 +202,11 @@ class MainWindow(QMainWindow):
 
         layout.addLayout(control_layout)
 
-        # Transaction table
+        # Transaction table (US-004: Added Status column)
         self.transaction_table = QTableWidget()
-        self.transaction_table.setColumnCount(5)
+        self.transaction_table.setColumnCount(6)
         self.transaction_table.setHorizontalHeaderLabels([
-            "Date", "Description", "Category", "Amount", "Type"
+            "Date", "Description", "Category", "Amount", "Type", "Status"
         ])
         self.transaction_table.setSelectionBehavior(QTableWidget.SelectRows)
         layout.addWidget(self.transaction_table)
@@ -283,17 +292,26 @@ class MainWindow(QMainWindow):
             raise
 
     def _load_transactions(self, account_id: Optional[int] = None) -> None:
-        """Load transactions into table."""
+        """
+        Load transactions into table.
+
+        US-004: Phase 6 - Task 4.37 - Added reconciliation status column
+        """
         try:
             transactions = self.transaction_service.get_all_transactions(account_id)
             self.transaction_table.setRowCount(len(transactions))
 
             for i, trans in enumerate(transactions):
+                # Date
                 self.transaction_table.setItem(i, 0, QTableWidgetItem(trans.date))
+
+                # Description
                 self.transaction_table.setItem(i, 1, QTableWidgetItem(trans.description))
+
+                # Category
                 self.transaction_table.setItem(i, 2, QTableWidgetItem(trans.category))
 
-                # Format amount with color
+                # Amount with color
                 amount_item = QTableWidgetItem(f"${abs(trans.amount):.2f}")
                 amount_item.setData(Qt.UserRole, trans.id)  # Store transaction ID
                 if trans.is_expense:
@@ -302,7 +320,35 @@ class MainWindow(QMainWindow):
                     amount_item.setForeground(Qt.darkGreen)
                 self.transaction_table.setItem(i, 3, amount_item)
 
+                # Type
                 self.transaction_table.setItem(i, 4, QTableWidgetItem(trans.type.capitalize()))
+
+                # US-004: Reconciliation Status (Task 4.37)
+                status_text = ""
+                status_tooltip = ""
+
+                # Get reconciliation status from transaction
+                recon_status = trans.reconciliation_status
+                if hasattr(recon_status, 'value'):
+                    recon_status = recon_status.value
+
+                if recon_status == 'cleared':
+                    status_text = "✓ Reconciled"
+                    status_tooltip = f"Reconciled on {trans.reconciled_date}" if trans.reconciled_date else "Reconciled"
+                elif recon_status == 'pending':
+                    status_text = "⏳ Pending"
+                    status_tooltip = "Reconciliation in progress"
+                else:
+                    status_text = ""
+                    status_tooltip = "Not reconciled"
+
+                status_item = QTableWidgetItem(status_text)
+                status_item.setToolTip(status_tooltip)
+                if recon_status == 'cleared':
+                    status_item.setForeground(Qt.darkGreen)
+                elif recon_status == 'pending':
+                    status_item.setForeground(Qt.darkYellow)
+                self.transaction_table.setItem(i, 5, status_item)
 
             self.transaction_table.resizeColumnsToContents()
 
@@ -600,6 +646,98 @@ class MainWindow(QMainWindow):
                 "Transfer Failed",
                 f"Failed to complete transfer:\n{str(e)}"
             )
+
+    def open_reconciliation_dialog(self) -> None:
+        """
+        Open reconciliation dialog for the selected account.
+
+        US-004: Phase 6 - MainWindow Integration (Task 4.35)
+        """
+        try:
+            # Get currently selected account
+            selected_rows = self.account_table.selectedItems()
+            if not selected_rows:
+                QMessageBox.warning(
+                    self,
+                    "No Account Selected",
+                    "Please select an account to reconcile."
+                )
+                return
+
+            # Get account ID from selected row
+            row = selected_rows[0].row()
+            account_id_item = self.account_table.item(row, 0)
+            if not account_id_item:
+                logger.error("Could not get account ID from selected row")
+                return
+
+            # Get the account ID stored in the item's data
+            account_id = account_id_item.data(Qt.UserRole)
+            if not account_id:
+                logger.error("Account ID not found in item data")
+                return
+
+            # Get account object
+            account = self.account_service.get_account(account_id)
+            if not account:
+                QMessageBox.warning(
+                    self,
+                    "Account Not Found",
+                    f"Account with ID {account_id} not found."
+                )
+                return
+
+            # Open reconciliation dialog
+            dialog = ReconciliationDialog(self.db, account, self)
+
+            # Connect signal to refresh UI after reconciliation
+            dialog.reconciliation_completed.connect(self._on_reconciliation_completed)
+
+            # Show dialog
+            if dialog.exec() == QDialog.Accepted:
+                logger.info(f"Reconciliation dialog accepted for account: {account.name}")
+            else:
+                logger.info(f"Reconciliation dialog cancelled for account: {account.name}")
+
+        except FinanceAppError as e:
+            logger.error(f"Failed to open reconciliation dialog: {e}")
+            QMessageBox.critical(
+                self,
+                "Error",
+                f"Failed to open reconciliation dialog:\n{str(e)}"
+            )
+        except Exception as e:
+            logger.error(f"Unexpected error opening reconciliation dialog: {e}")
+            QMessageBox.critical(
+                self,
+                "Error",
+                f"Unexpected error:\n{str(e)}"
+            )
+
+    def _on_reconciliation_completed(self, reconciliation_id: int) -> None:
+        """
+        Handle reconciliation completion.
+
+        US-004: Phase 6 - Task 4.39 - Refresh transaction list after reconciliation
+
+        Args:
+            reconciliation_id: ID of the completed reconciliation
+        """
+        try:
+            # Refresh all data to show updated reconciliation status
+            self._load_accounts()
+            self._load_transactions()
+
+            # Show status message
+            self.statusBar().showMessage(
+                f"Reconciliation #{reconciliation_id} completed successfully",
+                5000
+            )
+
+            logger.info(f"UI refreshed after reconciliation: {reconciliation_id}")
+
+        except Exception as e:
+            logger.error(f"Failed to refresh UI after reconciliation: {e}")
 
     def show_about(self) -> None:
         """Show about dialog."""

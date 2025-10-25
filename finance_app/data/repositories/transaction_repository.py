@@ -46,7 +46,8 @@ class TransactionRepository:
                 if account_id:
                     query = """
                         SELECT id, account_id, date, description, category, amount, type,
-                               is_split, split_count
+                               is_split, split_count,
+                               reconciliation_status, reconciled_date, statement_date
                         FROM transactions
                         WHERE account_id = ?
                         ORDER BY date DESC, id DESC
@@ -55,7 +56,8 @@ class TransactionRepository:
                 else:
                     query = """
                         SELECT id, account_id, date, description, category, amount, type,
-                               is_split, split_count
+                               is_split, split_count,
+                               reconciliation_status, reconciled_date, statement_date
                         FROM transactions
                         ORDER BY date DESC, id DESC
                     """
@@ -89,7 +91,8 @@ class TransactionRepository:
                 cursor = conn.cursor()
                 cursor.execute("""
                     SELECT id, account_id, date, description, category, amount, type,
-                           is_split, split_count
+                           is_split, split_count,
+                           reconciliation_status, reconciled_date, statement_date
                     FROM transactions
                     WHERE id = ?
                 """, (transaction_id,))
@@ -131,6 +134,8 @@ class TransactionRepository:
         """
         Update an existing transaction.
 
+        US-004: Now includes reconciliation fields
+
         Args:
             transaction: Transaction object with ID
 
@@ -150,10 +155,14 @@ class TransactionRepository:
                 cursor.execute("""
                     UPDATE transactions
                     SET account_id = ?, date = ?, description = ?, category = ?,
-                        amount = ?, type = ?
+                        amount = ?, type = ?,
+                        reconciliation_status = ?, reconciled_date = ?, statement_date = ?
                     WHERE id = ?
                 """, (transaction.account_id, transaction.date, transaction.description,
                       transaction.category, float(transaction.amount), transaction.type,
+                      transaction.reconciliation_status.value,  # US-004: reconciliation fields
+                      transaction.reconciled_date,
+                      transaction.statement_date,
                       transaction.id))
 
                 if cursor.rowcount == 0:
@@ -283,6 +292,8 @@ class TransactionRepository:
         """
         Convert database row to Transaction object.
 
+        US-004: Now includes reconciliation fields
+
         Args:
             row: Database row
 
@@ -299,6 +310,10 @@ class TransactionRepository:
             type=row['type'],
             is_split=bool(row['is_split']) if 'is_split' in row.keys() else False,
             split_count=row['split_count'] if 'split_count' in row.keys() else 0,
+            # US-004: Reconciliation fields
+            reconciliation_status=row['reconciliation_status'] if 'reconciliation_status' in row.keys() else 'unreconciled',
+            reconciled_date=row['reconciled_date'] if 'reconciled_date' in row.keys() else None,
+            statement_date=row['statement_date'] if 'statement_date' in row.keys() else None,
             created_at=None,  # Not in current schema
             updated_at=None   # Not in current schema
         )
