@@ -3,12 +3,14 @@
 **Story ID:** US-005
 **Epic:** [EPIC-01: Account Management & Double-Entry Foundation](../../epics/epic-01-account-management.md)
 **Created:** 2025-10-25
+**Updated:** 2025-10-26 (Added US-002B relationship clarification)
 **Status:** 📋 Backlog (Ready for Sprint 7)
 **Priority:** P0 (Critical - Accounting Foundation)
 **Story Points:** 5
 **Assignee:** Unassigned
 **Sprint:** Sprint 7 (planned)
-**Dependencies:** ✅ US-001 (Account Type Taxonomy), ✅ US-002A (Journal Entry Foundation), ✅ US-003 (Normal Balance Calculation)
+**Dependencies:** ✅ US-001 (Account Type Taxonomy), ✅ US-002A (Journal Entry Foundation), ✅ US-002B (Balanced Transaction Groups), ✅ US-003 (Normal Balance Calculation)
+**Related Stories:** US-002B (Opening Balance Migration - provides foundation)
 
 ---
 
@@ -31,6 +33,39 @@ When users first set up a personal finance application, they already have existi
 - Investment account: $25,000
 
 In double-entry accounting, every transaction must be balanced (debits = credits). When creating accounts with initial balances, the system needs a special **Opening Balance Equity** account to balance the equation.
+
+### Relationship to US-002B (Opening Balance Migration)
+
+**Important Context:** US-002B (Sprint 3) already implemented opening balance journal entry creation as part of a one-time data migration. However, US-005 adds essential user-facing functionality that US-002B did not provide.
+
+**What US-002B Already Did (Sprint 3):**
+- ✅ Created journal entries with `EntryType.OPENING_BALANCE` for existing accounts
+- ✅ Implemented proper debit/credit logic for opening balances
+- ✅ Migration script: `scripts/migrate_opening_balances.py`
+- ✅ Successfully migrated 4 accounts ($23,450.50 total) on Oct 22, 2025
+- ✅ Validation tools to ensure journal balances match account balances
+
+**What's NEW in US-005 (Not in US-002B):**
+- 🆕 **Opening Balance Equity account** - US-002B didn't create this special equity account
+- 🆕 **User-facing UI** - US-002B was a developer-run script, not a user feature
+- 🆕 **Accounting equation validation** - Ensures Assets = Liabilities + Equity
+- 🆕 **`is_opening_balance` flag** - Track opening balance transactions separately
+- 🆕 **`opening_balance_date` field** - Record when opening balance was set
+- 🆕 **Set opening balance anytime** - US-002B was one-time migration only
+- 🆕 **Equity offset entries** - Automatic creation of balancing entries
+
+**Key Difference:**
+- **US-002B:** One-time developer migration script for existing data
+- **US-005:** Ongoing user feature for setting/managing opening balances
+
+**Analogy:**
+- US-002B = "Import existing data into new system" (migration)
+- US-005 = "Set up new accounts with starting balances" (user feature)
+
+**Why Both Are Needed:**
+- US-002B provided the foundation (journal entry patterns, validation)
+- US-005 builds on that foundation to add user-facing functionality
+- Together they provide complete opening balance support
 
 ### The Accounting Principle
 
@@ -336,7 +371,69 @@ account_service.create_account_with_opening_balance(
   - Test opening balance transaction creation
   - Test is_opening_balance flag propagation
 
-### Implementation Approach
+---
+
+## ⚠️ CRITICAL IMPLEMENTATION NOTE
+
+**BEFORE IMPLEMENTING: Read the corrected implementation guide!**
+
+During technical review (Oct 26, 2025), critical gaps were identified in the original implementation approach below. **Do NOT use the code examples below as-is.**
+
+**Required Reading:**
+1. 📋 [Gap Analysis Report](/home/neoxkode/dev/pinance/docs/tech-reviews/US-005-GAP-ANALYSIS.md)
+2. ✅ [Corrected Implementation Guide](/home/neoxkode/dev/pinance/docs/tech-reviews/US-005-IMPLEMENTATION-GUIDE.md)
+3. 📅 [Sprint 7 Planning Meeting Doc](/home/neoxkode/dev/pinance/docs/sprints/SPRINT-07-PLANNING-MEETING.md)
+
+**Critical Changes Required:**
+
+1. **Use DoubleEntryService** (Don't duplicate debit/credit logic)
+   ```python
+   # ❌ DON'T DO THIS (original approach below)
+   if account.normal_balance == NormalBalance.DEBIT:
+       debit_amount = opening_balance
+
+   # ✅ DO THIS (from implementation guide)
+   self.double_entry_service.create_simple_transaction(
+       account_id=account.id,
+       amount=opening_balance,
+       ...
+   )
+   ```
+
+2. **Create Equity Offset Entries** (Critical for accounting equation)
+   ```python
+   # Must create TWO journal entries:
+   # 1. Entry in the account
+   # 2. Offsetting entry in Opening Balance Equity
+
+   # See implementation guide for correct code
+   ```
+
+3. **Inject DoubleEntryService into AccountService**
+   ```python
+   class AccountService:
+       def __init__(self, database: Database):
+           # ... existing dependencies ...
+           self.double_entry_service = DoubleEntryService(database)  # ADD THIS
+   ```
+
+**8 Gaps Identified - 3 are Priority 1 (blocking):**
+- Gap 1: Code duplication with DoubleEntryService (P1)
+- Gap 2: Missing DoubleEntryService dependency injection (P1)
+- Gap 3: Missing equity offset entries (P1 - CRITICAL)
+- Gap 4: Documentation overlap with US-002B (P2) - ✅ Fixed above
+- Gap 5: Migration doesn't calculate equity balance (P2)
+- Gap 6: Performance issue in validation method (P2)
+
+**Implementation Timeline:**
+- Day 1 Morning (3.5 hours): Fix Priority 1 gaps
+- Days 1-5: Follow implementation guide code (not original story code)
+
+**The code examples below are from the ORIGINAL story and should NOT be used as-is. They are kept for reference only.**
+
+---
+
+### Implementation Approach (ORIGINAL - See Implementation Guide for Corrected Version)
 
 **Phase 1: Data Layer (1 hour)**
 ```python
