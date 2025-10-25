@@ -10,8 +10,8 @@
 | Metric | Count |
 |--------|-------|
 | **Total Epics** | 2 |
-| **Total Stories** | 7 |
-| **Stories in Backlog** | 1 |
+| **Total Stories** | 8 |
+| **Stories in Backlog** | 2 |
 | **Stories in Progress** | 0 |
 | **Stories Completed** | 6 |
 | **Total Story Points** | 40 |
@@ -45,10 +45,11 @@
 
 ## Stories by Status
 
-### 📋 Backlog (1)
+### 📋 Backlog (2)
 
 | ID | Story | Epic | Priority | Points | Assignee | Sprint |
 |----|-------|------|----------|--------|----------|--------|
+| [US-005](stories/backlog/US-005-opening-balance-equity.md) | Opening Balance Equity | epic-01 | P0 | 5 | Unassigned | **Sprint 7** |
 | [STORY-001](stories/backlog/STORY-001-basic-text-search.md) | Basic Text Search | EPIC-001 | High | 3 | Unassigned | TBD |
 
 ### 🚧 In Progress (0)
@@ -82,7 +83,7 @@
 | [US-002C](stories/completed/US-002C-split-transactions.md) | Split Transactions | ✅ Sprint 4-5 | 8 | Full Stack Team | Sprint 4-5 |
 | [US-003](stories/completed/US-003-normal-balance-calculation.md) | Normal Balance Calculation | ✅ Sprint 5 | 3 | Full Stack Team | Sprint 5 |
 | [US-004](stories/completed/US-004-account-reconciliation.md) | Account Reconciliation | ✅ Sprint 6 | 8 | Full Stack Team | Sprint 6 |
-| US-005 | Opening Balance Equity | Not Created | 5 | - | Sprint 7 |
+| [US-005](stories/backlog/US-005-opening-balance-equity.md) | Opening Balance Equity | 📋 Ready | 5 | Unassigned | **Sprint 7** |
 | US-006 | Account Hierarchy | Not Created | 5 | - | Sprint 7 |
 
 **Progress:** 55% (32/58 points completed)
@@ -189,6 +190,7 @@ Low:      0 stories (0%)
 
 | Date | Activity | Story/Epic |
 |------|----------|------------|
+| 2025-10-25 | 📝 Created US-005 | Opening Balance Equity (5 pts, Sprint 7) |
 | 2025-10-25 | ✅ Completed US-004 | Account Reconciliation (8 pts, Grade A) |
 | 2025-10-25 | 📝 PO Acceptance | Formal sign-off for US-004, production-ready |
 | 2025-10-25 | 📊 Sprint 6 Complete | 8 pts delivered, 80 tests, 85% coverage |
