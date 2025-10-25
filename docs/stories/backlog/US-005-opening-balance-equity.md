@@ -433,6 +433,573 @@ During technical review (Oct 26, 2025), critical gaps were identified in the ori
 
 ---
 
+## 🔧 GAP FIX GUIDE - DAY 1 MORNING (3.5 Hours)
+
+**CRITICAL: Complete these fixes BEFORE implementing new features**
+
+This section provides step-by-step instructions to fix the 3 Priority 1 gaps identified in the technical review. Follow this guide in order on Day 1 morning.
+
+---
+
+### Gap Fix 1: Add DoubleEntryService Dependency Injection (30 min)
+
+**Location:** `finance_app/business/account_service.py`
+**Problem:** AccountService doesn't have DoubleEntryService, preventing use of existing debit/credit logic
+**Impact:** BLOCKING - Cannot fix Gap 2 without this
+
+#### Step 1.1: Update AccountService Constructor
+
+**File:** `finance_app/business/account_service.py`
+
+**Find this code (around line 15-25):**
+```python
+from finance_app.data.database import Database
+from finance_app.data.repositories.account_repository import AccountRepository
+from finance_app.data.repositories.transaction_repository import TransactionRepository
+# ... other imports
+
+class AccountService:
+    def __init__(self, database: Database):
+        self.db = database
+        self.account_repo = AccountRepository(database)
+        self.transaction_repo = TransactionRepository(database)
+        self.validator = AccountValidator()
+```
+
+**Change to:**
+```python
+from finance_app.data.database import Database
+from finance_app.data.repositories.account_repository import AccountRepository
+from finance_app.data.repositories.transaction_repository import TransactionRepository
+from finance_app.business.double_entry_service import DoubleEntryService  # ← ADD THIS IMPORT
+# ... other imports
+
+class AccountService:
+    def __init__(self, database: Database):
+        self.db = database
+        self.account_repo = AccountRepository(database)
+        self.transaction_repo = TransactionRepository(database)
+        self.validator = AccountValidator()
+        self.double_entry_service = DoubleEntryService(database)  # ← ADD THIS LINE
+```
+
+#### Step 1.2: Update Tests to Mock DoubleEntryService
+
+**File:** `finance_app/tests/unit/test_account_service.py` (and any other test files using AccountService)
+
+**Add to test fixtures:**
+```python
+import pytest
+from unittest.mock import Mock, patch
+
+@pytest.fixture
+def mock_double_entry_service():
+    """Mock DoubleEntryService for testing."""
+    return Mock(spec=DoubleEntryService)
+
+@pytest.fixture
+def account_service(mock_db, mock_double_entry_service):
+    """Create AccountService with mocked dependencies."""
+    service = AccountService(mock_db)
+    service.double_entry_service = mock_double_entry_service  # Inject mock
+    return service
+```
+
+#### Step 1.3: Verify No Regressions
+
+**Run existing tests:**
+```bash
+pytest finance_app/tests/unit/test_account_service.py -v
+pytest finance_app/tests/integration/ -v
+```
+
+**Expected Result:** All existing tests should still pass (0 regressions)
+
+**Checkpoint:** ✅ DoubleEntryService is now available in AccountService
+
+---
+
+### Gap Fix 2: Refactor to Use DoubleEntryService (2 hours)
+
+**Location:** `finance_app/business/account_service.py`
+**Problem:** Original story proposes duplicating debit/credit logic that already exists in DoubleEntryService
+**Impact:** HIGH - Code duplication, maintenance burden, potential bugs
+
+#### Step 2.1: Update `create_account_with_opening_balance()` Method
+
+**File:** `finance_app/business/account_service.py`
+
+**ORIGINAL APPROACH (❌ DON'T DO THIS):**
+```python
+# Manual debit/credit calculation - WRONG
+if account.normal_balance == NormalBalance.DEBIT:
+    debit_amount = opening_balance
+    credit_amount = Decimal("0.00")
+else:
+    debit_amount = Decimal("0.00")
+    credit_amount = opening_balance
+
+# Manual journal entry creation - WRONG
+journal_entry = JournalEntry(
+    account_id=account.id,
+    debit_amount=debit_amount,
+    credit_amount=credit_amount,
+    ...
+)
+self.journal_repo.create(journal_entry)
+```
+
+**CORRECTED APPROACH (✅ DO THIS):**
+```python
+def create_account_with_opening_balance(
+    self,
+    name: str,
+    account_type: AccountType,
+    account_subtype: AccountSubtype,
+    opening_balance: Decimal,
+    opening_date: str,
+    currency: str = "USD",
+    **kwargs
+) -> Tuple[Account, Optional[JournalEntry]]:
+    """
+    Create a new account with an opening balance.
+
+    This method:
+    1. Creates the account (starting at balance = 0)
+    2. Creates a journal entry for the opening balance using DoubleEntryService
+    3. Creates offsetting entry in Opening Balance Equity account (GAP 3 FIX)
+    4. Updates account with opening_balance_date
+
+    See: /docs/tech-reviews/US-005-IMPLEMENTATION-GUIDE.md for full implementation
+    """
+    # Validate opening balance
+    if opening_balance < 0:
+        raise ValidationError(
+            f"Opening balance must be non-negative, got {opening_balance}"
+        )
+
+    # Start database transaction
+    with self.db.transaction():
+        # 1. Create account with zero initial balance
+        account = self.create_account(
+            name=name,
+            account_type=account_type,
+            account_subtype=account_subtype,
+            initial_balance="0.00",  # Start at 0, journal entry will update
+            currency=currency,
+            **kwargs
+        )
+
+        # 2. Handle zero opening balance case
+        if opening_balance == Decimal("0"):
+            account.opening_balance_date = opening_date
+            self.account_repo.update(account)
+            return account, None
+
+        # 3. Ensure Opening Balance Equity account exists
+        equity_account = self.ensure_opening_balance_equity_account()
+
+        # 4. ✅ USE DoubleEntryService - Let it handle debit/credit logic
+        account_entry = self.double_entry_service.create_simple_transaction(
+            account_id=account.id,
+            amount=opening_balance,
+            date=opening_date,
+            description=f"Opening balance for {name}",
+            entry_type=EntryType.OPENING_BALANCE
+        )
+
+        # 5. ✅ CREATE EQUITY OFFSET (GAP 3 FIX - See below)
+        equity_entry = self.double_entry_service.create_simple_transaction(
+            account_id=equity_account.id,
+            amount=-opening_balance,  # Opposite sign
+            date=opening_date,
+            description=f"Opening balance offset for {name}",
+            entry_type=EntryType.OPENING_BALANCE
+        )
+
+        # 6. Create transaction record with is_opening_balance flag
+        transaction = Transaction(
+            id=None,
+            account_id=account.id,
+            date=opening_date,
+            description=f"Opening balance for {name}",
+            category="Opening Balance",
+            amount=opening_balance,
+            type="credit" if account.normal_balance == NormalBalance.CREDIT else "debit",
+            is_opening_balance=True,
+            reconciliation_status=ReconciliationStatus.CLEARED
+        )
+        self.transaction_repo.create(transaction)
+
+        # 7. Update account with opening_balance_date
+        account.opening_balance_date = opening_date
+        updated_account = self.account_repo.update(account)
+
+        # 8. Validate accounting equation
+        self.validate_opening_balance_equity()
+
+        return updated_account, account_entry
+```
+
+**Key Changes:**
+- ✅ Uses `self.double_entry_service.create_simple_transaction()` instead of manual logic
+- ✅ Creates equity offset entry (Gap 3 fix)
+- ✅ Wraps in database transaction for atomicity
+- ✅ Validates accounting equation after operation
+
+#### Step 2.2: Update `set_account_opening_balance()` Method
+
+**Apply the same pattern:**
+```python
+def set_account_opening_balance(
+    self,
+    account_id: int,
+    opening_balance: Decimal,
+    opening_date: str
+) -> JournalEntry:
+    """Set opening balance for an existing account."""
+
+    # ... validation code ...
+
+    with self.db.transaction():
+        # ✅ USE DoubleEntryService for account entry
+        account_entry = self.double_entry_service.create_simple_transaction(
+            account_id=account_id,
+            amount=opening_balance,
+            date=opening_date,
+            description=f"Opening balance for {account.name}",
+            entry_type=EntryType.OPENING_BALANCE
+        )
+
+        # ✅ CREATE equity offset entry
+        equity_account = self.ensure_opening_balance_equity_account()
+        equity_entry = self.double_entry_service.create_simple_transaction(
+            account_id=equity_account.id,
+            amount=-opening_balance,
+            date=opening_date,
+            description=f"Opening balance offset for {account.name}",
+            entry_type=EntryType.OPENING_BALANCE
+        )
+
+        # ... rest of method ...
+
+        return account_entry
+```
+
+#### Step 2.3: Write Unit Tests for Refactored Code
+
+**File:** `finance_app/tests/unit/test_account_service_opening_balance.py` (NEW FILE)
+
+```python
+import pytest
+from decimal import Decimal
+from unittest.mock import Mock, call
+from finance_app.business.account_service import AccountService
+from finance_app.data.models import Account, AccountType, AccountSubtype, EntryType
+
+class TestAccountServiceOpeningBalance:
+    """Test opening balance functionality with DoubleEntryService."""
+
+    def test_create_account_with_opening_balance_uses_double_entry_service(
+        self, account_service, mock_double_entry_service
+    ):
+        """Should use DoubleEntryService for journal entry creation."""
+        # Arrange
+        mock_double_entry_service.create_simple_transaction.return_value = Mock(id=1)
+
+        # Act
+        account, entry = account_service.create_account_with_opening_balance(
+            name="Test Checking",
+            account_type=AccountType.ASSET,
+            account_subtype=AccountSubtype.CHECKING,
+            opening_balance=Decimal("1000.00"),
+            opening_date="2025-01-01"
+        )
+
+        # Assert - Should call create_simple_transaction TWICE (account + equity)
+        assert mock_double_entry_service.create_simple_transaction.call_count == 2
+
+        # Verify first call (account entry)
+        first_call = mock_double_entry_service.create_simple_transaction.call_args_list[0]
+        assert first_call[1]['amount'] == Decimal("1000.00")
+        assert first_call[1]['entry_type'] == EntryType.OPENING_BALANCE
+
+        # Verify second call (equity offset)
+        second_call = mock_double_entry_service.create_simple_transaction.call_args_list[1]
+        assert second_call[1]['amount'] == Decimal("-1000.00")  # Opposite sign
+        assert second_call[1]['entry_type'] == EntryType.OPENING_BALANCE
+```
+
+#### Step 2.4: Verify Tests Pass
+
+**Run tests:**
+```bash
+pytest finance_app/tests/unit/test_account_service_opening_balance.py -v
+```
+
+**Expected Result:** New tests pass
+
+**Checkpoint:** ✅ AccountService now uses DoubleEntryService (no code duplication)
+
+---
+
+### Gap Fix 3: Add Equity Offset Entries (1 hour) 🔴 CRITICAL
+
+**Location:** `finance_app/business/account_service.py`
+**Problem:** Original approach doesn't create offsetting entries in Opening Balance Equity account
+**Impact:** CRITICAL - Breaks accounting equation, corrupts financial data
+
+#### Why This Is Critical
+
+**Accounting Equation:**
+```
+Assets - Liabilities = Equity
+
+OR
+
+Assets = Liabilities + Equity
+```
+
+**Example Without Fix (BROKEN):**
+```
+User sets: Checking (Asset) = $1,000
+
+Journal Entries:
+  1. Debit Checking: $1,000 ✅
+
+Accounting Equation:
+  Assets: $1,000
+  Liabilities: $0
+  Equity: $0
+
+  $1,000 ≠ $0 + $0  ❌ EQUATION BROKEN!
+```
+
+**Example With Fix (CORRECT):**
+```
+User sets: Checking (Asset) = $1,000
+
+Journal Entries:
+  1. Debit Checking: $1,000 ✅
+  2. Credit Opening Balance Equity: $1,000 ✅ (OFFSET)
+
+Accounting Equation:
+  Assets: $1,000
+  Liabilities: $0
+  Equity: $1,000
+
+  $1,000 = $0 + $1,000  ✅ BALANCED!
+```
+
+#### Step 3.1: Verify Equity Offset Logic (Already Done in Gap 2)
+
+**The equity offset logic was already added in Gap Fix 2:**
+
+```python
+# In create_account_with_opening_balance():
+
+# 4. Create journal entry for account
+account_entry = self.double_entry_service.create_simple_transaction(
+    account_id=account.id,
+    amount=opening_balance,  # Example: $1,000
+    date=opening_date,
+    description=f"Opening balance for {name}",
+    entry_type=EntryType.OPENING_BALANCE
+)
+
+# 5. 🔴 CRITICAL: Create offsetting entry in Opening Balance Equity
+equity_account = self.ensure_opening_balance_equity_account()
+equity_entry = self.double_entry_service.create_simple_transaction(
+    account_id=equity_account.id,
+    amount=-opening_balance,  # Opposite sign: -$1,000
+    date=opening_date,
+    description=f"Opening balance offset for {name}",
+    entry_type=EntryType.OPENING_BALANCE
+)
+```
+
+**Key Points:**
+- ✅ Uses **opposite sign** for equity entry (`-opening_balance`)
+- ✅ Creates entry in Opening Balance Equity account
+- ✅ Both entries have same date (balanced transaction group)
+- ✅ Both entries marked as `EntryType.OPENING_BALANCE`
+
+#### Step 3.2: Write Integration Test for Accounting Equation
+
+**File:** `finance_app/tests/integration/test_opening_balance_accounting_equation.py` (NEW FILE)
+
+```python
+import pytest
+from decimal import Decimal
+from finance_app.business.account_service import AccountService
+from finance_app.data.models import AccountType, AccountSubtype
+
+class TestOpeningBalanceAccountingEquation:
+    """Test that opening balances maintain the accounting equation."""
+
+    def test_single_asset_account_balances_equation(self, real_db):
+        """Creating asset account should balance with equity."""
+        service = AccountService(real_db)
+
+        # Create asset account with $1,000 opening balance
+        account, _ = service.create_account_with_opening_balance(
+            name="Checking",
+            account_type=AccountType.ASSET,
+            account_subtype=AccountSubtype.CHECKING,
+            opening_balance=Decimal("1000.00"),
+            opening_date="2025-01-01"
+        )
+
+        # Verify accounting equation: Assets = Liabilities + Equity
+        assets = service._get_total_by_type(AccountType.ASSET)
+        liabilities = service._get_total_by_type(AccountType.LIABILITY)
+        equity = service._get_total_by_type(AccountType.EQUITY)
+
+        assert assets == Decimal("1000.00")
+        assert liabilities == Decimal("0.00")
+        assert equity == Decimal("1000.00")  # Opening Balance Equity
+
+        # Equation should balance
+        assert assets == liabilities + equity
+
+    def test_multiple_accounts_balance_equation(self, real_db):
+        """Multiple accounts should maintain balanced equation."""
+        service = AccountService(real_db)
+
+        # Create checking account: $1,000 (asset)
+        service.create_account_with_opening_balance(
+            name="Checking",
+            account_type=AccountType.ASSET,
+            account_subtype=AccountSubtype.CHECKING,
+            opening_balance=Decimal("1000.00"),
+            opening_date="2025-01-01"
+        )
+
+        # Create credit card: $500 (liability)
+        service.create_account_with_opening_balance(
+            name="Credit Card",
+            account_type=AccountType.LIABILITY,
+            account_subtype=AccountSubtype.CREDIT_CARD,
+            opening_balance=Decimal("500.00"),
+            opening_date="2025-01-01"
+        )
+
+        # Verify equation: Assets ($1,000) = Liabilities ($500) + Equity ($500)
+        assets = service._get_total_by_type(AccountType.ASSET)
+        liabilities = service._get_total_by_type(AccountType.LIABILITY)
+        equity = service._get_total_by_type(AccountType.EQUITY)
+
+        assert assets == Decimal("1000.00")
+        assert liabilities == Decimal("500.00")
+        assert equity == Decimal("500.00")
+
+        # Equation should balance
+        assert assets == liabilities + equity
+
+    def test_validate_opening_balance_equity_passes(self, real_db):
+        """validate_opening_balance_equity() should pass after creating opening balances."""
+        service = AccountService(real_db)
+
+        # Create accounts with opening balances
+        service.create_account_with_opening_balance(
+            name="Checking",
+            account_type=AccountType.ASSET,
+            account_subtype=AccountSubtype.CHECKING,
+            opening_balance=Decimal("1000.00"),
+            opening_date="2025-01-01"
+        )
+
+        # Should not raise ValidationError
+        result = service.validate_opening_balance_equity()
+        assert result is True
+```
+
+#### Step 3.3: Run Integration Tests
+
+**Run tests:**
+```bash
+pytest finance_app/tests/integration/test_opening_balance_accounting_equation.py -v
+```
+
+**Expected Result:** All integration tests pass
+
+**Checkpoint:** ✅ Equity offset entries are created, accounting equation balances
+
+---
+
+### Gap Fix Verification Checklist
+
+After completing all 3 gap fixes, verify:
+
+**Code Changes:**
+- [ ] ✅ AccountService has `self.double_entry_service` injected
+- [ ] ✅ `create_account_with_opening_balance()` uses DoubleEntryService
+- [ ] ✅ `set_account_opening_balance()` uses DoubleEntryService
+- [ ] ✅ Both methods create equity offset entries
+- [ ] ✅ No manual debit/credit calculation in AccountService
+
+**Testing:**
+- [ ] ✅ All existing unit tests pass (0 regressions)
+- [ ] ✅ New unit tests pass (20+ tests)
+- [ ] ✅ Integration tests pass (equation balances)
+- [ ] ✅ `validate_opening_balance_equity()` passes after creating opening balances
+
+**Verification Commands:**
+```bash
+# Run all tests
+pytest finance_app/tests/ -v
+
+# Run only opening balance tests
+pytest finance_app/tests/unit/test_account_service_opening_balance.py -v
+pytest finance_app/tests/integration/test_opening_balance_accounting_equation.py -v
+
+# Check for regressions
+pytest finance_app/tests/unit/test_account_service.py -v
+pytest finance_app/tests/integration/ -v
+```
+
+**Expected Results:**
+- All tests passing (45+ tests total)
+- No regressions in existing tests
+- Accounting equation balances in all scenarios
+
+**Time Spent:** ~3.5 hours
+- Gap 1: 30 minutes
+- Gap 2: 2 hours
+- Gap 3: 1 hour (verification and testing)
+
+**Next Step:** Proceed to Day 1 Afternoon - Database Migration (see 5-day plan in Sprint 7 planning doc)
+
+---
+
+## 🔧 PRIORITY 2 GAPS - Address During Implementation
+
+These gaps should be fixed during the regular implementation (Days 1-5), not in the morning gap fix session.
+
+### Gap 5: Migration 006 Equity Balance Calculation (Day 1 Afternoon)
+
+**File:** `finance_app/data/migrations/006_opening_balance_equity.sql`
+
+**Problem:** Migration creates Opening Balance Equity with `balance = 0.00`, which may be incorrect.
+
+**Fix:** Calculate initial equity balance from existing accounts.
+
+**See:** Implementation Guide section "Migration 006 - CORRECTED" for full SQL.
+
+### Gap 6: Performance Optimization (Day 3)
+
+**File:** `finance_app/business/account_service.py`
+
+**Method:** `validate_opening_balance_equity()`
+
+**Problem:** Fetches all accounts and iterates in Python (slow with 1000+ accounts).
+
+**Fix:** Use SQL aggregation instead.
+
+**See:** Implementation Guide section "Method 4: validate_opening_balance_equity() - OPTIMIZED"
+
+---
+
 ### Implementation Approach (ORIGINAL - See Implementation Guide for Corrected Version)
 
 **Phase 1: Data Layer (1 hour)**
