@@ -2,15 +2,18 @@
 Account dialog for creating and editing accounts with double-entry support.
 
 Implements US-001: Account Type Taxonomy & Hierarchy
+Implements US-005: Opening Balance Equity (frontend)
 """
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
+import decimal
 from typing import Optional
+from datetime import date
 
 from PySide6.QtWidgets import (
     QDialog, QVBoxLayout, QFormLayout, QHBoxLayout,
-    QLineEdit, QComboBox, QPushButton, QLabel, QMessageBox
+    QLineEdit, QComboBox, QPushButton, QLabel, QMessageBox, QDateEdit, QCheckBox
 )
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, QDate
 
 from finance_app.data.models import Account, AccountType, AccountSubtype, NormalBalance
 from finance_app.business.account_service import AccountService
@@ -140,11 +143,44 @@ class AccountDialog(QDialog):
         self.subtype_combo = QComboBox()
         form.addRow("Account Subtype:", self.subtype_combo)
 
-        # Initial balance
+        # Initial balance (legacy field - still shown for backwards compatibility)
         self.balance_edit = QLineEdit()
         self.balance_edit.setPlaceholderText("0.00")
         self.balance_edit.setText("0.00")
-        form.addRow("Initial Balance:", self.balance_edit)
+        self.balance_edit.setToolTip("Legacy field - not recommended. Use Opening Balance instead for proper accounting.")
+        form.addRow("Initial Balance (legacy):", self.balance_edit)
+
+        # US-005: Opening Balance Section
+        opening_balance_label = QLabel("<b>Opening Balance (Recommended)</b>")
+        opening_balance_label.setStyleSheet("margin-top: 10px;")
+        layout.addWidget(opening_balance_label)
+
+        opening_help = QLabel(
+            "Use this for proper double-entry accounting when migrating from another system. "
+            "This creates journal entries and maintains the accounting equation."
+        )
+        opening_help.setWordWrap(True)
+        opening_help.setStyleSheet("color: #888888; font-size: 11px; margin-bottom: 5px;")
+        layout.addWidget(opening_help)
+
+        # Opening balance checkbox
+        self.use_opening_balance_checkbox = QCheckBox("Set opening balance for this account")
+        self.use_opening_balance_checkbox.stateChanged.connect(self._on_opening_balance_toggle)
+        form.addRow("", self.use_opening_balance_checkbox)
+
+        # Opening balance amount
+        self.opening_balance_edit = QLineEdit()
+        self.opening_balance_edit.setPlaceholderText("Enter opening balance (e.g., 1000.00)")
+        self.opening_balance_edit.setEnabled(False)
+        form.addRow("Opening Balance:", self.opening_balance_edit)
+
+        # Opening balance date
+        self.opening_date_edit = QDateEdit()
+        self.opening_date_edit.setDate(QDate.currentDate())
+        self.opening_date_edit.setCalendarPopup(True)
+        self.opening_date_edit.setDisplayFormat("MMM dd, yyyy")
+        self.opening_date_edit.setEnabled(False)
+        form.addRow("Opening Date:", self.opening_date_edit)
 
         # Currency (hidden for now since it's disabled)
         self.currency_edit = QLineEdit()
@@ -189,7 +225,7 @@ class AccountDialog(QDialog):
                 font-size: 13px;
             }
 
-            QLineEdit, QComboBox {
+            QLineEdit, QComboBox, QDateEdit {
                 padding: 6px;
                 background-color: #3c3c3c;
                 border: 1px solid #555555;
@@ -199,13 +235,59 @@ class AccountDialog(QDialog):
                 min-height: 24px;
             }
 
-            QLineEdit:focus, QComboBox:focus {
+            QLineEdit:focus, QComboBox:focus, QDateEdit:focus {
                 border-color: #0078d4;
                 background-color: #404040;
             }
 
+            QLineEdit:disabled, QComboBox:disabled, QDateEdit:disabled {
+                background-color: #2b2b2b;
+                border-color: #3a3a3a;
+                color: #666666;
+            }
+
             QLineEdit::placeholder {
                 color: #888888;
+            }
+
+            QCheckBox {
+                color: #ffffff;
+                spacing: 5px;
+            }
+
+            QCheckBox::indicator {
+                width: 18px;
+                height: 18px;
+                border: 1px solid #555555;
+                border-radius: 3px;
+                background-color: #3c3c3c;
+            }
+
+            QCheckBox::indicator:checked {
+                background-color: #0078d4;
+                border-color: #0078d4;
+            }
+
+            QCheckBox::indicator:hover {
+                border-color: #0078d4;
+            }
+
+            QDateEdit::drop-down {
+                border: none;
+                width: 20px;
+            }
+
+            QDateEdit::down-arrow {
+                image: none;
+                border-left: 4px solid transparent;
+                border-right: 4px solid transparent;
+                border-top: 4px solid #ffffff;
+                width: 0;
+                height: 0;
+            }
+
+            QDateEdit:disabled::down-arrow {
+                border-top-color: #666666;
             }
 
             QComboBox::drop-down {
@@ -281,6 +363,25 @@ class AccountDialog(QDialog):
             display = f"{info['icon']} {info['display']}"
             self.subtype_combo.addItem(display, subtype)
 
+    def _on_opening_balance_toggle(self, state: int) -> None:
+        """
+        Handle opening balance checkbox toggle.
+
+        Args:
+            state: Checkbox state (Qt.CheckState.Checked or Qt.CheckState.Unchecked)
+        """
+        # In PySide6, state is Qt.CheckState enum, value 2 = Checked
+        is_checked = (state == Qt.CheckState.Checked) or (state == 2)
+
+        self.opening_balance_edit.setEnabled(is_checked)
+        self.opening_date_edit.setEnabled(is_checked)
+
+        # If enabled, set focus to opening balance field
+        if is_checked:
+            self.opening_balance_edit.setFocus()
+            if not self.opening_balance_edit.text():
+                self.opening_balance_edit.setText("0.00")
+
     def populate_fields(self) -> None:
         """Populate fields when editing an existing account."""
         if not self.account:
@@ -311,6 +412,11 @@ class AccountDialog(QDialog):
             initial_balance = self.balance_edit.text().strip()
             currency = self.currency_edit.text().strip()
 
+            # US-005: Opening balance fields
+            use_opening_balance = self.use_opening_balance_checkbox.isChecked()
+            opening_balance_str = self.opening_balance_edit.text().strip() if use_opening_balance else None
+            opening_date = self.opening_date_edit.date().toString("yyyy-MM-dd") if use_opening_balance else None
+
             # Validate required fields
             if not name:
                 QMessageBox.warning(self, "Validation Error", "Account name is required")
@@ -320,6 +426,24 @@ class AccountDialog(QDialog):
             if not account_type or not account_subtype:
                 QMessageBox.warning(self, "Validation Error", "Please select account type and subtype")
                 return
+
+            # Validate opening balance if checkbox is checked
+            if use_opening_balance:
+                if not opening_balance_str:
+                    QMessageBox.warning(self, "Validation Error", "Opening balance amount is required")
+                    self.opening_balance_edit.setFocus()
+                    return
+
+                try:
+                    opening_balance = Decimal(opening_balance_str)
+                    if opening_balance < 0:
+                        QMessageBox.warning(self, "Validation Error", "Opening balance cannot be negative")
+                        self.opening_balance_edit.setFocus()
+                        return
+                except (ValueError, decimal.InvalidOperation):
+                    QMessageBox.warning(self, "Validation Error", "Please enter a valid opening balance amount")
+                    self.opening_balance_edit.setFocus()
+                    return
 
             # Create or update account
             if self.is_edit_mode:
@@ -334,16 +458,35 @@ class AccountDialog(QDialog):
                 logger.info(f"Account updated: {name}")
                 QMessageBox.information(self, "Success", f"Account '{name}' updated successfully")
             else:
-                # Create new account
-                self.account_service.create_account(
-                    name=name,
-                    account_type=account_type,
-                    account_subtype=account_subtype,
-                    initial_balance=initial_balance,
-                    currency=currency
-                )
-                logger.info(f"Account created: {name}")
-                QMessageBox.information(self, "Success", f"Account '{name}' created successfully")
+                # US-005: Create account with or without opening balance
+                if use_opening_balance and opening_balance_str:
+                    # Create account with opening balance (US-005)
+                    opening_balance = Decimal(opening_balance_str)
+                    account, journal_entry = self.account_service.create_account_with_opening_balance(
+                        name=name,
+                        account_type=account_type,
+                        account_subtype=account_subtype,
+                        opening_balance=opening_balance,
+                        opening_date=opening_date,
+                        currency=currency
+                    )
+                    logger.info(f"Account created with opening balance: {name}, balance={opening_balance}, date={opening_date}")
+                    QMessageBox.information(
+                        self,
+                        "Success",
+                        f"Account '{name}' created successfully with opening balance of ${opening_balance:.2f}"
+                    )
+                else:
+                    # Create account without opening balance (original flow)
+                    self.account_service.create_account(
+                        name=name,
+                        account_type=account_type,
+                        account_subtype=account_subtype,
+                        initial_balance=initial_balance,
+                        currency=currency
+                    )
+                    logger.info(f"Account created: {name}")
+                    QMessageBox.information(self, "Success", f"Account '{name}' created successfully")
 
             self.accept()
 

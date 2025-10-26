@@ -41,7 +41,7 @@ class AccountRepository:
                 cursor.execute("""
                     SELECT id, name, account_type, account_subtype, balance,
                            normal_balance, currency, parent_account_id,
-                           legacy_type, last_reconciled_date
+                           legacy_type, last_reconciled_date, opening_balance_date
                     FROM accounts
                     ORDER BY account_type, name
                 """)
@@ -70,7 +70,7 @@ class AccountRepository:
                 cursor.execute("""
                     SELECT id, name, account_type, account_subtype, balance,
                            normal_balance, currency, parent_account_id,
-                           legacy_type, last_reconciled_date
+                           legacy_type, last_reconciled_date, opening_balance_date
                     FROM accounts
                     WHERE id = ?
                 """, (account_id,))
@@ -196,7 +196,8 @@ class AccountRepository:
                         normal_balance = ?,
                         currency = ?,
                         parent_account_id = ?,
-                        last_reconciled_date = ?
+                        last_reconciled_date = ?,
+                        opening_balance_date = ?
                     WHERE id = ?
                 """, (
                     account.name,
@@ -208,6 +209,7 @@ class AccountRepository:
                     account.currency,
                     account.parent_account_id,
                     account.last_reconciled_date,  # US-004
+                    account.opening_balance_date,  # US-005
                     account.id
                 ))
 
@@ -316,6 +318,7 @@ class AccountRepository:
             parent_account_id=row['parent_account_id'],
             legacy_type=row['legacy_type'] if 'legacy_type' in row.keys() else None,
             last_reconciled_date=row['last_reconciled_date'] if 'last_reconciled_date' in row.keys() else None,  # US-004
+            opening_balance_date=row['opening_balance_date'] if 'opening_balance_date' in row.keys() else None,  # US-005
             created_at=None,  # Not in current schema
             updated_at=None   # Not in current schema
         )

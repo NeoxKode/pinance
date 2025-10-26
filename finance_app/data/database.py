@@ -349,6 +349,88 @@ def _apply_reconciliation_migration(conn: sqlite3.Connection) -> None:
         logger.debug("Reconciliations table already exists, skipping migration")
 
 
+def _apply_opening_balance_equity_migration(conn: sqlite3.Connection) -> None:
+    """
+    Apply opening balance equity migration (006_opening_balance_equity.sql).
+
+    This adds opening_balance_date to accounts and is_opening_balance to transactions,
+    and creates the Opening Balance Equity account.
+    Story: US-005 - Opening Balance Equity
+
+    Args:
+        conn: Database connection
+    """
+    cursor = conn.cursor()
+
+    # Check if migration is needed (look for opening_balance_date column)
+    cursor.execute("PRAGMA table_info(accounts)")
+    columns = [row[1] for row in cursor.fetchall()]
+
+    if 'opening_balance_date' not in columns:
+        logger.info("Applying opening balance equity migration (006)...")
+
+        # Read and execute migration file
+        migration_path = Path(__file__).parent / "migrations" / "006_opening_balance_equity.sql"
+
+        if not migration_path.exists():
+            logger.warning(f"Migration file not found: {migration_path}")
+            return
+
+        with open(migration_path, 'r') as f:
+            migration_sql = f.read()
+
+        # Execute migration
+        cursor.executescript(migration_sql)
+
+        conn.commit()
+        logger.info("Opening balance equity migration (006) completed")
+
+        # Verify opening_balance_date column in accounts
+        cursor.execute("PRAGMA table_info(accounts)")
+        columns = [row[1] for row in cursor.fetchall()]
+        if 'opening_balance_date' in columns:
+            logger.info("Migration verification: ✓ opening_balance_date column added to accounts")
+        else:
+            logger.error("Migration verification failed: opening_balance_date column not found")
+
+        # Verify is_opening_balance column in transactions
+        cursor.execute("PRAGMA table_info(transactions)")
+        columns = [row[1] for row in cursor.fetchall()]
+        if 'is_opening_balance' in columns:
+            logger.info("Migration verification: ✓ is_opening_balance column added to transactions")
+        else:
+            logger.error("Migration verification failed: is_opening_balance column not found")
+
+        # Verify Opening Balance Equity account was created
+        cursor.execute("""
+            SELECT COUNT(*) FROM accounts
+            WHERE name = 'Opening Balance Equity'
+            AND account_type = 'equity'
+            AND account_subtype = 'opening_balance'
+        """)
+        if cursor.fetchone()[0] > 0:
+            logger.info("Migration verification: ✓ Opening Balance Equity account created")
+        else:
+            logger.error("Migration verification failed: Opening Balance Equity account not found")
+
+        # Verify indices
+        cursor.execute("""
+            SELECT name FROM sqlite_master
+            WHERE type='index' AND name IN (
+                'idx_accounts_opening_balance',
+                'idx_transactions_opening_balance',
+                'idx_transactions_account_opening'
+            )
+        """)
+        indices = [row[0] for row in cursor.fetchall()]
+        if len(indices) >= 3:
+            logger.info(f"Migration verification: ✓ Opening balance indices created")
+        else:
+            logger.warning(f"Migration verification: Found {len(indices)}/3 indices: {indices}")
+    else:
+        logger.debug("Opening balance equity migration already applied, skipping")
+
+
 class Database:
     """
     Database manager with connection pooling and lifecycle management.
@@ -509,6 +591,9 @@ class Database:
                 # Apply reconciliation migration for new databases
                 _apply_reconciliation_migration(conn)
 
+                # Apply opening balance equity migration for new databases
+                _apply_opening_balance_equity_migration(conn)
+
                 # Add sample data if empty
                 self._add_sample_data(conn)
 
@@ -525,6 +610,7 @@ class Database:
                 _apply_transaction_groups_migration(conn)
                 _apply_split_transactions_migration(conn)
                 _apply_reconciliation_migration(conn)
+                _apply_opening_balance_equity_migration(conn)
                 logger.info("All migrations applied successfully")
         except Exception as e:
             logger.error(f"Failed to apply migrations: {e}")

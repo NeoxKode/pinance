@@ -47,7 +47,8 @@ class TransactionRepository:
                     query = """
                         SELECT id, account_id, date, description, category, amount, type,
                                is_split, split_count,
-                               reconciliation_status, reconciled_date, statement_date
+                               reconciliation_status, reconciled_date, statement_date,
+                               is_opening_balance
                         FROM transactions
                         WHERE account_id = ?
                         ORDER BY date DESC, id DESC
@@ -57,7 +58,8 @@ class TransactionRepository:
                     query = """
                         SELECT id, account_id, date, description, category, amount, type,
                                is_split, split_count,
-                               reconciliation_status, reconciled_date, statement_date
+                               reconciliation_status, reconciled_date, statement_date,
+                               is_opening_balance
                         FROM transactions
                         ORDER BY date DESC, id DESC
                     """
@@ -92,7 +94,8 @@ class TransactionRepository:
                 cursor.execute("""
                     SELECT id, account_id, date, description, category, amount, type,
                            is_split, split_count,
-                           reconciliation_status, reconciled_date, statement_date
+                           reconciliation_status, reconciled_date, statement_date,
+                           is_opening_balance
                     FROM transactions
                     WHERE id = ?
                 """, (transaction_id,))
@@ -119,10 +122,21 @@ class TransactionRepository:
             with self.db.get_connection() as conn:
                 cursor = conn.cursor()
                 cursor.execute("""
-                    INSERT INTO transactions (account_id, date, description, category, amount, type)
-                    VALUES (?, ?, ?, ?, ?, ?)
-                """, (transaction.account_id, transaction.date, transaction.description,
-                      transaction.category, float(transaction.amount), transaction.type))
+                    INSERT INTO transactions (
+                        account_id, date, description, category, amount, type,
+                        reconciliation_status, is_opening_balance
+                    )
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                """, (
+                    transaction.account_id,
+                    transaction.date,
+                    transaction.description,
+                    transaction.category,
+                    float(transaction.amount),
+                    transaction.type,
+                    transaction.reconciliation_status.value if hasattr(transaction.reconciliation_status, 'value') else transaction.reconciliation_status,
+                    1 if transaction.is_opening_balance else 0
+                ))
                 transaction.id = cursor.lastrowid
                 logger.info(f"Created transaction: {transaction.description} (ID: {transaction.id})")
                 return transaction
@@ -220,7 +234,9 @@ class TransactionRepository:
                 if account_id:
                     cursor.execute("""
                         SELECT id, account_id, date, description, category, amount, type,
-                               is_split, split_count
+                               is_split, split_count,
+                               reconciliation_status, reconciled_date, statement_date,
+                               is_opening_balance
                         FROM transactions
                         WHERE category = ? AND account_id = ?
                         ORDER BY date DESC
@@ -228,7 +244,9 @@ class TransactionRepository:
                 else:
                     cursor.execute("""
                         SELECT id, account_id, date, description, category, amount, type,
-                               is_split, split_count
+                               is_split, split_count,
+                               reconciliation_status, reconciled_date, statement_date,
+                               is_opening_balance
                         FROM transactions
                         WHERE category = ?
                         ORDER BY date DESC
@@ -267,7 +285,9 @@ class TransactionRepository:
                 if account_id:
                     cursor.execute("""
                         SELECT id, account_id, date, description, category, amount, type,
-                               is_split, split_count
+                               is_split, split_count,
+                               reconciliation_status, reconciled_date, statement_date,
+                               is_opening_balance
                         FROM transactions
                         WHERE date BETWEEN ? AND ? AND account_id = ?
                         ORDER BY date DESC
@@ -275,7 +295,9 @@ class TransactionRepository:
                 else:
                     cursor.execute("""
                         SELECT id, account_id, date, description, category, amount, type,
-                               is_split, split_count
+                               is_split, split_count,
+                               reconciliation_status, reconciled_date, statement_date,
+                               is_opening_balance
                         FROM transactions
                         WHERE date BETWEEN ? AND ?
                         ORDER BY date DESC
@@ -314,6 +336,8 @@ class TransactionRepository:
             reconciliation_status=row['reconciliation_status'] if 'reconciliation_status' in row.keys() else 'unreconciled',
             reconciled_date=row['reconciled_date'] if 'reconciled_date' in row.keys() else None,
             statement_date=row['statement_date'] if 'statement_date' in row.keys() else None,
+            # US-005: Opening balance flag
+            is_opening_balance=bool(row['is_opening_balance']) if 'is_opening_balance' in row.keys() else False,
             created_at=None,  # Not in current schema
             updated_at=None   # Not in current schema
         )

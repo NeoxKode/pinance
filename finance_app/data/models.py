@@ -99,6 +99,9 @@ class Account:
     # US-004: Reconciliation tracking
     last_reconciled_date: Optional[str] = None  # ISO 8601: YYYY-MM-DD
 
+    # US-005: Opening balance tracking
+    opening_balance_date: Optional[str] = None  # ISO 8601: YYYY-MM-DD
+
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
 
@@ -194,6 +197,9 @@ class Transaction:
     reconciliation_status: ReconciliationStatus = ReconciliationStatus.UNRECONCILED
     reconciled_date: Optional[str] = None  # ISO 8601: YYYY-MM-DD
     statement_date: Optional[str] = None   # Bank statement date
+
+    # US-005: Opening balance tracking
+    is_opening_balance: bool = False  # True if this is an opening balance transaction
 
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None

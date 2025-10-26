@@ -6,7 +6,7 @@ from decimal import Decimal
 
 from PySide6.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QTableWidget,
-    QTableWidgetItem, QPushButton, QLabel, QSplitter, QMessageBox, QDialog
+    QTableWidgetItem, QPushButton, QLabel, QSplitter, QMessageBox, QDialog, QCheckBox
 )
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QAction
@@ -23,6 +23,7 @@ from finance_app.ui.dialogs.account_dialog import AccountDialog
 from finance_app.ui.dialogs.transfer_dialog import TransferDialog
 from finance_app.ui.dialogs.unified_transaction_dialog import UnifiedTransactionDialog
 from finance_app.ui.dialogs.reconciliation_dialog import ReconciliationDialog
+from finance_app.ui.dialogs.set_opening_balance_dialog import SetOpeningBalanceDialog
 from finance_app.utils.logger import setup_logger
 from finance_app.utils.exceptions import FinanceAppError
 
@@ -147,6 +148,13 @@ class MainWindow(QMainWindow):
         header_layout.addWidget(QLabel("<b>Accounts</b>"))
         header_layout.addStretch()
 
+        # US-005: Show/Hide System Accounts toggle
+        self.show_system_accounts_checkbox = QCheckBox("Show System Accounts")
+        self.show_system_accounts_checkbox.setToolTip("Show/hide system accounts like Opening Balance Equity")
+        self.show_system_accounts_checkbox.setChecked(True)  # Show by default
+        self.show_system_accounts_checkbox.stateChanged.connect(self._load_accounts)
+        header_layout.addWidget(self.show_system_accounts_checkbox)
+
         add_account_btn = QPushButton("+ Add")
         add_account_btn.setToolTip("Add New Account")
         add_account_btn.clicked.connect(self.add_account)
@@ -167,6 +175,11 @@ class MainWindow(QMainWindow):
         edit_action = QAction("Edit Account", self.account_table)
         edit_action.triggered.connect(self.edit_account)
         self.account_table.addAction(edit_action)
+
+        # US-005: Set Opening Balance action
+        set_opening_balance_action = QAction("Set Opening Balance...", self.account_table)
+        set_opening_balance_action.triggered.connect(self.set_opening_balance)
+        self.account_table.addAction(set_opening_balance_action)
 
         delete_action = QAction("Delete Account", self.account_table)
         delete_action.triggered.connect(self.delete_account)
@@ -190,6 +203,13 @@ class MainWindow(QMainWindow):
         control_layout = QHBoxLayout()
         control_layout.addWidget(QLabel("<b>Transactions</b>"))
         control_layout.addStretch()
+
+        # US-005: Filter toggle for opening balance transactions
+        self.show_opening_balance_checkbox = QCheckBox("Show Opening Balance Entries")
+        self.show_opening_balance_checkbox.setChecked(True)  # Show by default
+        self.show_opening_balance_checkbox.setToolTip("Toggle visibility of opening balance transactions")
+        self.show_opening_balance_checkbox.stateChanged.connect(self._on_opening_balance_filter_toggle)
+        control_layout.addWidget(self.show_opening_balance_checkbox)
 
         add_btn = QPushButton("+ Add Transaction")
         add_btn.setToolTip("Add transaction (Ctrl+N)")
@@ -226,6 +246,17 @@ class MainWindow(QMainWindow):
         """Load accounts into table with new type information."""
         try:
             accounts = self.account_service.get_all_accounts()
+
+            # US-005: Filter system accounts based on checkbox
+            show_system = self.show_system_accounts_checkbox.isChecked()
+            if not show_system:
+                # Filter out Opening Balance Equity account
+                accounts = [
+                    acc for acc in accounts
+                    if not (acc.account_type == AccountType.EQUITY and
+                           acc.account_subtype == AccountSubtype.OPENING_BALANCE)
+                ]
+
             self.account_table.setRowCount(len(accounts))
 
             # Account type icons/prefixes
@@ -238,8 +269,23 @@ class MainWindow(QMainWindow):
             }
 
             for i, account in enumerate(accounts):
-                # Account name
-                name_item = QTableWidgetItem(account.name)
+                # US-005: Special styling for Opening Balance Equity account
+                is_opening_balance_equity = (
+                    account.account_type == AccountType.EQUITY and
+                    account.account_subtype == AccountSubtype.OPENING_BALANCE
+                )
+
+                # Account name with special indicator for Opening Balance Equity
+                if is_opening_balance_equity:
+                    name_item = QTableWidgetItem(f"🔐 {account.name}")
+                    name_item.setToolTip("System account for opening balances - automatically managed")
+                    # Set special font style
+                    font = name_item.font()
+                    font.setItalic(True)
+                    name_item.setFont(font)
+                else:
+                    name_item = QTableWidgetItem(account.name)
+
                 name_item.setData(Qt.UserRole, account.id)  # Store account ID
                 self.account_table.setItem(i, 0, name_item)
 
@@ -296,17 +342,41 @@ class MainWindow(QMainWindow):
         Load transactions into table.
 
         US-004: Phase 6 - Task 4.37 - Added reconciliation status column
+        US-005: Added filtering and special styling for opening balance transactions
         """
         try:
-            transactions = self.transaction_service.get_all_transactions(account_id)
+            all_transactions = self.transaction_service.get_all_transactions(account_id)
+
+            # US-005: Filter opening balance transactions if checkbox is unchecked
+            show_opening_balance = self.show_opening_balance_checkbox.isChecked()
+            if show_opening_balance:
+                transactions = all_transactions
+            else:
+                transactions = [t for t in all_transactions if not t.is_opening_balance]
+
             self.transaction_table.setRowCount(len(transactions))
 
             for i, trans in enumerate(transactions):
+                # US-005: Check if this is an opening balance transaction
+                is_opening_balance = trans.is_opening_balance
+
                 # Date
-                self.transaction_table.setItem(i, 0, QTableWidgetItem(trans.date))
+                date_text = trans.date
+                if is_opening_balance:
+                    date_text = f"🔓 {date_text}"  # Opening balance icon
+                date_item = QTableWidgetItem(date_text)
+                if is_opening_balance:
+                    date_item.setToolTip("Opening balance transaction - automatically created")
+                self.transaction_table.setItem(i, 0, date_item)
 
                 # Description
-                self.transaction_table.setItem(i, 1, QTableWidgetItem(trans.description))
+                desc_item = QTableWidgetItem(trans.description)
+                if is_opening_balance:
+                    # Make opening balance description italic
+                    font = desc_item.font()
+                    font.setItalic(True)
+                    desc_item.setFont(font)
+                self.transaction_table.setItem(i, 1, desc_item)
 
                 # Category
                 self.transaction_table.setItem(i, 2, QTableWidgetItem(trans.category))
@@ -324,29 +394,36 @@ class MainWindow(QMainWindow):
                 self.transaction_table.setItem(i, 4, QTableWidgetItem(trans.type.capitalize()))
 
                 # US-004: Reconciliation Status (Task 4.37)
+                # US-005: Show "Auto-Reconciled" for opening balance transactions
                 status_text = ""
                 status_tooltip = ""
+                recon_status = None
 
-                # Get reconciliation status from transaction
-                recon_status = trans.reconciliation_status
-                if hasattr(recon_status, 'value'):
-                    recon_status = recon_status.value
-
-                if recon_status == 'cleared':
-                    status_text = "✓ Reconciled"
-                    status_tooltip = f"Reconciled on {trans.reconciled_date}" if trans.reconciled_date else "Reconciled"
-                elif recon_status == 'pending':
-                    status_text = "⏳ Pending"
-                    status_tooltip = "Reconciliation in progress"
+                if is_opening_balance:
+                    # Opening balance transactions are auto-reconciled
+                    status_text = "🔒 Auto-Reconciled"
+                    status_tooltip = "Opening balance transactions are automatically reconciled"
                 else:
-                    status_text = ""
-                    status_tooltip = "Not reconciled"
+                    # Get reconciliation status from transaction
+                    recon_status = trans.reconciliation_status
+                    if hasattr(recon_status, 'value'):
+                        recon_status = recon_status.value
+
+                    if recon_status == 'cleared':
+                        status_text = "✓ Reconciled"
+                        status_tooltip = f"Reconciled on {trans.reconciled_date}" if trans.reconciled_date else "Reconciled"
+                    elif recon_status == 'pending':
+                        status_text = "⏳ Pending"
+                        status_tooltip = "Reconciliation in progress"
+                    else:
+                        status_text = ""
+                        status_tooltip = "Not reconciled"
 
                 status_item = QTableWidgetItem(status_text)
                 status_item.setToolTip(status_tooltip)
-                if recon_status == 'cleared':
+                if is_opening_balance or (recon_status and recon_status == 'cleared'):
                     status_item.setForeground(Qt.darkGreen)
-                elif recon_status == 'pending':
+                elif recon_status and recon_status == 'pending':
                     status_item.setForeground(Qt.darkYellow)
                 self.transaction_table.setItem(i, 5, status_item)
 
@@ -367,6 +444,16 @@ class MainWindow(QMainWindow):
             self._load_transactions(self.current_account_id)
             account_name = name_item.text()
             self.statusBar().showMessage(f"Showing transactions for: {account_name}")
+
+    def _on_opening_balance_filter_toggle(self, state: int) -> None:
+        """
+        Handle opening balance filter toggle (US-005).
+
+        Args:
+            state: Checkbox state (Qt.Checked or Qt.Unchecked)
+        """
+        # Reload transactions with current filter state
+        self._load_transactions(self.current_account_id)
 
     def add_transaction(self) -> None:
         """Show dialog to add transaction (legacy)."""
@@ -548,6 +635,17 @@ class MainWindow(QMainWindow):
                 QMessageBox.warning(self, "Error", "Account not found")
                 return
 
+            # US-005: Prevent editing Opening Balance Equity account
+            if (account.account_type == AccountType.EQUITY and
+                account.account_subtype == AccountSubtype.OPENING_BALANCE):
+                QMessageBox.warning(
+                    self,
+                    "System Account",
+                    "The Opening Balance Equity account is a system account and cannot be edited.\n\n"
+                    "This account is automatically managed to maintain the accounting equation."
+                )
+                return
+
             # Show edit dialog
             dialog = AccountDialog(self.account_service, account=account, parent=self)
 
@@ -571,30 +669,75 @@ class MainWindow(QMainWindow):
             return
 
         row = selected_items[0].row()
-        account_name = self.account_table.item(row, 0).text()
+        account_id = self.account_table.item(row, 0).data(Qt.UserRole)
 
-        reply = QMessageBox.question(
-            self, "Confirm Delete",
-            f"Are you sure you want to delete account '{account_name}'?\n\n"
-            "This will also delete all associated transactions!",
-            QMessageBox.Yes | QMessageBox.No,
-            QMessageBox.No
-        )
+        try:
+            # US-005: Prevent deleting Opening Balance Equity account
+            account = self.account_service.get_account(account_id)
+            if account and (account.account_type == AccountType.EQUITY and
+                           account.account_subtype == AccountSubtype.OPENING_BALANCE):
+                QMessageBox.warning(
+                    self,
+                    "System Account",
+                    "The Opening Balance Equity account is a system account and cannot be deleted.\n\n"
+                    "This account is required to maintain the accounting equation."
+                )
+                return
 
-        if reply == QMessageBox.Yes:
-            try:
-                account_id = self.account_table.item(row, 0).data(Qt.UserRole)
+            account_name = self.account_table.item(row, 0).text()
+
+            reply = QMessageBox.question(
+                self, "Confirm Delete",
+                f"Are you sure you want to delete account '{account_name}'?\n\n"
+                "This will also delete all associated transactions!",
+                QMessageBox.Yes | QMessageBox.No,
+                QMessageBox.No
+            )
+
+            if reply == QMessageBox.Yes:
                 self.account_service.delete_account(account_id)
                 self.load_data()
                 self.statusBar().showMessage(f"Account '{account_name}' deleted")
                 logger.info(f"Account deleted via UI: {account_id}")
 
-            except FinanceAppError as e:
-                logger.error(f"Failed to delete account: {e}")
-                QMessageBox.critical(self, "Error", f"Failed to delete account: {e}")
-            except Exception as e:
-                logger.error(f"Unexpected error deleting account: {e}")
-                QMessageBox.critical(self, "Error", f"Unexpected error: {e}")
+        except FinanceAppError as e:
+            logger.error(f"Failed to delete account: {e}")
+            QMessageBox.critical(self, "Error", f"Failed to delete account: {e}")
+        except Exception as e:
+            logger.error(f"Unexpected error deleting account: {e}")
+            QMessageBox.critical(self, "Error", f"Unexpected error: {e}")
+
+    def set_opening_balance(self) -> None:
+        """Open dialog to set opening balance for selected account (US-005)."""
+        selected_items = self.account_table.selectedItems()
+        if not selected_items:
+            QMessageBox.warning(self, "No Selection", "Please select an account to set opening balance")
+            return
+
+        row = selected_items[0].row()
+        account_id = self.account_table.item(row, 0).data(Qt.UserRole)
+
+        try:
+            # Get the account
+            account = self.account_service.get_account(account_id)
+            if not account:
+                QMessageBox.warning(self, "Error", "Account not found")
+                return
+
+            # Open set opening balance dialog
+            dialog = SetOpeningBalanceDialog(account, self.account_service, self)
+            if dialog.exec() == QDialog.Accepted:
+                # Reload data to show updated balance
+                self.load_data()
+                self.statusBar().showMessage(f"Opening balance set for '{account.name}'")
+                logger.info(f"Opening balance set via UI for account: {account_id}")
+
+        except FinanceAppError as e:
+            logger.error(f"Failed to set opening balance: {e}")
+            QMessageBox.critical(self, "Error", f"Failed to set opening balance: {e}")
+        except Exception as e:
+            logger.error(f"Unexpected error setting opening balance: {e}")
+            QMessageBox.critical(self, "Error", f"Unexpected error: {e}")
 
     def transfer_money(self) -> None:
         """Open transfer dialog and process transfer."""
