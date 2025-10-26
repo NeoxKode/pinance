@@ -1152,6 +1152,823 @@ AND is_parent = 0;  -- Only leaf accounts
 
 ---
 
+## 📋 Task Breakdown for Development
+
+This section provides a detailed, step-by-step implementation plan for developers.
+
+### Phase 1: Database & Model Foundation (Day 1 - 4-5 hours)
+
+#### Task 1.1: Create Database Migration (007)
+**Estimate:** 1 hour
+**Files:** `finance_app/data/migrations/007_account_hierarchy.sql`
+
+```sql
+-- Create migration file with:
+-- 1. Add is_parent column
+-- 2. Add hierarchy_level column
+-- 3. Add hierarchy_path column
+-- 4. Create indices
+-- 5. Update existing accounts (all top-level initially)
+```
+
+**Acceptance:**
+- [ ] Migration file created
+- [ ] Migration tested with existing database
+- [ ] Rollback tested
+- [ ] All existing accounts set to hierarchy_level=0
+
+**Testing:**
+```python
+# Test migration
+def test_migration_007_adds_hierarchy_fields():
+    # Apply migration
+    # Check all new columns exist
+    # Check indices created
+```
+
+---
+
+#### Task 1.2: Update Account Model
+**Estimate:** 1 hour
+**Files:** `finance_app/data/models.py`
+
+**Changes:**
+1. Add `is_parent: bool = False` field
+2. Add `hierarchy_level: int = 0` field
+3. Add `hierarchy_path: Optional[str] = None` field
+4. Add validation in `__post_init__()`:
+   - Parent accounts must be top-level
+   - Hierarchy path format validation
+5. Add helper property: `@property def is_leaf(self) -> bool`
+
+**Acceptance:**
+- [ ] Account model updated with 3 new fields
+- [ ] Model validation prevents invalid state
+- [ ] Type hints complete
+- [ ] Docstrings updated
+
+**Testing:**
+```python
+def test_account_model_hierarchy_fields():
+    account = Account(
+        id=1, name="Test", account_type=AccountType.ASSET,
+        account_subtype=AccountSubtype.CHECKING,
+        is_parent=True, hierarchy_level=0,
+        hierarchy_path="/1"
+    )
+    assert account.is_parent == True
+    assert account.hierarchy_level == 0
+```
+
+---
+
+#### Task 1.3: Update Database Integration
+**Estimate:** 1 hour
+**Files:** `finance_app/data/database.py`
+
+**Changes:**
+1. Add migration 007 to migration list
+2. Update `apply_migrations()` to run 007
+3. Add validation after migration
+4. Update database initialization logs
+
+**Acceptance:**
+- [ ] Migration 007 runs on database init
+- [ ] Verification logs show new fields
+- [ ] Existing data migrated correctly
+
+**Testing:**
+```python
+def test_database_applies_migration_007():
+    db = Database(":memory:")
+    # Check accounts table has new columns
+    cursor = db.conn.cursor()
+    result = cursor.execute("PRAGMA table_info(accounts)")
+    columns = [row[1] for row in result.fetchall()]
+    assert "is_parent" in columns
+    assert "hierarchy_level" in columns
+    assert "hierarchy_path" in columns
+```
+
+---
+
+#### Task 1.4: Run and Verify Migration
+**Estimate:** 1-2 hours (includes testing with production data backup)
+**Files:** N/A (manual process)
+
+**Steps:**
+1. Backup production database (`finance.db`)
+2. Run migration on backup copy
+3. Verify all accounts have hierarchy fields
+4. Check data integrity
+5. Test rollback if needed
+6. Document migration results
+
+**Acceptance:**
+- [ ] Migration runs successfully on production backup
+- [ ] All accounts have hierarchy_level = 0
+- [ ] All accounts have hierarchy_path = /[account_id]
+- [ ] No data loss or corruption
+- [ ] Migration time < 1 second for 100 accounts
+
+---
+
+### Phase 2: Repository Layer (Day 1-2 - 4-5 hours)
+
+#### Task 2.1: Implement Hierarchy Query Methods
+**Estimate:** 2 hours
+**Files:** `finance_app/data/repositories/account_repository.py`
+
+**New Methods:**
+
+1. **`get_child_accounts(parent_id: int) -> List[Account]`**
+```python
+def get_child_accounts(self, parent_id: int) -> List[Account]:
+    """Get all direct children of a parent account."""
+    query = """
+        SELECT * FROM accounts
+        WHERE parent_account_id = ?
+        ORDER BY name
+    """
+    rows = self.db.execute_query(query, (parent_id,))
+    return [self._row_to_account(row) for row in rows]
+```
+
+2. **`get_descendant_accounts(parent_id: int) -> List[Account]`**
+```python
+def get_descendant_accounts(self, parent_id: int) -> List[Account]:
+    """Get all descendants (recursive) using hierarchy_path."""
+    account = self.get_by_id(parent_id)
+    if not account:
+        return []
+
+    query = """
+        SELECT * FROM accounts
+        WHERE hierarchy_path LIKE ?
+        ORDER BY hierarchy_path
+    """
+    pattern = f"{account.hierarchy_path}/%"
+    rows = self.db.execute_query(query, (pattern,))
+    return [self._row_to_account(row) for row in rows]
+```
+
+3. **`get_root_accounts() -> List[Account]`**
+4. **`get_account_tree() -> List[AccountNode]`** (helper structure)
+5. **`update_hierarchy_path(account_id: int) -> None`**
+
+**Acceptance:**
+- [ ] All 5 methods implemented
+- [ ] SQL queries optimized with indices
+- [ ] Error handling for missing accounts
+- [ ] Docstrings complete
+
+**Testing:**
+```python
+def test_get_child_accounts(account_repo):
+    # Create parent and children
+    parent = account_repo.create(parent_account)
+    child1 = account_repo.create(child_account_1)
+    child2 = account_repo.create(child_account_2)
+
+    children = account_repo.get_child_accounts(parent.id)
+    assert len(children) == 2
+    assert child1.id in [c.id for c in children]
+```
+
+---
+
+#### Task 2.2: Update Account CRUD Methods
+**Estimate:** 1 hour
+**Files:** `finance_app/data/repositories/account_repository.py`
+
+**Changes:**
+1. **`create()`** - Calculate and set hierarchy_path
+2. **`update()`** - Update hierarchy_path if parent changed
+3. **`delete()`** - Check for children before deleting
+4. **`_row_to_account()`** - Map new hierarchy fields
+
+**Acceptance:**
+- [ ] CRUD methods handle hierarchy fields
+- [ ] hierarchy_path auto-calculated
+- [ ] Delete validates no children exist
+- [ ] Update recalculates paths
+
+**Testing:**
+```python
+def test_create_account_sets_hierarchy_path(account_repo):
+    parent = account_repo.create(parent_account)
+    child = account_repo.create(
+        child_account,
+        parent_account_id=parent.id
+    )
+    assert child.hierarchy_path == f"/{parent.id}/{child.id}"
+    assert child.hierarchy_level == 1
+```
+
+---
+
+#### Task 2.3: Add Helper Method for Tree Building
+**Estimate:** 1 hour
+**Files:** `finance_app/data/repositories/account_repository.py`
+
+**New Method:**
+```python
+def _build_tree(self, accounts: List[Account]) -> List[AccountNode]:
+    """Build hierarchical tree from flat account list."""
+    # Create AccountNode dataclass
+    # Map accounts by ID
+    # Build parent-child relationships
+    # Return root nodes
+```
+
+**Acceptance:**
+- [ ] Method builds tree correctly
+- [ ] Handles orphaned accounts gracefully
+- [ ] Performance: O(n) complexity
+- [ ] Returns proper tree structure
+
+---
+
+### Phase 3: Service Layer (Day 2 - 4-5 hours)
+
+#### Task 3.1: Update AccountService.create_account()
+**Estimate:** 1 hour
+**Files:** `finance_app/business/account_service.py`
+
+**Changes:**
+1. Add `parent_account_id` parameter
+2. Add `is_parent` parameter
+3. Add validation:
+   - Parent exists
+   - Type compatibility
+   - Max depth check
+   - Parent is actually a parent account
+4. Call `repo.update_hierarchy_path()` after creation
+
+**Acceptance:**
+- [ ] Creates accounts with parent_account_id
+- [ ] Validates parent compatibility
+- [ ] Sets hierarchy_path automatically
+- [ ] Throws ValidationError for invalid hierarchy
+
+**Testing:**
+```python
+def test_create_account_with_parent(account_service):
+    parent = account_service.create_account(
+        name="Parent", account_type=AccountType.ASSET,
+        account_subtype=AccountSubtype.CHECKING,
+        is_parent=True
+    )
+
+    child = account_service.create_account(
+        name="Child", account_type=AccountType.ASSET,
+        account_subtype=AccountSubtype.CHECKING,
+        parent_account_id=parent.id
+    )
+
+    assert child.parent_account_id == parent.id
+    assert child.hierarchy_level == 1
+```
+
+---
+
+#### Task 3.2: Implement get_parent_account_balance()
+**Estimate:** 1 hour
+**Files:** `finance_app/business/account_service.py`
+
+**New Method:**
+```python
+def get_parent_account_balance(self, parent_id: int) -> Decimal:
+    """
+    Calculate parent account balance (sum of all leaf descendants).
+
+    Only sums leaf accounts (accounts without children) to avoid
+    double-counting.
+    """
+    descendants = self.account_repo.get_descendant_accounts(parent_id)
+    leaf_accounts = [acc for acc in descendants if not acc.is_parent]
+    return sum(acc.balance for acc in leaf_accounts)
+```
+
+**Acceptance:**
+- [ ] Calculates sum of all leaf descendants
+- [ ] Excludes parent accounts from sum
+- [ ] Handles empty tree (no children)
+- [ ] Performance: Single query + Python sum
+
+**Testing:**
+```python
+def test_parent_balance_calculation(account_service):
+    # Create parent with 3 children
+    # Set balances: 1000, 2000, 3000
+    balance = account_service.get_parent_account_balance(parent.id)
+    assert balance == Decimal("6000")
+```
+
+---
+
+#### Task 3.3: Implement move_account()
+**Estimate:** 1.5 hours
+**Files:** `finance_app/business/account_service.py`
+
+**New Method:**
+```python
+def move_account(
+    self,
+    account_id: int,
+    new_parent_id: Optional[int]
+) -> Account:
+    """Move account to different parent or to top level."""
+    # Get account
+    # Validate new parent (if provided)
+    # Check circular reference
+    # Check max depth
+    # Update parent_account_id
+    # Update hierarchy paths (account + descendants)
+    # Return updated account
+```
+
+**Acceptance:**
+- [ ] Moves account to new parent
+- [ ] Moves account to top-level (None parent)
+- [ ] Validates circular references
+- [ ] Updates all descendant paths
+- [ ] Transaction-safe (all-or-nothing)
+
+**Testing:**
+```python
+def test_move_account_prevents_circular_reference(account_service):
+    parent = account_service.create_account(...)
+    child = account_service.create_account(..., parent_account_id=parent.id)
+
+    with pytest.raises(ValidationError, match="circular"):
+        account_service.move_account(parent.id, child.id)
+```
+
+---
+
+#### Task 3.4: Implement convert_to_parent_account()
+**Estimate:** 0.5 hours
+**Files:** `finance_app/business/account_service.py`
+
+**New Method:**
+```python
+def convert_to_parent_account(self, account_id: int) -> Account:
+    """Convert regular account to parent account."""
+    account = self.account_repo.get_by_id(account_id)
+
+    # Check for transactions
+    if self.transaction_repo.get_transaction_count(account_id) > 0:
+        raise ValidationError("Cannot convert: account has transactions")
+
+    # Convert
+    account.is_parent = True
+    account.parent_account_id = None  # Parents must be top-level
+
+    return self.account_repo.update(account)
+```
+
+**Acceptance:**
+- [ ] Converts account to parent
+- [ ] Validates no transactions exist
+- [ ] Makes account top-level
+- [ ] Updates is_parent flag
+
+---
+
+#### Task 3.5: Implement delete_account_with_children()
+**Estimate:** 0.5 hours
+**Files:** `finance_app/business/account_service.py`
+
+**New Method:**
+```python
+def delete_account_with_children(
+    self,
+    account_id: int,
+    force: bool = False
+) -> None:
+    """Delete account and optionally all children."""
+    # Check for children
+    # If children and not force, raise error
+    # If force, recursively delete children
+    # Delete account
+```
+
+**Acceptance:**
+- [ ] Prevents deleting parent with children (unless forced)
+- [ ] Cascade deletes when force=True
+- [ ] Recursive deletion works correctly
+- [ ] Transaction-safe
+
+---
+
+#### Task 3.6: Add Validation Helper: _would_create_cycle()
+**Estimate:** 0.5 hours
+**Files:** `finance_app/business/account_service.py`
+
+**New Private Method:**
+```python
+def _would_create_cycle(self, account_id: int, new_parent_id: int) -> bool:
+    """Check if move would create circular reference."""
+    # Walk up parent chain from new_parent
+    # If we encounter account_id, it's a cycle
+    # Return True if cycle found, False otherwise
+```
+
+**Acceptance:**
+- [ ] Detects direct cycles (A → B, B → A)
+- [ ] Detects indirect cycles (A → B → C → A)
+- [ ] Performance: O(depth) complexity
+- [ ] No false positives
+
+---
+
+### Phase 4: UI Implementation (Day 2-3 - 6-7 hours)
+
+#### Task 4.1: Create AccountTreeWidget
+**Estimate:** 3 hours
+**Files:** `finance_app/ui/widgets/account_tree_widget.py` (new file)
+
+**Implementation:**
+```python
+class AccountTreeWidget(QTreeWidget):
+    """Hierarchical tree view for accounts."""
+
+    account_selected = Signal(int)  # Emits account_id
+
+    def __init__(self, account_service: AccountService):
+        super().__init__()
+        self.account_service = account_service
+
+        # Configure
+        self.setHeaderLabels(["Account", "Balance"])
+        self.setColumnWidth(0, 300)
+        self.setColumnWidth(1, 150)
+        self.setIndentation(20)
+
+        # Drag-and-drop
+        self.setDragEnabled(True)
+        self.setAcceptDrops(True)
+        self.setDropIndicatorShown(True)
+        self.setDragDropMode(QTreeWidget.InternalMove)
+
+        # Connect signals
+        self.itemSelectionChanged.connect(self._on_selection_changed)
+
+    def load_accounts(self):
+        """Load account hierarchy."""
+        pass
+
+    def _add_account_item(self, account: Account, parent_item: QTreeWidgetItem):
+        """Add account to tree recursively."""
+        pass
+
+    def dropEvent(self, event: QDropEvent):
+        """Handle drag-and-drop reorganization."""
+        pass
+```
+
+**Acceptance:**
+- [ ] Tree widget displays accounts hierarchically
+- [ ] Parent accounts show folder icon
+- [ ] Child accounts are indented
+- [ ] Balances displayed correctly
+- [ ] Parent balances calculated automatically
+- [ ] Selection emits signal
+
+**Testing:**
+```python
+def test_account_tree_widget_displays_hierarchy(qtbot, account_service):
+    widget = AccountTreeWidget(account_service)
+    widget.load_accounts()
+
+    assert widget.topLevelItemCount() > 0
+    # Check tree structure
+```
+
+---
+
+#### Task 4.2: Implement Expand/Collapse Functionality
+**Estimate:** 0.5 hours
+**Files:** `finance_app/ui/widgets/account_tree_widget.py`
+
+**Features:**
+- Expand/collapse icons ([▼]/[▶])
+- Double-click to expand/collapse
+- Expand all / Collapse all context menu
+- Remember expansion state
+
+**Acceptance:**
+- [ ] Click icon expands/collapses
+- [ ] Double-click works
+- [ ] Context menu has expand/collapse options
+- [ ] State persists during session
+
+---
+
+#### Task 4.3: Implement Drag-and-Drop
+**Estimate:** 2 hours
+**Files:** `finance_app/ui/widgets/account_tree_widget.py`
+
+**Implementation:**
+```python
+def dropEvent(self, event: QDropEvent):
+    """Handle drag-and-drop account reorganization."""
+    source_item = self.currentItem()
+    if not source_item:
+        return
+
+    account_id = source_item.data(0, Qt.UserRole)
+    target_item = self.itemAt(event.pos())
+
+    if target_item:
+        new_parent_id = target_item.data(0, Qt.UserRole)
+        # Validate: target must be parent account
+        target_account = self.account_service.get_account(new_parent_id)
+        if not target_account.is_parent:
+            QMessageBox.warning(self, "Error",
+                "Can only drop on parent accounts")
+            event.ignore()
+            return
+
+        try:
+            self.account_service.move_account(account_id, new_parent_id)
+            self.load_accounts()
+            event.accept()
+        except ValidationError as e:
+            QMessageBox.warning(self, "Cannot Move", str(e))
+            event.ignore()
+    else:
+        # Drop on root - make top-level
+        try:
+            self.account_service.move_account(account_id, None)
+            self.load_accounts()
+            event.accept()
+        except ValidationError as e:
+            QMessageBox.warning(self, "Error", str(e))
+            event.ignore()
+```
+
+**Acceptance:**
+- [ ] Drag account to parent account
+- [ ] Drag account to root (top-level)
+- [ ] Validation errors shown in dialog
+- [ ] Tree refreshes after successful drop
+- [ ] Cannot drop on non-parent accounts
+- [ ] Visual feedback during drag
+
+---
+
+#### Task 4.4: Update Account Dialog for Hierarchy
+**Estimate:** 1 hour
+**Files:** `finance_app/ui/dialogs/account_dialog.py`
+
+**Changes:**
+1. Add "Parent Account" combo box
+2. Populate with parent accounts only
+3. Filter by compatible type
+4. Add "Make this a parent account" checkbox
+5. Update validation
+
+**Acceptance:**
+- [ ] Dialog has parent account selector
+- [ ] Shows only compatible parents
+- [ ] Checkbox for creating parent accounts
+- [ ] Validation prevents invalid selections
+- [ ] Help text explains parent accounts
+
+---
+
+#### Task 4.5: Add Context Menu Options
+**Estimate:** 0.5 hours
+**Files:** `finance_app/ui/widgets/account_tree_widget.py` or `finance_app/ui/main_window.py`
+
+**New Menu Items:**
+- "Move to Parent..." → Shows dialog to select new parent
+- "Make Top-Level" → Removes parent (moves to root)
+- "Convert to Parent Account" → Converts regular → parent
+- "Expand All" / "Collapse All"
+
+**Acceptance:**
+- [ ] Context menu shows new options
+- [ ] Options enabled/disabled based on account state
+- [ ] Dialogs work correctly
+- [ ] Error messages clear
+
+---
+
+#### Task 4.6: Update Main Window to Use Tree Widget
+**Estimate:** 0.5 hours
+**Files:** `finance_app/ui/main_window.py`
+
+**Changes:**
+1. Replace account list with AccountTreeWidget
+2. Connect selection signal
+3. Update account loading
+4. Preserve existing functionality (transactions display, etc.)
+
+**Acceptance:**
+- [ ] Main window uses new tree widget
+- [ ] Account selection still works
+- [ ] Transaction list updates correctly
+- [ ] No regression in existing features
+
+---
+
+### Phase 5: Testing (Day 3 - 3-4 hours)
+
+#### Task 5.1: Unit Tests - Repository Layer
+**Estimate:** 1 hour
+**Files:** `finance_app/tests/unit/test_account_repository_hierarchy.py` (new)
+
+**Tests to Write:**
+1. `test_get_child_accounts()`
+2. `test_get_descendant_accounts()`
+3. `test_get_root_accounts()`
+4. `test_update_hierarchy_path()`
+5. `test_create_account_calculates_path()`
+
+**Target:** 15+ unit tests
+
+---
+
+#### Task 5.2: Unit Tests - Service Layer
+**Estimate:** 1.5 hours
+**Files:** `finance_app/tests/unit/test_account_service_hierarchy.py` (new)
+
+**Tests to Write:**
+1. `test_create_account_with_parent()`
+2. `test_parent_balance_calculation()`
+3. `test_move_account()`
+4. `test_prevent_circular_reference()`
+5. `test_type_compatibility_validation()`
+6. `test_max_depth_validation()`
+7. `test_convert_to_parent_account()`
+8. `test_delete_parent_with_children()`
+9. `test_cannot_post_to_parent_account()`
+
+**Target:** 20+ unit tests
+
+---
+
+#### Task 5.3: Integration Tests
+**Estimate:** 1 hour
+**Files:** `finance_app/tests/integration/test_account_hierarchy_integration.py` (new)
+
+**Tests to Write:**
+1. `test_complete_hierarchy_workflow()` - Create, move, calculate
+2. `test_multi_level_hierarchy()` - 5 levels deep
+3. `test_large_hierarchy_performance()` - 1000 accounts
+4. `test_hierarchy_persistence()` - Database save/load
+5. `test_move_preserves_children()` - Move parent with descendants
+
+**Target:** 10+ integration tests
+
+---
+
+#### Task 5.4: UI Tests (Manual + Automated)
+**Estimate:** 0.5 hours
+**Files:** Test plan document or `finance_app/tests/ui/test_account_tree_widget.py`
+
+**Manual Test Checklist:**
+1. [ ] Tree displays correctly
+2. [ ] Expand/collapse works
+3. [ ] Drag-and-drop works
+4. [ ] Parent balances update automatically
+5. [ ] Context menu options work
+6. [ ] Create account with parent works
+7. [ ] Validation messages clear
+8. [ ] Performance acceptable (1000 accounts)
+
+---
+
+### Phase 6: Documentation & Polish (Day 3 - 1-2 hours)
+
+#### Task 6.1: Update User Guide
+**Estimate:** 0.5 hours
+**Files:** `docs/USER_GUIDE.md`
+
+**Add Section:** "Organizing Accounts with Hierarchy"
+- How to create parent accounts
+- How to nest accounts
+- How to reorganize with drag-and-drop
+- Understanding subtotals
+- Best practices
+
+---
+
+#### Task 6.2: Update API Documentation
+**Estimate:** 0.5 hours
+**Files:** Method docstrings (already done), update `docs/ARCHITECTURE.md`
+
+**Updates:**
+- Document hierarchy data model
+- Document repository methods
+- Document service methods
+- Document UI components
+
+---
+
+#### Task 6.3: Code Review Prep
+**Estimate:** 0.5 hours
+**Files:** N/A (review process)
+
+**Checklist:**
+- [ ] All code has docstrings
+- [ ] All tests passing
+- [ ] Performance requirements met
+- [ ] No debug code left
+- [ ] Code follows project style
+- [ ] Git commits are clean
+
+---
+
+## 📊 Task Summary
+
+### Time Estimates by Phase
+
+| Phase | Tasks | Estimated Time |
+|-------|-------|----------------|
+| Phase 1: Database & Model | 4 tasks | 4-5 hours |
+| Phase 2: Repository Layer | 3 tasks | 4-5 hours |
+| Phase 3: Service Layer | 6 tasks | 4-5 hours |
+| Phase 4: UI Implementation | 6 tasks | 6-7 hours |
+| Phase 5: Testing | 4 tasks | 3-4 hours |
+| Phase 6: Documentation | 3 tasks | 1-2 hours |
+| **TOTAL** | **26 tasks** | **22-28 hours** |
+
+### Story Points Breakdown
+
+**5 Story Points = ~40 hours**
+- Development: 22-28 hours (actual coding)
+- Code Review: 2-3 hours
+- Bug Fixes: 2-4 hours (buffer)
+- Meetings/Discussions: 2-3 hours
+- Integration/Deployment: 1-2 hours
+- **Total: ~30-40 hours** ✅
+
+### Daily Breakdown
+
+**Day 1 (8 hours):**
+- Morning: Phase 1 (Database & Model) - 4-5 hours
+- Afternoon: Phase 2 (Repository Layer) - 3-4 hours
+
+**Day 2 (8 hours):**
+- Morning: Phase 3 (Service Layer) - 4-5 hours
+- Afternoon: Phase 4 start (UI) - 3-4 hours
+
+**Day 3 (8 hours):**
+- Morning: Phase 4 finish (UI) - 3-4 hours
+- Afternoon: Phase 5 (Testing) + Phase 6 (Docs) - 4-5 hours
+
+**Total: 3 days (24 hours)** with buffer for 5 story points
+
+---
+
+## ✅ Task Completion Checklist
+
+Copy this checklist to track progress during sprint:
+
+### Database & Model
+- [ ] Task 1.1: Database migration created
+- [ ] Task 1.2: Account model updated
+- [ ] Task 1.3: Database integration updated
+- [ ] Task 1.4: Migration tested with production data
+
+### Repository Layer
+- [ ] Task 2.1: Hierarchy query methods implemented
+- [ ] Task 2.2: CRUD methods updated
+- [ ] Task 2.3: Tree building helper added
+
+### Service Layer
+- [ ] Task 3.1: create_account() updated
+- [ ] Task 3.2: get_parent_account_balance() implemented
+- [ ] Task 3.3: move_account() implemented
+- [ ] Task 3.4: convert_to_parent_account() implemented
+- [ ] Task 3.5: delete_account_with_children() implemented
+- [ ] Task 3.6: Cycle detection helper added
+
+### UI Implementation
+- [ ] Task 4.1: AccountTreeWidget created
+- [ ] Task 4.2: Expand/collapse implemented
+- [ ] Task 4.3: Drag-and-drop implemented
+- [ ] Task 4.4: Account dialog updated
+- [ ] Task 4.5: Context menu options added
+- [ ] Task 4.6: Main window integration complete
+
+### Testing
+- [ ] Task 5.1: Repository unit tests (15+)
+- [ ] Task 5.2: Service unit tests (20+)
+- [ ] Task 5.3: Integration tests (10+)
+- [ ] Task 5.4: UI tests (manual + automated)
+
+### Documentation
+- [ ] Task 6.1: User guide updated
+- [ ] Task 6.2: API documentation updated
+- [ ] Task 6.3: Code review prep complete
+
+---
+
 ## 🔗 Related Stories
 
 ### Dependencies
