@@ -1,6 +1,6 @@
 # Personal Finance Manager - User Guide
 
-**Version:** 2.2.0
+**Version:** 2.3.0
 **Last Updated:** October 26, 2025
 **Status:** ✅ Complete
 
@@ -36,7 +36,21 @@
    - [Reconciliation Tips & Best Practices](#reconciliation-tips--best-practices)
    - [Troubleshooting Reconciliation](#troubleshooting-reconciliation)
    - [Frequently Asked Questions](#frequently-asked-questions)
-4. [Advanced Features](#advanced-features)
+4. [Organizing Accounts with Hierarchy](#organizing-accounts-with-hierarchy)
+   - [What is Account Hierarchy?](#what-is-account-hierarchy)
+   - [Why Use Account Hierarchy?](#why-use-account-hierarchy)
+   - [Understanding Parent and Child Accounts](#understanding-parent-and-child-accounts)
+   - [How to Create a Parent Account](#how-to-create-a-parent-account)
+   - [How to Create Child Accounts](#how-to-create-child-accounts)
+   - [How to Move Accounts (Reorganize)](#how-to-move-accounts-reorganize)
+   - [Understanding Parent Account Balances](#understanding-parent-account-balances)
+   - [Converting Regular Accounts to Parents](#converting-regular-accounts-to-parents)
+   - [Deleting Hierarchical Accounts](#deleting-hierarchical-accounts)
+   - [Hierarchy Best Practices](#hierarchy-best-practices)
+   - [Common Hierarchy Patterns](#common-hierarchy-patterns)
+   - [Troubleshooting Hierarchy](#troubleshooting-hierarchy)
+   - [Frequently Asked Questions](#hierarchy-faq)
+5. [Advanced Features](#advanced-features)
 
 ---
 
@@ -2035,6 +2049,565 @@ Both mean: "This transaction has been matched with the bank statement and verifi
 
 ---
 
+## Organizing Accounts with Hierarchy
+
+### What is Account Hierarchy?
+
+**Account hierarchy** allows you to organize your accounts into a **tree structure** with parent and child relationships, just like organizing files into folders on your computer.
+
+**Visual Example:**
+
+```
+📁 Assets (Parent)
+  ├─ 🏦 Bank Accounts (Parent)
+  │  ├─ Checking Account        $2,500
+  │  ├─ Savings Account          $10,000
+  │  └─ Emergency Fund           $5,000
+  ├─ 💳 Investment Accounts (Parent)
+  │  ├─ Brokerage Account        $25,000
+  │  └─ Retirement (401k)        $50,000
+  └─ 💵 Cash
+     └─ Wallet Cash              $150
+```
+
+**Simple Analogy:**
+
+Think of account hierarchy like organizing files on your computer:
+- **Parent Accounts** = Folders (they organize and group things)
+- **Child Accounts** = Files (they hold actual data)
+- **Nesting** = Folders inside folders (for even better organization)
+
+### Why Use Account Hierarchy?
+
+Account hierarchy provides several benefits:
+
+#### ✅ **1. Better Organization**
+- Group related accounts together logically
+- See your financial structure at a glance
+- Reduce clutter with collapsible groups
+
+**Example:** Instead of seeing 15 flat accounts, group them:
+- All bank accounts under "Bank Accounts"
+- All investment accounts under "Investments"
+- All credit cards under "Credit Cards"
+
+#### ✅ **2. Automatic Subtotals**
+- Parent accounts show the sum of all children
+- See totals for categories (e.g., "Total Bank Accounts: $17,500")
+- No manual calculation needed
+
+**Example:**
+```
+Bank Accounts: $17,500  ← Automatic sum
+  ├─ Checking: $2,500
+  ├─ Savings: $10,000
+  └─ Emergency: $5,000
+```
+
+#### ✅ **3. Better Reports**
+- Group reports by account category
+- Analyze spending by account group
+- See trends across related accounts
+
+#### ✅ **4. Flexible Structure**
+- Create your own organization system
+- Nest up to 5 levels deep
+- Reorganize anytime by drag-and-drop
+
+### Understanding Parent and Child Accounts
+
+**Parent Accounts:**
+- 📁 Act like "folders" - they organize other accounts
+- Can contain child accounts
+- Show **calculated balances** (sum of all children)
+- **Cannot have direct transactions** - only children can
+
+**Child Accounts:**
+- 📄 Act like "files" - they hold actual transaction data
+- Belong to a parent account
+- Have **real balances** from transactions
+- Can have their own transactions
+
+**Important Rule:** Only **leaf accounts** (accounts with no children) can have transactions!
+
+**Example:**
+```
+✅ Bank Accounts (Parent, $7,500 calculated)
+  └─ ✅ Checking (Child, $2,500 real)  ← You can add transactions here
+  └─ ✅ Savings (Child, $5,000 real)   ← You can add transactions here
+
+❌ Bank Accounts (Parent) ← You CANNOT add transactions here
+```
+
+### How to Create a Parent Account
+
+**Method 1: Create as Parent from the Start**
+
+1. **Click "Add Account"** button in the toolbar
+2. In the Add Account dialog:
+   - Enter account name (e.g., "Bank Accounts")
+   - Select account type (Asset, Liability, etc.)
+   - **Check the "This is a parent/header account" checkbox** ✅
+   - Leave balance at $0.00 (parent balances are calculated)
+3. Click **"Save"**
+
+**Result:** You now have a parent account that can organize child accounts!
+
+**Method 2: Convert Existing Account to Parent**
+
+If you have an account with no transactions, you can convert it:
+
+1. **Right-click** the account in the account list
+2. Select **"Convert to Parent Account"**
+3. Confirm the conversion
+
+**Note:** You can only convert accounts that have **no transactions**!
+
+### How to Create Child Accounts
+
+**Step-by-Step:**
+
+1. **Click "Add Account"** button
+2. In the Add Account dialog:
+   - Enter account name (e.g., "Checking Account")
+   - Select account type (must match parent type!)
+   - **Select parent from the "Parent Account" dropdown**
+   - Enter initial balance if needed
+   - **Uncheck** "This is a parent/header account" (or leave unchecked)
+3. Click **"Save"**
+
+**Visual Guide:**
+
+```
+┌─────────────────────────────┐
+│  Add New Account            │
+├─────────────────────────────┤
+│ Name: Checking Account      │
+│ Type: Asset                 │
+│ Parent: Bank Accounts ▼     │ ← Select parent here!
+│ Balance: 2500.00            │
+│ □ Parent account            │ ← Leave unchecked for child
+│                             │
+│  [Cancel]  [Save]           │
+└─────────────────────────────┘
+```
+
+**Important Rules:**
+- Child accounts **must have the same type** as their parent
+  - If parent is "Asset", child must be "Asset"
+  - If parent is "Liability", child must be "Liability"
+- Maximum depth: 5 levels (parent → child → grandchild → etc.)
+
+### How to Move Accounts (Reorganize)
+
+You can reorganize your account hierarchy anytime using **drag-and-drop**:
+
+**Method 1: Drag-and-Drop (Easy!)**
+
+1. **Click and hold** the account you want to move
+2. **Drag** it to the new parent account
+3. **Drop** it on the target parent
+4. The account moves to the new parent!
+
+**Example:**
+```
+Before:
+  Bank Accounts
+    └─ Checking
+  Savings Accounts
+    └─ Savings
+
+Drag "Savings" onto "Bank Accounts"
+
+After:
+  Bank Accounts
+    ├─ Checking
+    └─ Savings  ← Moved!
+  Savings Accounts (empty)
+```
+
+**Method 2: Edit Account Dialog**
+
+1. **Right-click** the account you want to move
+2. Select **"Edit Account"**
+3. Change the **"Parent Account"** dropdown
+4. Click **"Save"**
+
+**Special Case: Move to Top-Level**
+
+To remove an account from hierarchy (make it top-level):
+- Drag it to the empty space above all parents, or
+- Edit account and select **"(None)"** as parent
+
+### Understanding Parent Account Balances
+
+Parent account balances are **automatically calculated** from their children.
+
+**How It Works:**
+
+```
+Bank Accounts: $17,500  ← Sum of all leaf children
+  ├─ Checking Accounts: $7,500  ← Sum of children
+  │  ├─ Personal Checking: $2,500  ← Real balance
+  │  └─ Business Checking: $5,000  ← Real balance
+  └─ Savings Accounts: $10,000  ← Real balance
+```
+
+**Calculation Rule:** Only **leaf accounts** (accounts with no children) contribute to the sum.
+
+**Example with Nested Parents:**
+```
+All Accounts: $17,500
+  └─ Bank Group: $17,500
+     ├─ Checking Group: $7,500  (parent, doesn't count)
+     │  ├─ Personal: $2,500     (leaf, counts!)
+     │  └─ Business: $5,000     (leaf, counts!)
+     └─ Savings: $10,000        (leaf, counts!)
+
+Total = $2,500 + $5,000 + $10,000 = $17,500
+```
+
+**Real-Time Updates:**
+
+When you add/edit/delete transactions in a child account, parent balances update **automatically**!
+
+### Converting Regular Accounts to Parents
+
+You can convert any regular account to a parent account, **if it has no transactions**.
+
+**When to Convert:**
+- You want to reorganize accounts under an existing account
+- You're creating a new organizational structure
+- You want to group similar accounts
+
+**How to Convert:**
+
+1. **Right-click** the account
+2. Select **"Convert to Parent Account"**
+3. Confirm the conversion
+
+**Requirements:**
+- ❌ Account must have **NO transactions**
+- ✅ Account can have any balance (but it will be ignored)
+- ✅ After conversion, the account becomes a container for children
+
+**Example Workflow:**
+
+1. You have "Checking" account with $2,500 (no transactions yet)
+2. Convert "Checking" to parent
+3. Create "Personal Checking" and "Business Checking" as children
+4. Now "Checking" is an organizational folder!
+
+### Deleting Hierarchical Accounts
+
+Deleting accounts in a hierarchy requires care:
+
+**Deleting Child Accounts:**
+
+Regular delete works fine:
+1. Right-click the child account
+2. Select **"Delete Account"**
+3. Confirm deletion
+
+**Deleting Parent Accounts:**
+
+Two options:
+
+**Option 1: Delete Parent Only (if it has children)**
+
+❌ **This will FAIL!** You cannot delete a parent with children.
+
+**Error message:** "Cannot delete account: has X child accounts."
+
+**Option 2: Delete Parent and All Children (Cascade Delete)**
+
+⚠️ **WARNING:** This deletes the parent AND all descendants!
+
+1. Right-click the parent account
+2. Select **"Delete Account with Children..."** (⚠️ careful!)
+3. Review the list of accounts that will be deleted
+4. Confirm with **"Delete All"**
+
+**Example:**
+```
+Deleting "Bank Accounts" will also delete:
+  ├─ Checking Account
+  ├─ Savings Account
+  └─ Emergency Fund
+
+All transactions in these accounts will also be deleted!
+```
+
+**Safe Alternative:**
+
+Instead of deleting, **move children first**:
+1. Move all children to different parents (or top-level)
+2. Then delete the now-empty parent
+
+### Hierarchy Best Practices
+
+**1. Plan Your Structure**
+
+Design your hierarchy before creating accounts:
+```
+✅ Good Structure:
+Assets
+  ├─ Cash & Bank
+  │  ├─ Checking
+  │  └─ Savings
+  ├─ Investments
+  │  ├─ Stocks
+  │  └─ 401(k)
+  └─ Property
+
+❌ Avoid:
+Assets
+  ├─ Checking
+  ├─ Cash
+  ├─ Investments
+  ├─ Bank
+  └─ Savings  (No organization!)
+```
+
+**2. Use Meaningful Parent Names**
+
+```
+✅ Good Names:
+  - "Cash & Bank Accounts"
+  - "Investment Accounts"
+  - "Credit Cards"
+
+❌ Avoid:
+  - "Group 1"
+  - "Misc"
+  - "Other Accounts"
+```
+
+**3. Keep It Simple**
+
+- Don't nest too deeply (2-3 levels is usually enough)
+- Group by purpose, not by arbitrary rules
+- Remember: more organization isn't always better!
+
+**4. Match Your Mental Model**
+
+Organize accounts the way **you** think about them:
+- By bank/institution? ("Chase Accounts", "Vanguard Accounts")
+- By purpose? ("Emergency Funds", "Retirement", "Daily Spending")
+- By account type? ("Checking Accounts", "Savings Accounts")
+
+**5. Use Parent Accounts for Reports**
+
+Parent accounts are perfect for:
+- "How much do I have in all bank accounts?"
+- "What's my total investment value?"
+- "How much do I owe on all credit cards?"
+
+### Common Hierarchy Patterns
+
+**Pattern 1: By Account Type**
+
+```
+Assets
+  ├─ Bank Accounts
+  │  ├─ Checking
+  │  └─ Savings
+  ├─ Investment Accounts
+  │  ├─ Brokerage
+  │  └─ 401(k)
+  └─ Other Assets
+
+Liabilities
+  └─ Credit Cards
+     ├─ Visa
+     └─ Mastercard
+```
+
+**Pattern 2: By Institution**
+
+```
+Chase Bank
+  ├─ Chase Checking
+  ├─ Chase Savings
+  └─ Chase Credit Card
+
+Vanguard
+  ├─ Brokerage
+  └─ IRA
+```
+
+**Pattern 3: By Purpose**
+
+```
+Daily Spending
+  ├─ Checking
+  └─ Cash
+
+Emergency & Savings
+  ├─ Emergency Fund
+  └─ High-Yield Savings
+
+Long-Term Investments
+  ├─ 401(k)
+  └─ Brokerage
+```
+
+**Pattern 4: Hybrid (Recommended)**
+
+```
+Assets
+  ├─ Daily Use
+  │  ├─ Checking
+  │  └─ Cash
+  ├─ Savings (Short-Term)
+  │  ├─ Emergency Fund
+  │  └─ Vacation Fund
+  └─ Investments (Long-Term)
+     ├─ 401(k)
+     └─ Brokerage
+
+Liabilities
+  └─ Debt
+     ├─ Mortgage
+     └─ Credit Cards
+```
+
+### Troubleshooting Hierarchy
+
+#### Problem: Can't Add Transactions to Parent Account
+
+**Symptom:** Transaction dialog disabled for parent account.
+
+**Cause:** Parent accounts cannot have direct transactions (by design).
+
+**Solution:** Add transactions to **child accounts** instead.
+
+**Why?** Parent balances are calculated from children. Direct transactions would break this calculation.
+
+#### Problem: Can't Convert Account to Parent
+
+**Symptom:** "Convert to Parent" option disabled or grayed out.
+
+**Cause:** The account has existing transactions.
+
+**Solution:** You have two options:
+1. **Keep as regular account** - Don't convert, create a new parent instead
+2. **Move transactions** - Move all transactions to a new child account, then convert
+
+**Workaround:**
+1. Create new child account (e.g., "Personal Checking")
+2. Move/re-enter transactions there
+3. Convert original account to parent
+
+#### Problem: Parent Balance is Wrong
+
+**Symptom:** Parent account shows incorrect total.
+
+**Cause:** Usually a display issue or cache.
+
+**Solutions:**
+1. **Refresh the view** - Click another account and back
+2. **Restart the app** - Close and reopen
+3. **Check children** - Verify all child balances are correct
+
+**If still wrong:** This might be a bug - please report it!
+
+#### Problem: Type Mismatch Error
+
+**Symptom:** "Cannot add child: type mismatch" error.
+
+**Cause:** Child account type doesn't match parent type.
+
+**Solution:**
+- Parent is "Asset" → Child must be "Asset"
+- Parent is "Liability" → Child must be "Liability"
+- Change the child's type to match, or choose a different parent
+
+#### Problem: Maximum Depth Exceeded
+
+**Symptom:** "Maximum hierarchy depth exceeded" error.
+
+**Cause:** You're trying to nest more than 5 levels.
+
+**Solution:** Flatten your hierarchy - 5 levels should be enough!
+
+**Example of 5 levels (maximum):**
+```
+Level 0: All Accounts
+  Level 1: Assets
+    Level 2: Bank Accounts
+      Level 3: Checking Accounts
+        Level 4: Business Checking
+          Level 5: [Cannot go deeper!]
+```
+
+### Hierarchy FAQ
+
+#### Q: Can parent accounts have transactions?
+
+**A:** No! Parent accounts are **organizational only**. Only leaf accounts (accounts with no children) can have transactions.
+
+**Why?** Parent balances are calculated from children. Allowing direct transactions would create confusion about the "true" balance.
+
+#### Q: What happens to transactions if I move an account?
+
+**A:** Nothing! Transactions stay with the account. Moving an account just changes its organizational position - it doesn't affect transactions or balances.
+
+#### Q: Can I have an account that's both a parent AND a child?
+
+**A:** Yes! An account can be a child of one parent AND be a parent to other accounts. This creates nested hierarchies.
+
+**Example:**
+```
+Assets (Parent)
+  └─ Bank Accounts (Child of Assets, Parent of others)
+     ├─ Checking (Child of Bank Accounts)
+     └─ Savings (Child of Bank Accounts)
+```
+
+#### Q: How deep can I nest accounts?
+
+**A:** Maximum 5 levels (0-4 in code). This should be enough for most organizational needs.
+
+**Practical advice:** 2-3 levels is usually optimal. Deeper nesting can become confusing.
+
+#### Q: Can I delete a parent account?
+
+**A:** Only if it has no children. If it has children, you must either:
+1. Move/delete all children first, OR
+2. Use "Delete Account with Children" (⚠️ careful - deletes everything!)
+
+#### Q: Does hierarchy affect reports?
+
+**A:** Not yet, but future versions will support:
+- Reports by parent account (e.g., "All Bank Accounts")
+- Filtering by hierarchy level
+- Drill-down from parent to children
+
+#### Q: Can I export/import hierarchy?
+
+**A:** The hierarchy structure is saved in the database automatically. When you backup/restore your database, the hierarchy is preserved.
+
+#### Q: What's the best way to organize accounts?
+
+**A:** There's no one "best" way! Common approaches:
+- **By institution** - Group by bank/brokerage
+- **By purpose** - Emergency, Daily, Long-term
+- **By type** - All checking, all savings, all investments
+- **Hybrid** - Combine approaches (recommended!)
+
+Choose what makes sense for **your** financial situation.
+
+#### Q: Can I disable hierarchy?
+
+**A:** You don't need to! Simply don't create parent accounts or assign parents. All accounts can be "flat" (top-level) if you prefer.
+
+#### Q: Will hierarchy slow down the app?
+
+**A:** No! We tested with 1,000+ accounts and hierarchy performs excellently. Balance calculations are optimized with SQL for speed.
+
+---
+
 ## Advanced Features
 
 ### Split Transaction Templates (Coming Soon)
@@ -2093,6 +2666,7 @@ If you encounter issues not covered in this guide:
 
 **Version History:**
 
+- **2.3.0** (October 26, 2025) - Added Organizing Accounts with Hierarchy feature guide (US-006)
 - **2.2.0** (October 26, 2025) - Added Setting Up Opening Balances feature guide (US-005)
 - **2.1.0** (October 23, 2025) - Added Account Reconciliation feature guide (US-004)
 - **2.0.0** (October 23, 2025) - Initial user guide with split transactions

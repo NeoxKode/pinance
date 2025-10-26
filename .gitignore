@@ -86,7 +86,16 @@ prototype.db
 prototype.db-journal
 .claude
 .bmad
-images
+
+# Screenshots from automated testing (don't commit)
+images/ui-screenshots/
+images/e2e-screenshots/
+images/regression-tests/
+
+# But allow documentation images
+!images/docs/
+!images/architecture/
+!images/README.md
 
 # Temporary files
 *.tmp

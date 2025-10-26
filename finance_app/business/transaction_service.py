@@ -67,6 +67,14 @@ class TransactionService:
         if not account:
             raise NotFoundError(f"Account with ID {account_id} not found")
 
+        # US-006: Validate parent accounts cannot have transactions
+        if account.is_parent:
+            raise ValidationError(
+                f"Cannot create transaction for parent account '{account.name}'. "
+                "Parent/header accounts cannot have direct transactions. "
+                "Post transactions to child accounts instead."
+            )
+
         # Validate inputs
         validated_amount = self.validator.validate_amount(amount)
         validated_description = self.validator.validate_description(description)

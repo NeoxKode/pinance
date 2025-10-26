@@ -8,6 +8,7 @@ from PySide6.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QTableWidget,
     QTableWidgetItem, QPushButton, QLabel, QSplitter, QMessageBox, QDialog, QCheckBox
 )
+from finance_app.ui.widgets import AccountTreeWidget
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QAction
 
@@ -75,7 +76,8 @@ class MainWindow(QMainWindow):
         # Right panel - Transactions
         splitter.addWidget(self._create_transaction_panel())
 
-        splitter.setSizes([300, 700])
+        # US-006: Increased left panel size to show Balance column (300px Account + 150px Balance = 450px minimum)
+        splitter.setSizes([500, 500])
         main_layout.addWidget(splitter)
 
         # Status bar
@@ -162,30 +164,11 @@ class MainWindow(QMainWindow):
 
         layout.addLayout(header_layout)
 
-        # Accounts table with 4 columns now
-        self.account_table = QTableWidget()
-        self.account_table.setColumnCount(4)
-        self.account_table.setHorizontalHeaderLabels(["Account", "Type", "Subtype", "Balance"])
-        self.account_table.setSelectionBehavior(QTableWidget.SelectRows)
-        self.account_table.itemSelectionChanged.connect(self.on_account_selected)
-        self.account_table.setAlternatingRowColors(True)
+        # US-006: Replace table with hierarchical tree widget
+        self.account_tree = AccountTreeWidget(self.account_service)
+        self.account_tree.account_selected.connect(self.on_account_selected)
 
-        # Context menu for accounts
-        self.account_table.setContextMenuPolicy(Qt.ActionsContextMenu)
-        edit_action = QAction("Edit Account", self.account_table)
-        edit_action.triggered.connect(self.edit_account)
-        self.account_table.addAction(edit_action)
-
-        # US-005: Set Opening Balance action
-        set_opening_balance_action = QAction("Set Opening Balance...", self.account_table)
-        set_opening_balance_action.triggered.connect(self.set_opening_balance)
-        self.account_table.addAction(set_opening_balance_action)
-
-        delete_action = QAction("Delete Account", self.account_table)
-        delete_action.triggered.connect(self.delete_account)
-        self.account_table.addAction(delete_action)
-
-        layout.addWidget(self.account_table)
+        layout.addWidget(self.account_tree)
 
         # Summary
         self.balance_label = QLabel("Total Balance: $0.00")
@@ -243,90 +226,17 @@ class MainWindow(QMainWindow):
             QMessageBox.critical(self, "Error", f"Failed to load data: {e}")
 
     def _load_accounts(self) -> None:
-        """Load accounts into table with new type information."""
-        try:
-            accounts = self.account_service.get_all_accounts()
+        """
+        Load accounts into hierarchical tree widget.
 
+        US-006: Updated to use AccountTreeWidget for hierarchy display.
+        """
+        try:
             # US-005: Filter system accounts based on checkbox
             show_system = self.show_system_accounts_checkbox.isChecked()
-            if not show_system:
-                # Filter out Opening Balance Equity account
-                accounts = [
-                    acc for acc in accounts
-                    if not (acc.account_type == AccountType.EQUITY and
-                           acc.account_subtype == AccountSubtype.OPENING_BALANCE)
-                ]
 
-            self.account_table.setRowCount(len(accounts))
-
-            # Account type icons/prefixes
-            type_icons = {
-                AccountType.ASSET: '💰',
-                AccountType.LIABILITY: '💳',
-                AccountType.EQUITY: '📊',
-                AccountType.INCOME: '💵',
-                AccountType.EXPENSE: '💸'
-            }
-
-            for i, account in enumerate(accounts):
-                # US-005: Special styling for Opening Balance Equity account
-                is_opening_balance_equity = (
-                    account.account_type == AccountType.EQUITY and
-                    account.account_subtype == AccountSubtype.OPENING_BALANCE
-                )
-
-                # Account name with special indicator for Opening Balance Equity
-                if is_opening_balance_equity:
-                    name_item = QTableWidgetItem(f"🔐 {account.name}")
-                    name_item.setToolTip("System account for opening balances - automatically managed")
-                    # Set special font style
-                    font = name_item.font()
-                    font.setItalic(True)
-                    name_item.setFont(font)
-                else:
-                    name_item = QTableWidgetItem(account.name)
-
-                name_item.setData(Qt.UserRole, account.id)  # Store account ID
-                self.account_table.setItem(i, 0, name_item)
-
-                # Account type with icon (handle both enum and string)
-                type_val = account.account_type.value if hasattr(account.account_type, 'value') else account.account_type
-                # Convert string to enum for icon lookup
-                try:
-                    type_enum = AccountType(type_val) if isinstance(type_val, str) else account.account_type
-                    type_icon = type_icons.get(type_enum, '')
-                except (ValueError, KeyError):
-                    type_icon = ''
-                type_display = f"{type_icon} {type_val.capitalize()}"
-                type_item = QTableWidgetItem(type_display)
-                self.account_table.setItem(i, 1, type_item)
-
-                # Account subtype (friendly name) - handle both enum and string
-                subtype_val = account.account_subtype.value if hasattr(account.account_subtype, 'value') else account.account_subtype
-                subtype_display = subtype_val.replace('_', ' ').title()
-                subtype_item = QTableWidgetItem(subtype_display)
-                self.account_table.setItem(i, 2, subtype_item)
-
-                # Balance with color coding
-                balance_item = QTableWidgetItem(f"${abs(account.balance):.2f}")
-
-                # Color code based on account type and balance
-                if account.account_type == AccountType.ASSET:
-                    if account.balance >= 0:
-                        balance_item.setForeground(Qt.darkGreen)
-                    else:
-                        balance_item.setForeground(Qt.red)
-                elif account.account_type == AccountType.LIABILITY:
-                    # For liabilities, show in red (money owed)
-                    balance_item.setForeground(Qt.red)
-                elif account.account_type == AccountType.INCOME:
-                    balance_item.setForeground(Qt.darkGreen)
-                elif account.account_type == AccountType.EXPENSE:
-                    balance_item.setForeground(Qt.red)
-
-                self.account_table.setItem(i, 3, balance_item)
-
-            self.account_table.resizeColumnsToContents()
+            # US-006: Load accounts into tree widget
+            self.account_tree.load_accounts(show_system_accounts=show_system)
 
             # Update total balance
             total = self.account_service.get_total_balance()
@@ -433,17 +343,29 @@ class MainWindow(QMainWindow):
             logger.error(f"Failed to load transactions: {e}")
             raise
 
-    def on_account_selected(self) -> None:
-        """Handle account selection."""
-        selected_items = self.account_table.selectedItems()
-        if selected_items:
-            row = selected_items[0].row()
-            # Account ID is stored in the name column (column 0)
-            name_item = self.account_table.item(row, 0)
-            self.current_account_id = name_item.data(Qt.UserRole)
-            self._load_transactions(self.current_account_id)
-            account_name = name_item.text()
-            self.statusBar().showMessage(f"Showing transactions for: {account_name}")
+    def on_account_selected(self, account_id: int = None) -> None:
+        """
+        Handle account selection.
+
+        US-006: Updated to receive account_id directly from tree widget signal.
+
+        Args:
+            account_id: Selected account ID (from tree widget signal)
+        """
+        if account_id is None:
+            # Fallback for backward compatibility
+            return
+
+        self.current_account_id = account_id
+        self._load_transactions(self.current_account_id)
+
+        # Get account name for status bar
+        try:
+            account = self.account_service.get_account(account_id)
+            if account:
+                self.statusBar().showMessage(f"Showing transactions for: {account.name}")
+        except Exception as e:
+            logger.warning(f"Failed to get account name: {e}")
 
     def _on_opening_balance_filter_toggle(self, state: int) -> None:
         """
@@ -618,16 +540,17 @@ class MainWindow(QMainWindow):
             QMessageBox.critical(self, "Error", f"Unexpected error: {e}")
 
     def edit_account(self) -> None:
-        """Show dialog to edit selected account."""
-        selected_items = self.account_table.selectedItems()
-        if not selected_items:
+        """
+        Show dialog to edit selected account.
+
+        US-006: Updated to use current_account_id from tree widget selection.
+        """
+        if not self.current_account_id:
             QMessageBox.warning(self, "No Selection", "Please select an account to edit")
             return
 
         try:
-            # Get account ID from first column
-            row = selected_items[0].row()
-            account_id = self.account_table.item(row, 0).data(Qt.UserRole)
+            account_id = self.current_account_id
 
             # Get account details
             account = self.account_service.get_account(account_id)
@@ -662,14 +585,16 @@ class MainWindow(QMainWindow):
             QMessageBox.critical(self, "Error", f"Unexpected error: {e}")
 
     def delete_account(self) -> None:
-        """Delete selected account."""
-        selected_items = self.account_table.selectedItems()
-        if not selected_items:
+        """
+        Delete selected account.
+
+        US-006: Updated to use current_account_id from tree widget selection.
+        """
+        if not self.current_account_id:
             QMessageBox.warning(self, "No Selection", "Please select an account to delete")
             return
 
-        row = selected_items[0].row()
-        account_id = self.account_table.item(row, 0).data(Qt.UserRole)
+        account_id = self.current_account_id
 
         try:
             # US-005: Prevent deleting Opening Balance Equity account
@@ -684,7 +609,7 @@ class MainWindow(QMainWindow):
                 )
                 return
 
-            account_name = self.account_table.item(row, 0).text()
+            account_name = account.name if account else "Unknown"
 
             reply = QMessageBox.question(
                 self, "Confirm Delete",
@@ -708,14 +633,16 @@ class MainWindow(QMainWindow):
             QMessageBox.critical(self, "Error", f"Unexpected error: {e}")
 
     def set_opening_balance(self) -> None:
-        """Open dialog to set opening balance for selected account (US-005)."""
-        selected_items = self.account_table.selectedItems()
-        if not selected_items:
+        """
+        Open dialog to set opening balance for selected account (US-005).
+
+        US-006: Updated to use current_account_id from tree widget selection.
+        """
+        if not self.current_account_id:
             QMessageBox.warning(self, "No Selection", "Please select an account to set opening balance")
             return
 
-        row = selected_items[0].row()
-        account_id = self.account_table.item(row, 0).data(Qt.UserRole)
+        account_id = self.current_account_id
 
         try:
             # Get the account
@@ -795,11 +722,11 @@ class MainWindow(QMainWindow):
         Open reconciliation dialog for the selected account.
 
         US-004: Phase 6 - MainWindow Integration (Task 4.35)
+        US-006: Updated to use current_account_id from tree widget selection.
         """
         try:
             # Get currently selected account
-            selected_rows = self.account_table.selectedItems()
-            if not selected_rows:
+            if not self.current_account_id:
                 QMessageBox.warning(
                     self,
                     "No Account Selected",
@@ -807,18 +734,7 @@ class MainWindow(QMainWindow):
                 )
                 return
 
-            # Get account ID from selected row
-            row = selected_rows[0].row()
-            account_id_item = self.account_table.item(row, 0)
-            if not account_id_item:
-                logger.error("Could not get account ID from selected row")
-                return
-
-            # Get the account ID stored in the item's data
-            account_id = account_id_item.data(Qt.UserRole)
-            if not account_id:
-                logger.error("Account ID not found in item data")
-                return
+            account_id = self.current_account_id
 
             # Get account object
             account = self.account_service.get_account(account_id)

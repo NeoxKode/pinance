@@ -111,6 +111,13 @@ class DoubleEntryService:
         if account is None:
             raise NotFoundError(f"Account {account_id} not found")
 
+        # US-006: Validate parent accounts cannot have transactions
+        if account.is_parent:
+            raise ValidationError(
+                f"Cannot post journal entry to parent account '{account.name}'. "
+                "Parent/header accounts cannot have direct transactions."
+            )
+
         # Determine debit/credit based on normal balance and amount sign
         debit_amount, credit_amount = self._calculate_debit_credit(
             amount, account.normal_balance

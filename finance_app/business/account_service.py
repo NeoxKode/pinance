@@ -972,7 +972,7 @@ class AccountService:
             return account
 
         # Validate account has no transactions
-        transactions = self.transaction_repo.get_by_account(account_id)
+        transactions = self.transaction_repo.get_all(account_id=account_id)
         if transactions:
             raise ValidationError(
                 f"Cannot convert to parent account: {account.name} has {len(transactions)} transactions. "

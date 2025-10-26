@@ -41,7 +41,8 @@ class AccountRepository:
                 cursor.execute("""
                     SELECT id, name, account_type, account_subtype, balance,
                            normal_balance, currency, parent_account_id,
-                           legacy_type, last_reconciled_date, opening_balance_date
+                           legacy_type, last_reconciled_date, opening_balance_date,
+                           is_parent, hierarchy_level, hierarchy_path
                     FROM accounts
                     ORDER BY account_type, name
                 """)
@@ -70,7 +71,8 @@ class AccountRepository:
                 cursor.execute("""
                     SELECT id, name, account_type, account_subtype, balance,
                            normal_balance, currency, parent_account_id,
-                           legacy_type, last_reconciled_date, opening_balance_date
+                           legacy_type, last_reconciled_date, opening_balance_date,
+                           is_parent, hierarchy_level, hierarchy_path
                     FROM accounts
                     WHERE id = ?
                 """, (account_id,))
@@ -576,6 +578,7 @@ class AccountRepository:
 
             # Recursively sort children
             def sort_children_recursively(account):
+                """Recursively sort children of an account by name."""
                 children = getattr(account, 'children', [])
                 children.sort(key=lambda a: a.name)
                 for child in children:

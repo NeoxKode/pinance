@@ -187,12 +187,12 @@ class ReconciliationService:
         statement_date: str
     ) -> Transaction:
         """
-        Mark a transaction as cleared (reconciled).
+        Mark a transaction as cleared (appears on bank statement).
 
         Updates:
         - reconciliation_status = 'cleared'
-        - reconciled_date = current date
         - statement_date = provided statement date
+        - reconciled_date remains None until reconciliation is completed
 
         Args:
             transaction_id: Transaction ID to mark as cleared
@@ -221,8 +221,8 @@ class ReconciliationService:
 
         # Update transaction reconciliation fields
         transaction.reconciliation_status = ReconciliationStatus.CLEARED
-        transaction.reconciled_date = datetime.now().strftime('%Y-%m-%d')
         transaction.statement_date = statement_date
+        # NOTE: reconciled_date is NOT set here - it will be set when reconciliation is completed
 
         # Save to database
         self.transaction_repo.update(transaction)
@@ -296,11 +296,18 @@ class ReconciliationService:
         # Get all transactions for account
         all_transactions = self.transaction_repo.get_all(account_id=account_id)
 
-        # Sum only cleared transactions
+        # Sum only cleared transactions that haven't been reconciled in a previous session
+        # If there's a last reconciliation, only count transactions cleared AFTER that date
+        # (Transactions from previous reconciliations are already in opening_balance)
         cleared_sum = Decimal('0.00')
+        last_recon_date = last_reconciliation.reconciliation_date if last_reconciliation else None
+
         for txn in all_transactions:
             if txn.reconciliation_status == ReconciliationStatus.CLEARED:
-                cleared_sum += txn.amount
+                # If there's a last reconciliation, only count transactions reconciled after it
+                # (or not yet reconciled)
+                if last_recon_date is None or txn.reconciled_date is None or txn.reconciled_date > last_recon_date:
+                    cleared_sum += txn.amount
 
         cleared_balance = opening_balance + cleared_sum
 
@@ -416,6 +423,13 @@ class ReconciliationService:
         # Update account last_reconciled_date
         account.last_reconciled_date = reconciliation_date
         self.account_repo.update(account)
+
+        # Mark all cleared transactions as reconciled with reconciled_date
+        # This prevents them from being counted again in future reconciliations
+        for txn in all_transactions:
+            if txn.reconciliation_status == ReconciliationStatus.CLEARED:
+                txn.reconciled_date = reconciliation_date
+                self.transaction_repo.update(txn)
 
         # Log completion
         status = "BALANCED" if abs(discrepancy) < Decimal('0.01') else f"DISCREPANCY: ${discrepancy}"

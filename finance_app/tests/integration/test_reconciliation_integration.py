@@ -168,7 +168,7 @@ class TestBalancedReconciliation:
                 statement_date=statement_date
             )
             assert updated_txn.reconciliation_status == ReconciliationStatus.CLEARED
-            assert updated_txn.reconciled_date is not None
+            assert updated_txn.reconciled_date is None  # Not set until reconciliation is completed
             assert updated_txn.statement_date == statement_date
 
         # Step 3: Calculate cleared balance
@@ -301,7 +301,7 @@ class TestMarkUnmarkWorkflow:
         # Mark as cleared
         cleared_txn = service.mark_transaction_cleared(txn.id, statement_date)
         assert cleared_txn.reconciliation_status == ReconciliationStatus.CLEARED
-        assert cleared_txn.reconciled_date is not None
+        assert cleared_txn.reconciled_date is None  # Not set until reconciliation is completed
         assert cleared_txn.statement_date == statement_date
 
         # Unmark (user made a mistake)
@@ -313,7 +313,7 @@ class TestMarkUnmarkWorkflow:
         # Re-mark as cleared (user corrects mistake)
         recleared_txn = service.mark_transaction_cleared(txn.id, statement_date)
         assert recleared_txn.reconciliation_status == ReconciliationStatus.CLEARED
-        assert recleared_txn.reconciled_date is not None
+        assert recleared_txn.reconciled_date is None  # Not set until reconciliation is completed
         assert recleared_txn.statement_date == statement_date
 
     def test_cleared_balance_updates_with_mark_unmark(

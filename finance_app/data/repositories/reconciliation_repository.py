@@ -175,7 +175,7 @@ class ReconciliationRepository:
                            transaction_count, notes, created_at
                     FROM reconciliations
                     WHERE account_id = ?
-                    ORDER BY reconciliation_date DESC, id DESC
+                    ORDER BY reconciliation_date DESC, statement_date DESC, id DESC
                 """
 
                 params = [account_id]

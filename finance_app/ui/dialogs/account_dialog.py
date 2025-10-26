@@ -143,6 +143,20 @@ class AccountDialog(QDialog):
         self.subtype_combo = QComboBox()
         form.addRow("Account Subtype:", self.subtype_combo)
 
+        # US-006: Parent account selection
+        self.parent_combo = QComboBox()
+        self.parent_combo.addItem("(None - Top Level)", None)
+        form.addRow("Parent Account:", self.parent_combo)
+
+        # US-006: Make this a parent account checkbox
+        self.is_parent_checkbox = QCheckBox("Make this a parent account")
+        self.is_parent_checkbox.setToolTip(
+            "Parent accounts are used for grouping other accounts.\n"
+            "They cannot have direct transactions and their balance\n"
+            "is calculated from their child accounts."
+        )
+        form.addRow("", self.is_parent_checkbox)
+
         # Initial balance (legacy field - still shown for backwards compatibility)
         self.balance_edit = QLineEdit()
         self.balance_edit.setPlaceholderText("0.00")
@@ -346,7 +360,7 @@ class AccountDialog(QDialog):
 
     def _on_type_changed(self, index: int) -> None:
         """
-        Handle account type change - update subtype dropdown.
+        Handle account type change - update subtype dropdown and parent account dropdown.
 
         Args:
             index: Selected index in type combo box
@@ -362,6 +376,44 @@ class AccountDialog(QDialog):
             info = self.ACCOUNT_SUBTYPE_INFO[subtype]
             display = f"{info['icon']} {info['display']}"
             self.subtype_combo.addItem(display, subtype)
+
+        # US-006: Populate parent account dropdown with compatible parent accounts
+        self._populate_parent_accounts(account_type)
+
+    def _populate_parent_accounts(self, account_type: AccountType) -> None:
+        """
+        Populate parent account dropdown with compatible parent accounts.
+        US-006: Only show parent accounts of the same type.
+
+        Args:
+            account_type: The selected account type
+        """
+        # Clear and add default option
+        self.parent_combo.clear()
+        self.parent_combo.addItem("(None - Top Level)", None)
+
+        try:
+            # Get all accounts
+            all_accounts = self.account_service.get_all_accounts()
+
+            # Filter to parent accounts of matching type
+            parent_accounts = [
+                acc for acc in all_accounts
+                if acc.is_parent and acc.account_type == account_type
+            ]
+
+            # Exclude current account if editing (can't be parent of self)
+            if self.is_edit_mode and self.account:
+                parent_accounts = [acc for acc in parent_accounts if acc.id != self.account.id]
+
+            # Add to dropdown
+            for parent_acc in parent_accounts:
+                self.parent_combo.addItem(f"📁 {parent_acc.name}", parent_acc.id)
+
+            logger.debug(f"Populated {len(parent_accounts)} parent accounts for type {account_type}")
+
+        except Exception as e:
+            logger.warning(f"Failed to load parent accounts: {e}")
 
     def _on_opening_balance_toggle(self, state: int) -> None:
         """
@@ -399,6 +451,15 @@ class AccountDialog(QDialog):
         if subtype_index >= 0:
             self.subtype_combo.setCurrentIndex(subtype_index)
 
+        # US-006: Set parent account
+        if self.account.parent_account_id:
+            parent_index = self.parent_combo.findData(self.account.parent_account_id)
+            if parent_index >= 0:
+                self.parent_combo.setCurrentIndex(parent_index)
+
+        # US-006: Set is_parent checkbox
+        self.is_parent_checkbox.setChecked(self.account.is_parent)
+
         self.balance_edit.setText(f"{self.account.balance:.2f}")
         self.currency_edit.setText(self.account.currency)
 
@@ -417,6 +478,10 @@ class AccountDialog(QDialog):
             opening_balance_str = self.opening_balance_edit.text().strip() if use_opening_balance else None
             opening_date = self.opening_date_edit.date().toString("yyyy-MM-dd") if use_opening_balance else None
 
+            # US-006: Parent account and is_parent fields
+            parent_account_id = self.parent_combo.currentData()
+            is_parent = self.is_parent_checkbox.isChecked()
+
             # Validate required fields
             if not name:
                 QMessageBox.warning(self, "Validation Error", "Account name is required")
@@ -425,6 +490,26 @@ class AccountDialog(QDialog):
 
             if not account_type or not account_subtype:
                 QMessageBox.warning(self, "Validation Error", "Please select account type and subtype")
+                return
+
+            # US-006: Validate parent account rules
+            if is_parent and parent_account_id:
+                QMessageBox.warning(
+                    self,
+                    "Validation Error",
+                    "An account cannot be a parent account and also have a parent.\n"
+                    "Please uncheck 'Make this a parent account' or select '(None - Top Level)' as parent."
+                )
+                return
+
+            if is_parent and use_opening_balance:
+                QMessageBox.warning(
+                    self,
+                    "Validation Error",
+                    "Parent accounts cannot have opening balances.\n"
+                    "Their balance is calculated from child accounts.\n"
+                    "Please uncheck 'Make this a parent account' or disable opening balance."
+                )
                 return
 
             # Validate opening balance if checkbox is checked
@@ -448,12 +533,14 @@ class AccountDialog(QDialog):
             # Create or update account
             if self.is_edit_mode:
                 # Update existing account
+                # US-006: Include parent_account_id in update
                 self.account_service.update_account(
                     account_id=self.account.id,
                     name=name,
                     account_type=account_type,
                     account_subtype=account_subtype,
-                    currency=currency
+                    currency=currency,
+                    parent_account_id=parent_account_id
                 )
                 logger.info(f"Account updated: {name}")
                 QMessageBox.information(self, "Success", f"Account '{name}' updated successfully")
@@ -462,13 +549,16 @@ class AccountDialog(QDialog):
                 if use_opening_balance and opening_balance_str:
                     # Create account with opening balance (US-005)
                     opening_balance = Decimal(opening_balance_str)
+                    # US-006: Include parent_account_id and is_parent
                     account, journal_entry = self.account_service.create_account_with_opening_balance(
                         name=name,
                         account_type=account_type,
                         account_subtype=account_subtype,
                         opening_balance=opening_balance,
                         opening_date=opening_date,
-                        currency=currency
+                        currency=currency,
+                        parent_account_id=parent_account_id,
+                        is_parent=is_parent
                     )
                     logger.info(f"Account created with opening balance: {name}, balance={opening_balance}, date={opening_date}")
                     QMessageBox.information(
@@ -478,12 +568,15 @@ class AccountDialog(QDialog):
                     )
                 else:
                     # Create account without opening balance (original flow)
+                    # US-006: Include parent_account_id and is_parent
                     self.account_service.create_account(
                         name=name,
                         account_type=account_type,
                         account_subtype=account_subtype,
                         initial_balance=initial_balance,
-                        currency=currency
+                        currency=currency,
+                        parent_account_id=parent_account_id,
+                        is_parent=is_parent
                     )
                     logger.info(f"Account created: {name}")
                     QMessageBox.information(self, "Success", f"Account '{name}' created successfully")
