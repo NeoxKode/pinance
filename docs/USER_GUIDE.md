@@ -1,7 +1,7 @@
 # Personal Finance Manager - User Guide
 
-**Version:** 2.1.0
-**Last Updated:** October 23, 2025
+**Version:** 2.2.0
+**Last Updated:** October 26, 2025
 **Status:** ✅ Complete
 
 ---
@@ -9,7 +9,17 @@
 ## 📖 Table of Contents
 
 1. [Introduction](#introduction)
-2. [Split Transactions](#split-transactions)
+2. [Setting Up Opening Balances](#setting-up-opening-balances)
+   - [What are Opening Balances?](#what-are-opening-balances)
+   - [Why Set Opening Balances?](#why-set-opening-balances)
+   - [When to Set Opening Balances](#when-to-set-opening-balances)
+   - [How to Set Opening Balances for New Accounts](#how-to-set-opening-balances-for-new-accounts)
+   - [How to Set Opening Balances for Existing Accounts](#how-to-set-opening-balances-for-existing-accounts)
+   - [Understanding Opening Balance Equity](#understanding-opening-balance-equity)
+   - [Tips and Best Practices](#opening-balance-tips-and-best-practices)
+   - [Troubleshooting Opening Balances](#troubleshooting-opening-balances)
+   - [Frequently Asked Questions](#opening-balance-faq)
+3. [Split Transactions](#split-transactions)
    - [What are Split Transactions?](#what-are-split-transactions)
    - [When to Use Split Transactions](#when-to-use-split-transactions)
    - [How to Create a Split Transaction](#how-to-create-a-split-transaction)
@@ -35,6 +45,785 @@
 Welcome to the Personal Finance Manager User Guide! This guide will help you make the most of the application's features to track and manage your personal finances effectively.
 
 This guide is organized by feature, with detailed instructions and examples for each.
+
+---
+
+## Setting Up Opening Balances
+
+### What are Opening Balances?
+
+An **opening balance** is the starting amount of money in your account when you first begin tracking it in the Personal Finance Manager. It represents your account's current balance before you start recording new transactions.
+
+**Real-World Example:**
+
+Imagine you start using this app today. Your checking account currently has $2,500 in it. That $2,500 is your **opening balance** - it's where you're starting from.
+
+**Simple Analogy:**
+
+Think of it like a race:
+- **Opening Balance** = Where you start the race (the starting line)
+- **New Transactions** = How you move forward or backward from there
+- **Current Balance** = Where you are now
+
+### Why Set Opening Balances?
+
+Setting opening balances is important for several reasons:
+
+#### ✅ **1. Start with Accurate Records**
+- Your app balance matches your actual bank balance from day one
+- You don't have to enter months or years of old transactions
+- You can start tracking immediately
+
+#### ✅ **2. Maintain Proper Accounting**
+- The app uses double-entry accounting (every transaction has two sides)
+- Opening balances keep the accounting equation balanced
+- Your financial reports will be accurate
+
+#### ✅ **3. Track Progress from a Known Point**
+- See how your balance changes from a specific starting date
+- Measure financial progress over time
+- Know exactly where you started
+
+#### ✅ **4. Migrate from Other Apps**
+- Moving from Mint, YNAB, or another finance app?
+- Set opening balances to match your current balances
+- Continue tracking seamlessly without losing your starting point
+
+**Example Scenario:**
+
+You're switching from spreadsheets to this app on October 26, 2025:
+- Checking Account: Currently has $2,500
+- Savings Account: Currently has $10,000
+- Credit Card: Currently owes $850
+
+Instead of entering every transaction from the past year, just set:
+- Checking opening balance: $2,500 (as of Oct 26, 2025)
+- Savings opening balance: $10,000 (as of Oct 26, 2025)
+- Credit Card opening balance: $850 (as of Oct 26, 2025)
+
+Now you can start tracking from today!
+
+### When to Set Opening Balances
+
+Set opening balances in these situations:
+
+#### **Scenario 1: First Time Using the App**
+- You just installed the Personal Finance Manager
+- You have existing accounts with money in them
+- **Action:** Set opening balances for all your accounts
+
+#### **Scenario 2: Adding a New Account You Already Have**
+- You've been using the app for a while
+- You want to add an existing savings account
+- **Action:** Set the opening balance to the account's current balance
+
+#### **Scenario 3: Migrating from Another App**
+- You're switching from Mint, YNAB, Excel, or another tool
+- You don't want to re-enter all historical transactions
+- **Action:** Set opening balances to match your current balances in the old app
+
+#### **Scenario 4: Starting Fresh**
+- You want to reset your tracking from a specific date
+- Maybe you've cleaned up debt or restructured finances
+- **Action:** Set new opening balances as of today
+
+**When NOT to set opening balances:**
+
+❌ **Don't set opening balance if:**
+- The account is brand new (truly $0)
+- You just opened the account at a bank
+- You want to track from $0
+
+### How to Set Opening Balances for New Accounts
+
+Follow these steps to create a new account with an opening balance:
+
+#### **Step 1: Determine Your Opening Balance Amount**
+
+Before opening the app, figure out what amount to use:
+
+1. **Log into your online banking** (or check your latest statement)
+2. **Find your current balance** as of today (or a recent date)
+3. **Write it down** - Example: $2,500.00
+
+**Important**: Use the balance from a specific date. This will be your opening date.
+
+#### **Step 2: Open the Add Account Dialog**
+
+1. Click the **"+ Add Account"** button in the main window
+2. Or: Right-click the accounts list and select **"Add Account"**
+3. The Account Dialog will open
+
+#### **Step 3: Enter Basic Account Information**
+
+Fill in these fields:
+
+- **Account Name**: Enter a descriptive name (e.g., "Chase Checking")
+- **Account Type**: Select the type (Asset, Liability, etc.)
+- **Account Subtype**: Select the specific subtype (e.g., "Checking", "Savings")
+- **Currency**: Select your currency (USD, EUR, etc.)
+
+#### **Step 4: Set the Opening Balance**
+
+Look for the **"Opening Balance (Recommended)"** section:
+
+1. **Check the checkbox**: "✓ Set opening balance for this account"
+2. **The section will become enabled** (no longer grayed out)
+3. **Enter the opening balance amount**: Type your amount (e.g., "2500.00")
+4. **Select the opening date**: Click the calendar icon and choose the date
+   - Use today's date, or the statement date
+   - Example: October 26, 2025
+
+**Visual Guide:**
+
+```
+┌─────────────────────────────────────────────────┐
+│ Account Information                             │
+│ • Name: [Chase Checking________________]        │
+│ • Type: [Asset ▼] Subtype: [Checking ▼]        │
+│ • Currency: [USD ▼]                             │
+├─────────────────────────────────────────────────┤
+│ Opening Balance (Recommended)                   │
+│ ☑ Set opening balance for this account          │
+│                                                  │
+│ Opening Balance: [2500.00_______________]       │
+│ Opening Date:    [October 26, 2025 ▼]          │
+│                                                  │
+│ ℹ This creates a starting balance for your     │
+│   account using proper double-entry accounting. │
+└─────────────────────────────────────────────────┘
+```
+
+#### **Step 5: Save the Account**
+
+1. **Review your entries** to make sure everything is correct
+2. **Click "OK"** or "Save" to create the account
+3. **Success!** Your account is created with the opening balance
+
+**What Happens Behind the Scenes:**
+
+When you save, the app automatically:
+- ✅ Creates your new account
+- ✅ Creates a special "Opening Balance Equity" account (if it doesn't exist)
+- ✅ Creates a journal entry to record the opening balance
+- ✅ Marks the journal entry as "opening balance" type
+- ✅ Sets your account balance to the opening amount
+
+**Example:**
+
+You created a Checking Account with $2,500 opening balance:
+
+```
+Account Created:
+  Name: Chase Checking
+  Balance: $2,500.00
+
+Journal Entry Created:
+  Date: October 26, 2025
+  Description: Opening balance for Chase Checking
+
+  Debit:  Chase Checking        $2,500.00
+  Credit: Opening Balance Equity $2,500.00
+
+  Total: $2,500.00 (Balanced ✓)
+```
+
+### How to Set Opening Balances for Existing Accounts
+
+If you already created an account without an opening balance, you can add one later:
+
+#### **Step 1: Find Your Account**
+
+1. Open the Personal Finance Manager
+2. Look at the **Accounts** list on the left side
+3. **Find the account** you want to set an opening balance for
+
+#### **Step 2: Open the Set Opening Balance Dialog**
+
+There are two ways:
+
+**Method 1: Using the Context Menu (Recommended)**
+1. **Right-click on the account** in the accounts list
+2. Select **"Set Opening Balance..."** from the menu
+3. The Set Opening Balance dialog will open
+
+**Method 2: Using the Menu Bar**
+1. **Click on the account** to select it
+2. Go to **Edit → Set Opening Balance...** in the menu bar
+3. The Set Opening Balance dialog will open
+
+#### **Step 3: Review Account Information**
+
+The dialog shows your account details:
+
+```
+┌──────────────────────────────────────────────────┐
+│ Account Information                              │
+│ • Account: Chase Checking                        │
+│ • Type: Asset - Checking                         │
+│ • Current Balance: $0.00                         │
+└──────────────────────────────────────────────────┘
+```
+
+**Important**: If the account already has an opening balance set, you'll see a warning:
+
+```
+⚠ Warning: This account already has an opening balance set
+on October 26, 2025. Setting a new opening balance will
+replace the existing one.
+```
+
+#### **Step 4: Enter Opening Balance Details**
+
+Fill in these fields:
+
+1. **Opening Balance**: Enter the amount (e.g., "2500.00")
+2. **Opening Date**: Select the date using the calendar picker
+
+```
+┌──────────────────────────────────────────────────┐
+│ Opening Balance Details                          │
+│ Opening Balance: [2500.00___________________]    │
+│ Opening Date:    [October 26, 2025 ▼]           │
+└──────────────────────────────────────────────────┘
+```
+
+#### **Step 5: Review the Journal Entry Preview**
+
+This is a unique feature! As you type, the dialog shows you **exactly** what journal entries will be created:
+
+**For an Asset Account (like Checking):**
+
+```
+┌──────────────────────────────────────────────────┐
+│ Journal Entry Preview                            │
+│ ┌──────────────────────────────────────────────┐ │
+│ │ Date: October 26, 2025                       │ │
+│ │ Description: Opening balance for Checking    │ │
+│ │                                              │ │
+│ │ Journal Entries:                             │ │
+│ │ ────────────────────────────────────────────  │ │
+│ │   Debit:  Chase Checking        $2,500.00   │ │
+│ │   Credit: Opening Balance Equity $2,500.00   │ │
+│ │ ────────────────────────────────────────────  │ │
+│ │   Total:                        $2,500.00   │ │
+│ │                                              │ │
+│ │ ✓ Journal entries balanced (Debits=Credits) │ │
+│ └──────────────────────────────────────────────┘ │
+└──────────────────────────────────────────────────┘
+```
+
+**For a Liability Account (like Credit Card):**
+
+```
+┌──────────────────────────────────────────────────┐
+│ Journal Entry Preview                            │
+│ ┌──────────────────────────────────────────────┐ │
+│ │ Date: October 26, 2025                       │ │
+│ │ Description: Opening balance for Credit Card │ │
+│ │                                              │ │
+│ │ Journal Entries:                             │ │
+│ │ ────────────────────────────────────────────  │ │
+│ │   Debit:  Opening Balance Equity   $850.00   │ │
+│ │   Credit: Credit Card              $850.00   │ │
+│ │ ────────────────────────────────────────────  │ │
+│ │   Total:                           $850.00   │ │
+│ │                                              │ │
+│ │ ✓ Journal entries balanced (Debits=Credits) │ │
+│ └──────────────────────────────────────────────┘ │
+└──────────────────────────────────────────────────┘
+```
+
+**Why This is Helpful:**
+
+- 📚 **Educational**: Teaches you double-entry accounting
+- 🔍 **Transparent**: Shows exactly what will happen
+- ✓ **Verification**: Confirms the entries are correct before saving
+
+#### **Step 6: Click OK to Save**
+
+1. **Review everything** one more time
+2. **Click "OK"** to save the opening balance
+3. **Success!** The opening balance is set
+
+**Confirmation:**
+
+You'll see a success message:
+```
+✓ Opening balance set successfully for Chase Checking
+```
+
+The dialog closes and returns you to the main window.
+
+#### **Step 7: Verify the Results**
+
+Check that everything updated correctly:
+
+**In the Accounts List:**
+- ✓ Your account balance now shows the opening balance amount
+- ✓ Example: "Chase Checking: $2,500.00"
+
+**In the Transactions List:**
+- ✓ A new transaction appears dated on the opening date
+- ✓ Description: "Opening balance for Chase Checking"
+- ✓ Special 🔓 icon indicates it's an opening balance entry
+- ✓ Status: "🔒 Auto-Reconciled" (cannot be edited)
+
+**In the Accounts List (if "Show System Accounts" is checked):**
+- ✓ You'll see "Opening Balance Equity" account
+- ✓ It has a 🔐 lock icon
+- ✓ Its balance offsets your opening balances
+
+### Understanding Opening Balance Equity
+
+When you set opening balances, you'll notice a special account called **"Opening Balance Equity"**. Let's understand what it is and why it exists.
+
+#### **What is Opening Balance Equity?**
+
+**Opening Balance Equity** is a special system account that automatically appears when you set opening balances. It's used in double-entry accounting to keep your books balanced.
+
+**Simple Explanation:**
+
+In accounting, every transaction has two sides (debit and credit). When you set an opening balance, you're saying "my checking account starts with $2,500". But accounting asks: "Where did that $2,500 come from?"
+
+The answer: **Opening Balance Equity**
+
+It represents your net worth at the time you started tracking your finances.
+
+#### **How It Works**
+
+**Example: Setting Opening Balances for Multiple Accounts**
+
+You're starting to use the app with these existing balances:
+- Checking Account: $2,500
+- Savings Account: $10,000
+- Credit Card: $850 (you owe)
+
+**The journal entries created:**
+
+```
+Opening Balance for Checking:
+  Debit:  Checking Account         $2,500
+  Credit: Opening Balance Equity   $2,500
+
+Opening Balance for Savings:
+  Debit:  Savings Account          $10,000
+  Credit: Opening Balance Equity   $10,000
+
+Opening Balance for Credit Card:
+  Debit:  Opening Balance Equity   $850
+  Credit: Credit Card              $850
+
+───────────────────────────────────────────
+Opening Balance Equity Total:      $11,650
+  (= $2,500 + $10,000 - $850)
+```
+
+**Accounting Equation Verification:**
+
+```
+Assets = Liabilities + Equity
+
+Assets (what you own):
+  Checking:  $2,500
+  Savings:   $10,000
+  Total:     $12,500
+
+Liabilities (what you owe):
+  Credit Card: $850
+
+Equity (your net worth):
+  Opening Balance Equity: $11,650
+
+Verification:
+  $12,500 = $850 + $11,650
+  $12,500 = $12,500 ✓ Balanced!
+```
+
+**Your net worth** when you started tracking: $11,650
+
+#### **Do I Need to Do Anything with Opening Balance Equity?**
+
+**No!** It's completely automatic. You don't need to:
+- ❌ Create it manually (it's created automatically)
+- ❌ Edit it (it updates automatically)
+- ❌ Delete it (it's protected)
+- ❌ Reconcile it (it's a system account)
+
+**The app handles everything for you!**
+
+#### **Viewing Opening Balance Equity**
+
+By default, the Opening Balance Equity account is visible in your accounts list to ensure transparency.
+
+**To hide it:**
+1. Look at the **Accounts** panel header
+2. Find the checkbox: **"✓ Show System Accounts"**
+3. **Uncheck it** to hide Opening Balance Equity
+4. **Check it** to show it again
+
+**Visual Indicators:**
+
+When visible, Opening Balance Equity has special styling:
+- 🔐 **Lock icon** - Indicates it's a system account
+- *Italic font* - Distinguishes it from your regular accounts
+- **Tooltip** - Hover to see: "System account for opening balances - automatically managed"
+
+**Protection:**
+
+The app protects Opening Balance Equity from accidental changes:
+- ⚠ **Can't edit** - Shows warning if you try
+- ⚠ **Can't delete** - Shows warning if you try
+- ✓ **Auto-managed** - Updated automatically when you set opening balances
+
+### Opening Balance Tips and Best Practices
+
+Follow these tips to set opening balances effectively:
+
+#### ✅ **Tip 1: Use Recent Balances**
+
+**Best Practice:** Set opening balances using your most recent account balances.
+
+**Why:**
+- Easier to verify (just check online banking today)
+- Fewer pending transactions to worry about
+- Start tracking immediately
+
+**How:**
+1. Open online banking right now
+2. Check your current balance
+3. Use that as your opening balance
+4. Set the opening date to today
+
+#### ✅ **Tip 2: Set Opening Balances for ALL Accounts at Once**
+
+**Best Practice:** Set opening balances for all your accounts during initial setup.
+
+**Why:**
+- Gives you a complete financial picture
+- Ensures the accounting equation balances correctly
+- You won't forget accounts later
+
+**Recommended Order:**
+1. **First**: All asset accounts (checking, savings, etc.)
+2. **Second**: All liability accounts (credit cards, loans)
+3. **Last**: Review Opening Balance Equity to see your net worth
+
+#### ✅ **Tip 3: Use Statement Balances for Accuracy**
+
+**Best Practice:** Use balances from your latest bank statement when possible.
+
+**Why:**
+- Statements are official records
+- Less affected by pending transactions
+- Good starting point for reconciliation
+
+**How:**
+1. Get your most recent statement (or download from online banking)
+2. Look for "Ending Balance" on the statement
+3. Use that amount as your opening balance
+4. Use the statement ending date as your opening date
+
+#### ✅ **Tip 4: Document Your Opening Balances**
+
+**Best Practice:** Keep a record of what opening balances you set and when.
+
+**Why:**
+- Helpful for future reference
+- Needed if you ever need to explain your starting point
+- Good financial record-keeping practice
+
+**How:**
+Create a simple note:
+```
+Opening Balances Set on October 26, 2025:
+  Checking (Chase):     $2,500.00
+  Savings (Chase):      $10,000.00
+  Credit Card (Visa):   $850.00
+  Total Net Worth:      $11,650.00
+```
+
+#### ✅ **Tip 5: Don't Worry About Perfect Precision**
+
+**Best Practice:** Opening balances don't need to be perfect to the penny.
+
+**Why:**
+- You'll reconcile your accounts monthly, which will catch any small errors
+- A few cents difference won't affect your financial tracking
+- Don't let perfection paralyze you from starting
+
+**Example:**
+If your balance is $2,500.37 but you enter $2,500.00, that's fine! You can adjust when you reconcile.
+
+#### ✅ **Tip 6: Handle Pending Transactions Carefully**
+
+**Best Practice:** Check for pending transactions before setting opening balances.
+
+**Common Issue:**
+```
+Your online banking shows: $2,500.00
+But there's a pending charge: -$50.00
+Actual available: $2,450.00
+```
+
+**What to do:**
+- **Option A**: Use the current balance ($2,500) and enter the pending transaction separately
+- **Option B**: Use the available balance ($2,450) and ignore pending transactions
+- **Recommended**: Option A for better tracking
+
+#### ✅ **Tip 7: Set Opening Balance When Migrating**
+
+**Best Practice:** When switching from another finance app, set opening balances to match.
+
+**Example: Migrating from Mint**
+1. Open Mint one last time
+2. Note all your account balances
+3. In Personal Finance Manager:
+   - Create the same accounts
+   - Set opening balances to match Mint's balances
+   - Use today's date as the opening date
+4. Start tracking new transactions from today forward
+
+**Benefits:**
+- Seamless transition
+- No gap in tracking
+- Continue where you left off
+
+### Troubleshooting Opening Balances
+
+#### Problem: Opening Balance Fields are Grayed Out
+
+**Symptom:** The opening balance amount and date fields are disabled (grayed out).
+
+**Cause:** The checkbox "Set opening balance for this account" is unchecked.
+
+**Solution:**
+1. Find the checkbox above the opening balance fields
+2. **Click the checkbox** to enable the section
+3. The fields will become active (no longer grayed out)
+4. Now you can enter the opening balance
+
+#### Problem: "Opening balance already set" Warning
+
+**Symptom:** Dialog shows a warning that the account already has an opening balance.
+
+**Cause:** You previously set an opening balance for this account.
+
+**Solution - If you want to change it:**
+1. **That's okay!** You can set a new opening balance
+2. The old one will be replaced with the new one
+3. Click "OK" to proceed with the new opening balance
+
+**Solution - If you don't want to change it:**
+1. Click "Cancel" to close the dialog
+2. Your existing opening balance remains unchanged
+
+#### Problem: Can't Find "Set Opening Balance" Option
+
+**Symptom:** Right-clicking the account doesn't show "Set Opening Balance..." option.
+
+**Possible Causes:**
+
+**Cause 1: You're clicking on a system account**
+- Opening Balance Equity and other system accounts can't have opening balances set
+- **Solution:** Select a regular account instead
+
+**Cause 2: The account already has an opening balance**
+- Some versions may hide the option if already set
+- **Solution:** Use the account dialog (Edit Account) instead
+
+#### Problem: Opening Balance Makes Account Balance Wrong
+
+**Symptom:** After setting opening balance, the account balance doesn't match what you expected.
+
+**Possible Causes:**
+
+**Cause 1: You entered the wrong amount**
+- **Solution:** Set the opening balance again with the correct amount
+
+**Cause 2: You used the wrong date**
+- Transactions dated before the opening date might not be included
+- **Solution:** Check the opening date and adjust if needed
+
+**Cause 3: Existing transactions in the account**
+- If the account already had transactions, they're added to the opening balance
+- **Solution:** Check the transaction list for existing entries
+
+**Example:**
+```
+Opening Balance set: $2,500
+Existing transaction: +$100 (entered before opening balance)
+Actual Balance: $2,600 ← Opening balance + existing transaction
+```
+
+#### Problem: Opening Balance Equity Doesn't Balance
+
+**Symptom:** You calculated your net worth but Opening Balance Equity shows a different amount.
+
+**This is usually fine!** Here's why:
+
+**Cause 1: You haven't set all opening balances yet**
+- Opening Balance Equity updates as you add each account
+- **Solution:** Set opening balances for all accounts, then check again
+
+**Cause 2: You set opening balances on different dates**
+- Each opening balance uses its opening date
+- **Solution:** This is okay - it reflects balances at different times
+
+**Cause 3: You have other transactions**
+- Other transactions affect the total
+- **Solution:** This is normal - Opening Balance Equity plus other equity equals total equity
+
+**Verification:**
+
+To verify everything balances:
+```
+Assets (what you own) = Liabilities (what you owe) + Equity (net worth)
+```
+
+If this equation holds, your opening balances are correct!
+
+#### Problem: Can't Delete Opening Balance Transaction
+
+**Symptom:** You try to delete the opening balance transaction but it's protected.
+
+**Cause:** Opening balance transactions are automatically reconciled and protected.
+
+**Solution:**
+
+**To change the opening balance:**
+1. Right-click the account
+2. Select "Set Opening Balance..." again
+3. Enter the new amount (or $0 to remove)
+4. This replaces the old opening balance
+
+**To remove the opening balance entirely:**
+1. Set a new opening balance of $0.00
+2. This effectively removes the opening balance
+
+#### Problem: Duplicate Opening Balance Entries
+
+**Symptom:** You see multiple opening balance transactions for the same account.
+
+**Cause:** This shouldn't happen, but if it does, it's likely a bug.
+
+**Solution:**
+1. **Contact support** or report the issue
+2. **Don't delete transactions manually** - this can break accounting
+3. **Temporary workaround:** Note the discrepancy and wait for support
+
+### Opening Balance FAQ
+
+#### Q: What date should I use for opening balances?
+
+**A:** Use either:
+1. **Today's date** - If you're using your current balance
+2. **Statement ending date** - If you're using a statement balance
+3. **The date you started tracking** - If you want to mark when you began using the app
+
+**Recommendation:** Use today's date for simplicity. It's easier to remember and verify.
+
+#### Q: Can I change an opening balance after I set it?
+
+**A:** Yes! Just set the opening balance again using "Set Opening Balance..." from the context menu. The new opening balance replaces the old one.
+
+#### Q: What if I forget to set opening balances when creating an account?
+
+**A:** No problem! You can set opening balances any time:
+1. Right-click the account
+2. Select "Set Opening Balance..."
+3. Enter the amount and date
+4. Save
+
+#### Q: Should I set opening balance to $0 for new accounts?
+
+**A:** No need! If an account truly starts at $0 (like a brand new bank account you just opened), don't set an opening balance at all. Just create the account and start tracking transactions from $0.
+
+**Set opening balance only when** the account already has money in it.
+
+#### Q: Can I set opening balances to negative amounts?
+
+**A:** The app requires opening balances to be non-negative (zero or positive).
+
+**For accounts where you owe money** (like credit cards or loans), enter the positive amount you owe:
+- Credit Card: Set opening balance to $850 (the amount you owe)
+- The app knows it's a liability and handles it correctly
+
+#### Q: What's the difference between "Opening Balance" and "Initial Balance"?
+
+**A:** In this app:
+- **Opening Balance (Recommended)** - Uses proper double-entry accounting with Opening Balance Equity
+- **Initial Balance (Legacy)** - Old method, not recommended
+
+**Always use "Opening Balance"** unless you have a specific reason to use the legacy field.
+
+#### Q: How do I know if my opening balances are correct?
+
+**A:** Verify that:
+
+1. **Each account balance matches your records:**
+   - Check online banking
+   - Compare with statements
+   - Account balance should match what you entered
+
+2. **The accounting equation balances:**
+   ```
+   Assets = Liabilities + Equity
+   ```
+   - Add up all asset account balances
+   - Add up all liability account balances
+   - Check that: Assets = Liabilities + Opening Balance Equity
+
+3. **Opening Balance Equity equals your net worth:**
+   ```
+   Net Worth = Assets - Liabilities
+             = Opening Balance Equity
+   ```
+
+#### Q: Will setting opening balances affect my tax records?
+
+**A:** No. Opening balances are just starting points for tracking. They're not income or expenses.
+
+**However:** The transactions you record **after** setting opening balances (income, expenses, etc.) will be useful for taxes.
+
+#### Q: Can I set opening balances for past dates?
+
+**A:** Yes, you can select any date as your opening date. This is useful if you're retroactively entering data or using a specific statement date.
+
+**Example:** You're setting up the app on October 26, but you want to start tracking from October 1. Set the opening date to October 1.
+
+#### Q: What happens to Opening Balance Equity over time?
+
+**A:** Opening Balance Equity is created when you set opening balances and generally stays constant. It represents your net worth **at the time you started tracking**.
+
+As you record transactions:
+- Your account balances change
+- Your actual net worth changes
+- But Opening Balance Equity remains as your historical starting point
+
+**It's like a marker** showing "this is where I started."
+
+#### Q: Do I need to set opening balance for cash accounts?
+
+**A:** If you want to track the cash you currently have, yes:
+- Count the cash in your wallet/home
+- Create a Cash account
+- Set opening balance to the amount you counted
+- Now you can track cash transactions
+
+**If you don't carry much cash** or don't want to track it, you can skip creating a cash account entirely.
+
+#### Q: Can I have multiple accounts with opening balances on different dates?
+
+**A:** Yes! Each account can have its own opening date:
+
+```
+Checking Account - Opening balance $2,500 on October 1, 2025
+Savings Account  - Opening balance $10,000 on October 15, 2025
+Credit Card      - Opening balance $850 on October 26, 2025
+```
+
+This is perfectly fine. Each account starts tracking from its own opening date.
 
 ---
 
@@ -1304,6 +2093,7 @@ If you encounter issues not covered in this guide:
 
 **Version History:**
 
+- **2.2.0** (October 26, 2025) - Added Setting Up Opening Balances feature guide (US-005)
 - **2.1.0** (October 23, 2025) - Added Account Reconciliation feature guide (US-004)
 - **2.0.0** (October 23, 2025) - Initial user guide with split transactions
 - More features coming in future versions!
