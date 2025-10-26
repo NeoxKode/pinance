@@ -1925,6 +1925,292 @@ def dropEvent(self, event: QDropEvent):
 
 ---
 
+## 👥 Task Assignment by Role
+
+This section organizes the 26 tasks by team role for easier sprint planning and task assignment.
+
+### 🔧 Backend Developer (13 tasks, 12-15 hours)
+
+**Phase 1: Database & Model (4 tasks, 4-5 hours)**
+- **Task 1.1:** Create Database Migration (007) - 1 hour
+  - File: `finance_app/data/migrations/007_account_hierarchy.sql`
+  - Priority: HIGH (blocks all other work)
+  - Can work independently: ✅ Yes
+
+- **Task 1.2:** Update Account Model - 1 hour
+  - File: `finance_app/data/models.py`
+  - Priority: HIGH (blocks repository/service work)
+  - Depends on: Task 1.1 (migration schema)
+
+- **Task 1.3:** Update Database Integration - 1.5 hours
+  - File: `finance_app/data/database.py`
+  - Priority: HIGH
+  - Depends on: Task 1.1, 1.2
+
+- **Task 1.4:** Run and Verify Migration - 30 minutes
+  - Priority: HIGH (validation checkpoint)
+  - Depends on: Tasks 1.1, 1.2, 1.3
+
+**Phase 2: Repository Layer (3 tasks, 4-5 hours)**
+- **Task 2.1:** Implement Hierarchy Query Methods - 2 hours
+  - File: `finance_app/data/repositories/account_repository.py`
+  - Methods: `get_child_accounts()`, `get_descendant_accounts()`, `get_root_accounts()`
+  - Priority: HIGH (blocks service layer)
+  - Depends on: Phase 1 complete
+
+- **Task 2.2:** Update CRUD Methods - 1.5 hours
+  - File: `finance_app/data/repositories/account_repository.py`
+  - Methods: `create()`, `update()`, `delete()`
+  - Priority: HIGH
+  - Depends on: Task 2.1
+
+- **Task 2.3:** Add Tree Building Helper - 1 hour
+  - File: `finance_app/data/repositories/account_repository.py`
+  - Method: `build_account_tree()`
+  - Priority: MEDIUM
+  - Depends on: Task 2.1
+
+**Phase 3: Service Layer (6 tasks, 4-5 hours)**
+- **Task 3.1:** Update create_account() - 45 minutes
+  - File: `finance_app/business/account_service.py`
+  - Priority: HIGH
+  - Depends on: Phase 2 complete
+
+- **Task 3.2:** Implement get_parent_account_balance() - 1 hour
+  - File: `finance_app/business/account_service.py`
+  - Priority: HIGH (critical business logic)
+  - Depends on: Task 2.1
+
+- **Task 3.3:** Implement move_account() - 1 hour
+  - File: `finance_app/business/account_service.py`
+  - Priority: MEDIUM
+  - Depends on: Task 3.6 (cycle detection)
+
+- **Task 3.4:** Implement convert_to_parent_account() - 45 minutes
+  - File: `finance_app/business/account_service.py`
+  - Priority: LOW (nice-to-have feature)
+  - Depends on: Task 2.1
+
+- **Task 3.5:** Implement delete_account_with_children() - 45 minutes
+  - File: `finance_app/business/account_service.py`
+  - Priority: MEDIUM
+  - Depends on: Task 2.1
+
+- **Task 3.6:** Add Cycle Detection Helper - 45 minutes
+  - File: `finance_app/business/account_service.py`
+  - Method: `_would_create_cycle()`
+  - Priority: HIGH (prevents data corruption)
+  - Depends on: Task 2.1
+  - **Note:** Do this before Task 3.3
+
+**Backend Developer Notes:**
+- Phase 1 must complete before Phase 2/3
+- Phase 2 and 3 have task dependencies (see above)
+- Total time: 12-15 hours (1.5-2 days)
+- Can pair with Tech Lead for architecture review during Phase 3
+
+---
+
+### 🎨 Frontend Developer (6 tasks, 6-7 hours)
+
+**Phase 4: UI Implementation (6 tasks, 6-7 hours)**
+- **Task 4.1:** Create AccountTreeWidget - 2 hours
+  - File: `finance_app/ui/widgets/account_tree_widget.py` (new file)
+  - Priority: HIGH (foundation for all UI work)
+  - Can start: After Phase 1 complete (doesn't need Phase 2/3)
+  - Can work independently: ✅ Yes (with mock data)
+
+- **Task 4.2:** Implement Expand/Collapse - 1 hour
+  - File: `finance_app/ui/widgets/account_tree_widget.py`
+  - Priority: HIGH
+  - Depends on: Task 4.1
+
+- **Task 4.3:** Implement Drag-and-Drop - 1.5 hours
+  - File: `finance_app/ui/widgets/account_tree_widget.py`
+  - Priority: MEDIUM (requires service layer for validation)
+  - Depends on: Task 4.1, Phase 3 complete (needs `move_account()`)
+
+- **Task 4.4:** Update Account Dialog - 1 hour
+  - File: `finance_app/ui/dialogs/account_dialog.py`
+  - Priority: HIGH
+  - Depends on: Task 4.1 (for parent selector)
+
+- **Task 4.5:** Add Context Menu Options - 30 minutes
+  - File: `finance_app/ui/widgets/account_tree_widget.py`
+  - Priority: LOW
+  - Depends on: Task 4.1
+
+- **Task 4.6:** Main Window Integration - 1 hour
+  - File: `finance_app/ui/main_window.py`
+  - Priority: HIGH (final integration)
+  - Depends on: Tasks 4.1-4.5 complete
+
+**Frontend Developer Notes:**
+- Task 4.1 can start early (after Phase 1) with mock data
+- Task 4.3 (drag-and-drop) requires backend Phase 3 complete
+- Total time: 6-7 hours (1 day)
+- Can work in parallel with Backend Developer on Phases 2-3
+- Coordinate with Backend Dev for Task 4.3 integration
+
+**Parallelization Opportunity:**
+```
+Backend Dev: Phase 2 + 3 (8-10 hours)
+Frontend Dev: Tasks 4.1, 4.2, 4.4, 4.5 (5 hours)
+└─ Both can work simultaneously on Day 2
+```
+
+---
+
+### 🧪 Testing/QA (4 tasks, 3-4 hours)
+
+**Phase 5: Testing (4 tasks, 3-4 hours)**
+- **Task 5.1:** Repository Unit Tests - 1 hour
+  - File: `finance_app/tests/unit/test_account_repository_hierarchy.py` (new file)
+  - Tests: 15+ test cases for repository methods
+  - Priority: HIGH
+  - Depends on: Phase 2 complete
+  - Can work independently: ✅ Yes (can write tests while Phase 2 in progress)
+
+- **Task 5.2:** Service Unit Tests - 1 hour
+  - File: `finance_app/tests/unit/test_account_service_hierarchy.py` (new file)
+  - Tests: 20+ test cases for service methods
+  - Priority: HIGH
+  - Depends on: Phase 3 complete
+  - Can work independently: ✅ Yes (can write tests while Phase 3 in progress)
+
+- **Task 5.3:** Integration Tests - 1 hour
+  - File: `finance_app/tests/integration/test_account_hierarchy_integration.py` (new file)
+  - Tests: 10+ test cases for full workflow
+  - Priority: HIGH
+  - Depends on: Phase 2 + 3 complete
+
+- **Task 5.4:** UI Tests (Manual + Automated) - 1 hour
+  - Files: Manual test checklist + automated UI tests
+  - Tests: Tree display, drag-and-drop, validation errors
+  - Priority: MEDIUM
+  - Depends on: Phase 4 complete
+
+**Testing/QA Notes:**
+- Can write tests in parallel with development (TDD approach)
+- Total time: 3-4 hours
+- Can be assigned to dedicated QA or split with developers
+- Manual testing on Day 3 afternoon
+
+**Test Writing Schedule:**
+```
+Day 1: Write Task 5.1 tests while Backend Dev does Phase 2
+Day 2: Write Task 5.2 tests while Backend Dev does Phase 3
+Day 3: Run all tests + manual testing
+```
+
+---
+
+### 👔 Tech Lead (3 tasks, 1-2 hours + oversight)
+
+**Phase 6: Documentation & Oversight (3 tasks, 1-2 hours)**
+- **Task 6.1:** Update User Guide - 30 minutes
+  - File: `docs/USER_GUIDE.md`
+  - Section: "Organizing Accounts with Hierarchies"
+  - Priority: MEDIUM
+  - Depends on: Phase 4 complete (need screenshots)
+
+- **Task 6.2:** Update API Documentation - 30 minutes
+  - Files: Docstrings in repository/service files
+  - Priority: LOW
+  - Can be done during code review
+
+- **Task 6.3:** Code Review Prep - 30 minutes
+  - Create PR description
+  - Run final test suite
+  - Check code coverage
+  - Priority: HIGH
+  - Depends on: All phases complete
+
+**Additional Tech Lead Responsibilities:**
+
+**Architecture & Design (Ongoing, ~2-3 hours)**
+- Review database migration before Task 1.1 starts (30 minutes)
+- Review service layer validation logic at Phase 3 midpoint (1 hour)
+- Review UI tree widget design before Task 4.1 starts (30 minutes)
+- Final code review of PR (1-2 hours)
+
+**Coordination & Support (Ongoing)**
+- Daily standup facilitation (15 minutes × 3 days = 45 minutes)
+- Unblock developers on technical questions (buffer: 1-2 hours)
+- Integration checkpoint between Backend/Frontend (30 minutes)
+
+**Tech Lead Notes:**
+- Total hands-on time: 3-4 hours (documentation + reviews)
+- Total oversight time: ~6-7 hours (including coordination)
+- Critical review points:
+  1. Day 1 morning: Review migration schema (before Task 1.1)
+  2. Day 2 morning: Review service validation (during Phase 3)
+  3. Day 3 afternoon: Final PR review
+
+---
+
+## 📋 Sprint Planning Summary
+
+### Resource Allocation
+
+| Role | Tasks | Time | Days | Notes |
+|------|-------|------|------|-------|
+| **Backend Developer** | 13 tasks | 12-15 hours | 1.5-2 days | Phases 1, 2, 3 |
+| **Frontend Developer** | 6 tasks | 6-7 hours | 1 day | Phase 4 |
+| **Testing/QA** | 4 tasks | 3-4 hours | 0.5 day | Phase 5 (can parallel) |
+| **Tech Lead** | 3 tasks + oversight | 6-7 hours | 0.5 day | Phase 6 + reviews |
+| **Total** | **26 tasks** | **27-33 hours** | **3 days** | **5 story points** |
+
+### Parallel Work Opportunities
+
+**Day 1:**
+- Backend Dev: Phase 1 (Database & Model) - solo work
+- Frontend Dev: Can review designs, prepare mockups
+
+**Day 2:**
+- Backend Dev: Phase 2 + 3 (Repository + Service) - 8-10 hours
+- Frontend Dev: Tasks 4.1, 4.2, 4.4, 4.5 (tree widget foundation) - 5 hours
+- Testing/QA: Write unit tests (Tasks 5.1, 5.2) - 2 hours
+- **All three can work in parallel!**
+
+**Day 3:**
+- Frontend Dev: Task 4.3 (drag-and-drop) + 4.6 (integration) - 2.5 hours
+- Testing/QA: Run tests + manual testing (Tasks 5.3, 5.4) - 2 hours
+- Tech Lead: Documentation + code review (Phase 6) - 3-4 hours
+
+### Critical Path
+
+```
+Day 1: Backend Phase 1 (4-5 hours) ← CRITICAL PATH
+  └─ Blocks everything else
+
+Day 2: Backend Phase 2+3 (8-10 hours) ← CRITICAL PATH
+  ├─ Blocks Frontend Task 4.3 (drag-and-drop)
+  └─ Blocks Testing Task 5.3 (integration tests)
+
+Day 3: Integration & Testing (4-5 hours)
+  └─ Final validation before PR
+```
+
+### Task Dependencies Graph
+
+```
+Phase 1 (Backend - Day 1)
+  │
+  ├─→ Phase 2 (Backend - Day 2)
+  │    └─→ Phase 3 (Backend - Day 2)
+  │         ├─→ Task 4.3 (Frontend drag-and-drop)
+  │         └─→ Task 5.3 (Integration tests)
+  │
+  └─→ Task 4.1 (Frontend tree widget - Day 2)
+       ├─→ Task 4.2 (expand/collapse)
+       ├─→ Task 4.4 (account dialog)
+       ├─→ Task 4.5 (context menu)
+       └─→ Task 4.6 (main window integration)
+```
+
+---
+
 ## ✅ Task Completion Checklist
 
 Copy this checklist to track progress during sprint:
