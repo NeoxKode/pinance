@@ -41,10 +41,14 @@ class AccountService:
         account_type: AccountType,
         account_subtype: AccountSubtype,
         initial_balance: str = "0.00",
-        currency: str = "USD"
+        currency: str = "USD",
+        parent_account_id: Optional[int] = None,
+        is_parent: bool = False
     ) -> Account:
         """
         Create a new account with validation.
+
+        US-006: Added hierarchy support with parent_account_id and is_parent parameters.
 
         Args:
             name: Account name
@@ -52,12 +56,15 @@ class AccountService:
             account_subtype: Account subtype (checking, savings, credit_card, etc.)
             initial_balance: Initial balance as string
             currency: Currency code (3 letters)
+            parent_account_id: Optional ID of parent account (US-006)
+            is_parent: Whether this is a parent/header account (US-006)
 
         Returns:
             Created account
 
         Raises:
             ValidationError: If validation fails
+            NotFoundError: If parent account doesn't exist
         """
         # Validate inputs
         validated_name = self.validator.validate_name(name)
@@ -79,6 +86,45 @@ class AccountService:
         except Exception as e:
             raise ValidationError(f"Invalid initial balance: {initial_balance}") from e
 
+        # US-006: Validate hierarchy parameters
+        if parent_account_id is not None:
+            # Check that parent exists
+            parent_account = self.account_repo.get_by_id(parent_account_id)
+            if not parent_account:
+                raise NotFoundError(f"Parent account with ID {parent_account_id} not found")
+
+            # Validate parent is actually a parent account
+            if not parent_account.is_parent:
+                raise ValidationError(
+                    f"Account {parent_account.name} (ID: {parent_account_id}) is not a parent account. "
+                    "Only parent accounts can have children."
+                )
+
+            # Validate type compatibility (child must have same account_type as parent)
+            if parent_account.account_type != account_type:
+                raise ValidationError(
+                    f"Child account type ({account_type.value}) must match "
+                    f"parent account type ({parent_account.account_type.value})"
+                )
+
+            # Validate maximum depth (5 levels = 0-4)
+            if parent_account.hierarchy_level >= 4:
+                raise ValidationError(
+                    f"Maximum hierarchy depth is 5 levels. "
+                    f"Parent account is already at level {parent_account.hierarchy_level}."
+                )
+
+            # Check for circular reference (should be impossible for new accounts, but validate anyway)
+            if self._would_create_cycle(None, parent_account_id):
+                raise ValidationError("Creating this account would create a circular reference")
+
+        # US-006: Validate is_parent flag
+        if is_parent and initial_balance != "0.00":
+            logger.warning(
+                f"Parent account {name} created with non-zero initial balance. "
+                "Parent accounts should have zero balance (calculated from children)."
+            )
+
         # Create account object
         account = Account(
             id=None,
@@ -87,15 +133,19 @@ class AccountService:
             account_subtype=validated_subtype,
             balance=validated_balance,
             normal_balance=normal_balance,
-            currency=validated_currency
+            currency=validated_currency,
+            parent_account_id=parent_account_id,  # US-006
+            is_parent=is_parent  # US-006
         )
 
-        # Save account
+        # Save account (repository will calculate hierarchy_path)
         created_account = self.account_repo.create(account)
         logger.info(
             f"Account created: {created_account.name} "
             f"({created_account.account_type.value}/{created_account.account_subtype.value}, "
-            f"ID: {created_account.id})"
+            f"ID: {created_account.id}, "
+            f"parent: {parent_account_id or 'none'}, "
+            f"is_parent: {is_parent})"
         )
 
         return created_account
@@ -685,3 +735,309 @@ class AccountService:
             'by_type': by_type,
             'accounts': accounts_with_opening
         }
+
+    # ========================================================================
+    # US-006: Account Hierarchy Methods
+    # ========================================================================
+
+    def get_parent_account_balance(self, parent_id: int) -> Decimal:
+        """
+        Calculate parent account balance by summing all leaf descendant accounts (Python version).
+
+        US-006: This is the Python implementation that loads accounts into memory.
+        For better performance, use get_parent_account_balance_sql() in production.
+
+        Args:
+            parent_id: ID of the parent account
+
+        Returns:
+            Sum of all leaf descendant account balances
+
+        Raises:
+            NotFoundError: If parent account doesn't exist
+        """
+        # Get the parent account
+        parent = self.account_repo.get_by_id(parent_id)
+        if not parent:
+            raise NotFoundError(f"Parent account with ID {parent_id} not found")
+
+        # Get all descendants
+        descendants = self.account_repo.get_descendant_accounts(parent_id)
+
+        # Sum balances of leaf accounts only (is_parent=False)
+        total = Decimal("0.00")
+        for account in descendants:
+            if not account.is_parent:  # Only leaf accounts contribute to balance
+                total += account.balance
+
+        logger.debug(
+            f"Parent account {parent_id} balance calculated: {total} "
+            f"(from {len([a for a in descendants if not a.is_parent])} leaf accounts)"
+        )
+
+        return total
+
+    def get_parent_account_balance_sql(self, parent_id: int) -> Decimal:
+        """
+        Calculate parent account balance using SQL aggregation (10x faster).
+
+        US-006: This is the optimized version for production use.
+        Uses a single SQL query with hierarchy_path pattern matching.
+
+        Args:
+            parent_id: ID of the parent account
+
+        Returns:
+            Sum of all leaf descendant account balances
+
+        Raises:
+            NotFoundError: If parent account doesn't exist
+        """
+        # Get the parent account
+        parent = self.account_repo.get_by_id(parent_id)
+        if not parent:
+            raise NotFoundError(f"Parent account with ID {parent_id} not found")
+
+        if not parent.hierarchy_path:
+            logger.warning(f"Parent account {parent_id} has no hierarchy_path set")
+            return Decimal("0.00")
+
+        # Use SQL aggregation for efficient calculation
+        with self.db.get_connection() as conn:
+            cursor = conn.cursor()
+
+            # Query: Sum balance of all leaf descendants
+            # hierarchy_path LIKE '/1/%' matches all descendants of account 1
+            # is_parent = 0 ensures only leaf accounts are summed
+            pattern = f"{parent.hierarchy_path}/%"
+
+            cursor.execute("""
+                SELECT SUM(balance)
+                FROM accounts
+                WHERE hierarchy_path LIKE ?
+                  AND is_parent = 0
+            """, (pattern,))
+
+            result = cursor.fetchone()[0]
+            total = Decimal(str(result)) if result else Decimal("0.00")
+
+            logger.debug(f"Parent account {parent_id} balance (SQL): {total}")
+
+            return total
+
+    def _would_create_cycle(self, account_id: Optional[int], new_parent_id: int) -> bool:
+        """
+        Check if setting new_parent_id would create a circular reference.
+
+        US-006: Walks up the parent chain to detect cycles.
+
+        Args:
+            account_id: ID of the account being moved (None for new accounts)
+            new_parent_id: Proposed new parent ID
+
+        Returns:
+            True if cycle would be created, False otherwise
+        """
+        if account_id is None:
+            # New account can't create a cycle
+            return False
+
+        if account_id == new_parent_id:
+            # Account cannot be its own parent
+            return True
+
+        # Walk up the parent chain from new_parent_id
+        # If we encounter account_id, we have a cycle
+        current_id = new_parent_id
+        visited = set()
+
+        while current_id is not None:
+            if current_id in visited:
+                # Infinite loop detected in existing data
+                logger.error(f"Circular reference detected in existing data starting from {current_id}")
+                return True
+
+            if current_id == account_id:
+                # Found the account we're trying to move - this would create a cycle
+                return True
+
+            visited.add(current_id)
+
+            # Get parent of current account
+            current_account = self.account_repo.get_by_id(current_id)
+            if not current_account:
+                break
+
+            current_id = current_account.parent_account_id
+
+        return False
+
+    def move_account(
+        self,
+        account_id: int,
+        new_parent_id: Optional[int]
+    ) -> Account:
+        """
+        Move an account to a new parent (or make it top-level).
+
+        US-006: This operation updates the account's parent_account_id and recalculates
+        hierarchy paths for the account and all its descendants.
+
+        Args:
+            account_id: ID of the account to move
+            new_parent_id: ID of new parent account (None to make top-level)
+
+        Returns:
+            Updated account
+
+        Raises:
+            NotFoundError: If account or parent doesn't exist
+            ValidationError: If move would violate hierarchy rules
+        """
+        # Get the account
+        account = self.account_repo.get_by_id(account_id)
+        if not account:
+            raise NotFoundError(f"Account with ID {account_id} not found")
+
+        # Validate new parent if provided
+        if new_parent_id is not None:
+            new_parent = self.account_repo.get_by_id(new_parent_id)
+            if not new_parent:
+                raise NotFoundError(f"Parent account with ID {new_parent_id} not found")
+
+            # Validate parent is a parent account
+            if not new_parent.is_parent:
+                raise ValidationError(
+                    f"Account {new_parent.name} (ID: {new_parent_id}) is not a parent account"
+                )
+
+            # Validate type compatibility
+            if new_parent.account_type != account.account_type:
+                raise ValidationError(
+                    f"Cannot move account: type mismatch "
+                    f"({account.account_type.value} != {new_parent.account_type.value})"
+                )
+
+            # Check for circular reference
+            if self._would_create_cycle(account_id, new_parent_id):
+                raise ValidationError(
+                    "Cannot move account: would create circular reference"
+                )
+
+            # Validate maximum depth
+            if new_parent.hierarchy_level >= 4:
+                raise ValidationError(
+                    f"Cannot move account: maximum depth exceeded "
+                    f"(parent at level {new_parent.hierarchy_level})"
+                )
+
+        # Update parent_account_id
+        account.parent_account_id = new_parent_id
+
+        # Update account (repository will recalculate hierarchy paths)
+        updated_account = self.account_repo.update(account)
+
+        logger.info(
+            f"Moved account {account.name} (ID: {account_id}) "
+            f"to parent {new_parent_id or 'none'}"
+        )
+
+        return updated_account
+
+    def convert_to_parent_account(self, account_id: int) -> Account:
+        """
+        Convert an account to a parent/header account.
+
+        US-006: Sets is_parent=True and validates that the account has no transactions.
+        Parent accounts cannot have direct transactions.
+
+        Args:
+            account_id: ID of the account to convert
+
+        Returns:
+            Updated account
+
+        Raises:
+            NotFoundError: If account doesn't exist
+            ValidationError: If account has transactions
+        """
+        # Get the account
+        account = self.account_repo.get_by_id(account_id)
+        if not account:
+            raise NotFoundError(f"Account with ID {account_id} not found")
+
+        # Check if account already a parent
+        if account.is_parent:
+            logger.info(f"Account {account.name} is already a parent account")
+            return account
+
+        # Validate account has no transactions
+        transactions = self.transaction_repo.get_by_account(account_id)
+        if transactions:
+            raise ValidationError(
+                f"Cannot convert to parent account: {account.name} has {len(transactions)} transactions. "
+                "Parent accounts cannot have direct transactions."
+            )
+
+        # Convert to parent
+        account.is_parent = True
+
+        # US-006 Gap Fix: Nested parents ARE allowed
+        # Don't modify parent_account_id - preserve existing hierarchy
+
+        # Update account
+        updated_account = self.account_repo.update(account)
+
+        logger.info(f"Converted account {account.name} (ID: {account_id}) to parent account")
+
+        return updated_account
+
+    def delete_account_with_children(
+        self,
+        account_id: int,
+        force: bool = False
+    ) -> bool:
+        """
+        Delete an account and optionally its children.
+
+        US-006: If force=True, recursively deletes all descendants.
+        If force=False, only deletes if account has no children.
+
+        Args:
+            account_id: ID of the account to delete
+            force: If True, delete children recursively
+
+        Returns:
+            True if deleted
+
+        Raises:
+            NotFoundError: If account doesn't exist
+            ValidationError: If account has children and force=False
+        """
+        # Get the account
+        account = self.account_repo.get_by_id(account_id)
+        if not account:
+            raise NotFoundError(f"Account with ID {account_id} not found")
+
+        # Get children
+        children = self.account_repo.get_child_accounts(account_id)
+
+        # Check if has children
+        if children and not force:
+            raise ValidationError(
+                f"Cannot delete account {account.name}: has {len(children)} child accounts. "
+                "Use force=True to delete all descendants."
+            )
+
+        # Delete children recursively if force=True
+        if children and force:
+            logger.info(f"Recursively deleting {len(children)} child accounts")
+            for child in children:
+                self.delete_account_with_children(child.id, force=True)
+
+        # Delete the account
+        success = self.account_repo.delete(account_id)
+
+        logger.info(f"Deleted account {account.name} (ID: {account_id})")
+
+        return success

@@ -431,6 +431,93 @@ def _apply_opening_balance_equity_migration(conn: sqlite3.Connection) -> None:
         logger.debug("Opening balance equity migration already applied, skipping")
 
 
+def _apply_account_hierarchy_migration(conn: sqlite3.Connection) -> None:
+    """
+    Apply account hierarchy migration (007_account_hierarchy.sql).
+
+    This adds hierarchy support fields to accounts table: is_parent, hierarchy_level, hierarchy_path.
+    Enables parent/child account relationships for better organization.
+    Story: US-006 - Account Hierarchy (Parent/Child Accounts)
+
+    Args:
+        conn: Database connection
+    """
+    cursor = conn.cursor()
+
+    # Check if migration is needed (look for is_parent column)
+    cursor.execute("PRAGMA table_info(accounts)")
+    columns = [row[1] for row in cursor.fetchall()]
+
+    if 'is_parent' not in columns:
+        logger.info("Applying account hierarchy migration (007)...")
+
+        # Read and execute migration file
+        migration_path = Path(__file__).parent / "migrations" / "007_account_hierarchy.sql"
+
+        if not migration_path.exists():
+            logger.warning(f"Migration file not found: {migration_path}")
+            return
+
+        with open(migration_path, 'r') as f:
+            migration_sql = f.read()
+
+        # Execute migration
+        cursor.executescript(migration_sql)
+
+        conn.commit()
+        logger.info("Account hierarchy migration (007) completed")
+
+        # Verify is_parent column in accounts
+        cursor.execute("PRAGMA table_info(accounts)")
+        columns = [row[1] for row in cursor.fetchall()]
+        if 'is_parent' in columns:
+            logger.info("Migration verification: ✓ is_parent column added to accounts")
+        else:
+            logger.error("Migration verification failed: is_parent column not found")
+
+        # Verify hierarchy_level column in accounts
+        if 'hierarchy_level' in columns:
+            logger.info("Migration verification: ✓ hierarchy_level column added to accounts")
+        else:
+            logger.error("Migration verification failed: hierarchy_level column not found")
+
+        # Verify hierarchy_path column in accounts
+        if 'hierarchy_path' in columns:
+            logger.info("Migration verification: ✓ hierarchy_path column added to accounts")
+        else:
+            logger.error("Migration verification failed: hierarchy_path column not found")
+
+        # Verify hierarchy_path index was created
+        cursor.execute("""
+            SELECT name FROM sqlite_master
+            WHERE type='index' AND name = 'idx_accounts_hierarchy_path'
+        """)
+        if cursor.fetchone():
+            logger.info("Migration verification: ✓ idx_accounts_hierarchy_path index created")
+        else:
+            logger.warning("Migration verification: idx_accounts_hierarchy_path index not found")
+
+        # Verify existing accounts were initialized with hierarchy fields
+        cursor.execute("""
+            SELECT COUNT(*) FROM accounts
+            WHERE hierarchy_level IS NOT NULL AND hierarchy_path IS NOT NULL
+        """)
+        initialized_count = cursor.fetchone()[0]
+        cursor.execute("SELECT COUNT(*) FROM accounts")
+        total_count = cursor.fetchone()[0]
+
+        if initialized_count == total_count:
+            logger.info(f"Migration verification: ✓ All {total_count} accounts initialized with hierarchy fields")
+        else:
+            logger.warning(f"Migration verification: Only {initialized_count}/{total_count} accounts have hierarchy fields")
+
+        # Log summary
+        logger.info("Account hierarchy migration (007) verification complete")
+        logger.info("✓ Ready for parent/child account relationships (US-006)")
+    else:
+        logger.debug("Account hierarchy migration already applied, skipping")
+
+
 class Database:
     """
     Database manager with connection pooling and lifecycle management.
@@ -594,6 +681,9 @@ class Database:
                 # Apply opening balance equity migration for new databases
                 _apply_opening_balance_equity_migration(conn)
 
+                # Apply account hierarchy migration for new databases
+                _apply_account_hierarchy_migration(conn)
+
                 # Add sample data if empty
                 self._add_sample_data(conn)
 
@@ -611,6 +701,7 @@ class Database:
                 _apply_split_transactions_migration(conn)
                 _apply_reconciliation_migration(conn)
                 _apply_opening_balance_equity_migration(conn)
+                _apply_account_hierarchy_migration(conn)
                 logger.info("All migrations applied successfully")
         except Exception as e:
             logger.error(f"Failed to apply migrations: {e}")

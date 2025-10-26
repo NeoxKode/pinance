@@ -85,6 +85,8 @@ class Account:
 
     US-003: Normal balance is auto-calculated from account_type if not provided.
     US-004: Account reconciliation tracking
+    US-005: Opening balance tracking
+    US-006: Account hierarchy (parent/child relationships)
     """
     id: Optional[int]
     name: str
@@ -95,6 +97,11 @@ class Account:
     currency: str = 'USD'
     parent_account_id: Optional[int] = None
     legacy_type: Optional[str] = None  # For migration compatibility
+
+    # US-006: Account hierarchy fields
+    is_parent: bool = False  # True if this is a parent/header account (cannot have transactions)
+    hierarchy_level: int = 0  # Depth in hierarchy tree (0=top-level, max 4 for 5 levels total)
+    hierarchy_path: Optional[str] = None  # Materialized path: "/1/5/12" for efficient queries
 
     # US-004: Reconciliation tracking
     last_reconciled_date: Optional[str] = None  # ISO 8601: YYYY-MM-DD
@@ -111,6 +118,7 @@ class Account:
 
         US-003: Auto-calculate normal_balance from account_type if not provided,
         and validate if explicitly provided.
+        US-006: Validate hierarchy constraints (max depth, path format)
         """
         if not isinstance(self.balance, Decimal):
             self.balance = Decimal(str(self.balance))
@@ -137,6 +145,24 @@ class Account:
             # Validate explicitly provided enum value
             from finance_app.utils.accounting_helpers import validate_normal_balance
             validate_normal_balance(self.account_type, self.normal_balance)
+
+        # US-006: Hierarchy validation (Gap Fix #2 applied)
+        # ✅ Nested parents ARE allowed (parents can have parents)
+        # ✅ No restriction on parent_account_id for parent accounts
+        # Industry standard: QuickBooks, Xero, GnuCash allow nested parents
+
+        # Calculate hierarchy_level from hierarchy_path if provided
+        if self.hierarchy_path:
+            # Count path segments: "/1/5/12" -> ["", "1", "5", "12"] -> level 2 (0-indexed)
+            path_segments = [p for p in self.hierarchy_path.split('/') if p]
+            self.hierarchy_level = len(path_segments) - 1
+
+            # Validate maximum depth: 5 levels (0-4 inclusive)
+            if self.hierarchy_level > 4:
+                raise ValueError(
+                    f"Maximum hierarchy depth is 5 levels (hierarchy_level 0-4). "
+                    f"Got hierarchy_level {self.hierarchy_level} from path '{self.hierarchy_path}'"
+                )
 
     def is_debit_account(self) -> bool:
         """
@@ -173,6 +199,23 @@ class Account:
         """
         from finance_app.utils.accounting_helpers import increases_with_credit
         return increases_with_credit(self.normal_balance)
+
+    @property
+    def is_leaf(self) -> bool:
+        """
+        Check if this is a leaf account (not a parent account).
+
+        US-006: Helper property for hierarchy operations.
+
+        Leaf accounts:
+        - Can have transactions posted directly
+        - Contribute to parent account balances
+        - Cannot have child accounts
+
+        Returns:
+            True if this is a leaf account (is_parent=False), False if parent account
+        """
+        return not self.is_parent
 
 
 @dataclass
