@@ -27,19 +27,19 @@
 
 | ID | Epic | Priority | Status | Stories | Points | Target Release |
 |----|------|----------|--------|---------|--------|----------------|
-| [epic-01](epics/epic-01-account-management.md) | Account Management & Double-Entry Foundation | P0 | 🟢 In Progress | 6/8 | 32/58 | v2.1.0 |
-| [EPIC-001](epics/EPIC-001-search-filter-transactions.md) | Search and Filter Transactions | High | Ready | 0/6 | 0/21 | v2.1.0 |
+| [EPIC-001](epics/EPIC-001-account-management.md) | Account Management & Double-Entry Foundation | P0 | 🟢 In Progress | 6/8 | 32/58 | v2.1.0 |
+| [EPIC-002](epics/EPIC-002-search-filter-transactions.md) | Search and Filter Transactions | High | Ready | 0/6 | 0/21 | v2.1.0 |
 
 ### Planned Epics (Not Yet Created)
 
 | ID | Epic | Priority | Target Release |
 |----|------|----------|----------------|
-| EPIC-002 | Reporting and Charts | High | v2.1.0 |
-| EPIC-003 | Budget Management | Medium | v2.2.0 |
-| EPIC-004 | Recurring Transactions | Medium | v2.2.0 |
-| EPIC-005 | Multi-Currency Support | Low | v2.3.0 |
-| EPIC-006 | Import/Export | Medium | v2.2.0 |
-| EPIC-007 | Cloud Backup | Low | v2.3.0 |
+| EPIC-003 | Reporting and Charts | High | v2.1.0 |
+| EPIC-004 | Budget Management | Medium | v2.2.0 |
+| EPIC-005 | Recurring Transactions | Medium | v2.2.0 |
+| EPIC-006 | Multi-Currency Support | Low | v2.3.0 |
+| EPIC-007 | Import/Export | Medium | v2.2.0 |
+| EPIC-008 | Cloud Backup | Low | v2.3.0 |
 
 ---
 
@@ -49,8 +49,8 @@
 
 | ID | Story | Epic | Priority | Points | Assignee | Sprint |
 |----|-------|------|----------|--------|----------|--------|
-| [US-005](stories/backlog/US-005-opening-balance-equity.md) | Opening Balance Equity | epic-01 | P0 | 5 | Unassigned | **Sprint 7** |
-| [STORY-001](stories/backlog/STORY-001-basic-text-search.md) | Basic Text Search | EPIC-001 | High | 3 | Unassigned | TBD |
+| [US-005](stories/backlog/US-005-opening-balance-equity.md) | Opening Balance Equity | EPIC-001 | P0 | 5 | Unassigned | **Sprint 7** |
+| [STORY-001](stories/backlog/STORY-001-basic-text-search.md) | Basic Text Search | EPIC-002 | High | 3 | Unassigned | TBD |
 
 ### 🚧 In Progress (0)
 
@@ -62,18 +62,18 @@
 
 | ID | Story | Epic | Points | Completed | Developer | Grade |
 |----|-------|------|--------|-----------|-----------|-------|
-| [US-001](stories/completed/US-001-account-type-taxonomy.md) | Account Type Taxonomy | epic-01 | 8 | 2025-10-22 | Full Stack Team | A |
-| [US-002A](stories/completed/US-002A-journal-entry-foundation.md) | Journal Entry Foundation | epic-01 | 5 | 2025-10-22 | Full Stack Team | A |
-| [US-002B](stories/completed/US-002B-balanced-transaction-groups.md) | Balanced Transaction Groups | epic-01 | 8 | 2025-10-23 | Full Stack Team | A |
-| [US-002C](stories/completed/US-002C-split-transactions.md) | Split Transactions | epic-01 | 8 | 2025-10-23 | Full Stack Team | A (96/100) |
-| [US-003](stories/completed/US-003-normal-balance-calculation.md) | Normal Balance Calculation | epic-01 | 3 | 2025-10-23 | Full Stack Team | A (100%) |
-| [US-004](stories/completed/US-004-account-reconciliation.md) | Account Reconciliation | epic-01 | 8 | 2025-10-25 | Full Stack Team | A (Excellent) |
+| [US-001](stories/completed/US-001-account-type-taxonomy.md) | Account Type Taxonomy | EPIC-001 | 8 | 2025-10-22 | Full Stack Team | A |
+| [US-002A](stories/completed/US-002A-journal-entry-foundation.md) | Journal Entry Foundation | EPIC-001 | 5 | 2025-10-22 | Full Stack Team | A |
+| [US-002B](stories/completed/US-002B-balanced-transaction-groups.md) | Balanced Transaction Groups | EPIC-001 | 8 | 2025-10-23 | Full Stack Team | A |
+| [US-002C](stories/completed/US-002C-split-transactions.md) | Split Transactions | EPIC-001 | 8 | 2025-10-23 | Full Stack Team | A (96/100) |
+| [US-003](stories/completed/US-003-normal-balance-calculation.md) | Normal Balance Calculation | EPIC-001 | 3 | 2025-10-23 | Full Stack Team | A (100%) |
+| [US-004](stories/completed/US-004-account-reconciliation.md) | Account Reconciliation | EPIC-001 | 8 | 2025-10-25 | Full Stack Team | A (Excellent) |
 
 ---
 
 ## Stories by Epic
 
-### epic-01: Account Management & Double-Entry Foundation (6/8 stories completed)
+### EPIC-001: Account Management & Double-Entry Foundation (6/8 stories completed)
 
 | ID | Story | Status | Points | Assignee | Sprint |
 |----|-------|--------|--------|----------|--------|
@@ -91,7 +91,7 @@
 **Sprint 7 Target:** US-005 + US-006 (10 pts combined)
 **Velocity:** 6.4 pts/sprint (avg of 6 sprints)
 
-### EPIC-001: Search and Filter Transactions (0/6 stories)
+### EPIC-002: Search and Filter Transactions (0/6 stories)
 
 | ID | Story | Status | Points | Assignee |
 |----|-------|--------|--------|----------|

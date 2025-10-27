@@ -1,6 +1,6 @@
 # Epic 1: Account Management & Double-Entry Foundation
 
-**Epic ID:** epic-01
+**Epic ID:** EPIC-001
 **Status:** 🟢 In Progress (87.5% complete - 7/8 stories)
 **Priority:** P0 (Critical - Blocking)
 **Estimated Effort:** 2-3 weeks (80-120 hours)

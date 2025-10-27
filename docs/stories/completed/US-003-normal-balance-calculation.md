@@ -1,7 +1,7 @@
 # US-003: Normal Balance Calculation
 
 **Story ID:** US-003
-**Epic:** [EPIC-01: Account Management & Double-Entry Foundation](../../epics/epic-01-account-management.md)
+**Epic:** [EPIC-01: Account Management & Double-Entry Foundation](../../epics/EPIC-001-account-management.md)
 **Created:** 2025-10-23
 **Completed:** 2025-10-23
 **Status:** ✅ COMPLETE - All tests passing (76/76 unit tests)
@@ -607,7 +607,7 @@ The `normal_balance` column already exists from US-001. This story only adds bus
 - `docs/ARCHITECTURE.md` - Double-entry accounting section
 
 ### Epic Reference
-- [EPIC-01: Account Management & Double-Entry Foundation](../../epics/epic-01-account-management.md)
+- [EPIC-01: Account Management & Double-Entry Foundation](../../epics/EPIC-001-account-management.md)
 
 ---
 

@@ -124,7 +124,7 @@ DOUBLE-ENTRY ACCOUNTING PROTOTYPE
 
 ### Product & Planning
 - **[PRD](./prd.md)** - Product Requirements (what we're building)
-- **[Epic 01](./epics/epic-01-account-management.md)** - Account Management epic with all 10 stories
+- **[Epic 01](./epics/EPIC-001-account-management.md)** - Account Management epic with all 10 stories
 - **[Stories Index](./stories/README.md)** - All user stories
 
 ### Technical

@@ -1,7 +1,7 @@
 # US-005: Opening Balance Equity
 
 **Story ID:** US-005
-**Epic:** [EPIC-01: Account Management & Double-Entry Foundation](../../epics/epic-01-account-management.md)
+**Epic:** [EPIC-01: Account Management & Double-Entry Foundation](../../epics/EPIC-001-account-management.md)
 **Created:** 2025-10-25
 **Updated:** 2025-10-26 (Backend COMPLETE ✅ | Frontend COMPLETE ✅ | Testing COMPLETE ✅ | Docs COMPLETE ✅)
 **Status:** ✅ **100% COMPLETE - PRODUCT OWNER ACCEPTED** (Sprint 7 - All 37 Tests Passing - APPROVED FOR PRODUCTION)
@@ -2663,7 +2663,7 @@ This implementation:
 - `finance_app/tests/unit/test_account_service.py` - Existing account service tests
 
 ### Related Documents
-- [Epic-01: Account Management](../../epics/epic-01-account-management.md)
+- [Epic-01: Account Management](../../epics/EPIC-001-account-management.md)
 - [US-001: Account Type Taxonomy](../completed/US-001-account-type-taxonomy.md)
 - [US-003: Normal Balance Calculation](../completed/US-003-normal-balance-calculation.md)
 - [Architecture Documentation](../../ARCHITECTURE.md)
@@ -2677,7 +2677,7 @@ This implementation:
 
 **Created By:** Product Owner Agent
 **Last Updated:** October 26, 2025 (Sprint 7 - ✅ **100% COMPLETE - PO ACCEPTED**)
-**Epic:** epic-01 - Account Management & Double-Entry Foundation
+**Epic:** EPIC-001 - Account Management & Double-Entry Foundation
 **Current Sprint:** Sprint 7 (Complete)
 **Final Duration:** 5 story points (40 hours estimated, completed within sprint)
 **Status:** ✅ APPROVED FOR PRODUCTION RELEASE

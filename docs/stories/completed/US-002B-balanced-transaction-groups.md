@@ -1,7 +1,7 @@
 # US-002B: Balanced Transaction Groups (Double-Entry Phase 2)
 
 **Story ID:** US-002B
-**Epic:** [EPIC-001 - Account Management & Double-Entry Foundation](../../epics/epic-01-account-management.md)
+**Epic:** [EPIC-001 - Account Management & Double-Entry Foundation](../../epics/EPIC-001-account-management.md)
 **Status:** ✅ **COMPLETE** (All Phases 1-4 Done)
 **Priority:** P0 (Must Have - Blocking)
 **Story Points:** 8 (8 delivered - 100% complete)
@@ -999,7 +999,7 @@ The amount field layout required multiple iterations to achieve the correct Home
 
 ## 📚 References
 
-- [Epic 01: Account Management](../../epics/epic-01-account-management.md)
+- [Epic 01: Account Management](../../epics/EPIC-001-account-management.md)
 - [US-002A: Journal Entry Foundation](US-002A-journal-entry-foundation.md) - Prerequisite
 - [PRD: Feature #2 - Double-Entry Accounting](../../prd.md#2-double-entry-accounting-system)
 - [Double-Entry Bookkeeping](https://en.wikipedia.org/wiki/Double-entry_bookkeeping)

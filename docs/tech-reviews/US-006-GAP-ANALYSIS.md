@@ -21,7 +21,7 @@ US-006 has **excellent story quality** and is well-aligned with the codebase, **
 
 ### 🚨 MAJOR INCONSISTENCY DETECTED
 
-**Location:** `docs/epics/epic-01-account-management.md`
+**Location:** `docs/epics/EPIC-001-account-management.md`
 
 **Issue:**
 ```
@@ -49,7 +49,7 @@ The detailed US-006 section describes:
 
 **Recommendation:** ✅ **UPDATE EPIC DOCUMENT**
 
-Update `docs/epics/epic-01-account-management.md` lines 878-959 to describe Account Hierarchy instead of Account Status & Lifecycle, OR clarify that "Account Status & Lifecycle" story was deprioritized/removed.
+Update `docs/epics/EPIC-001-account-management.md` lines 878-959 to describe Account Hierarchy instead of Account Status & Lifecycle, OR clarify that "Account Status & Lifecycle" story was deprioritized/removed.
 
 ---
 
@@ -371,7 +371,7 @@ def test_prevent_circular_reference(account_service):
 **Recommendation:** **UPDATE EPIC DOCUMENT**
 
 **Action Required:**
-1. Update `docs/epics/epic-01-account-management.md` section for US-006
+1. Update `docs/epics/EPIC-001-account-management.md` section for US-006
 2. Replace "Account Status & Lifecycle" description with "Account Hierarchy" description
 3. Update story points from 3 to 5
 4. Update acceptance criteria to match actual US-006
@@ -488,7 +488,7 @@ If "Account Status & Lifecycle" is still desired:
 ### Before Sprint 8 Starts
 
 **Priority 1: Update Epic Document** 🚨
-- [ ] Update `docs/epics/epic-01-account-management.md` lines 878-959
+- [ ] Update `docs/epics/EPIC-001-account-management.md` lines 878-959
 - [ ] Replace US-006 description with "Account Hierarchy"
 - [ ] Update story points, acceptance criteria
 - [ ] Or add clarifying note about scope change

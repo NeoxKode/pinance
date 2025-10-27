@@ -1,7 +1,7 @@
 # US-002C: Split Transactions
 
 **Story ID:** US-002C
-**Epic:** [EPIC-001: Account Management & Double-Entry Foundation](../../epics/epic-01-account-management.md)
+**Epic:** [EPIC-001: Account Management & Double-Entry Foundation](../../epics/EPIC-001-account-management.md)
 **Status:** ✅ **INTEGRATION COMPLETE** - All tests passing (9/9)
 **Priority:** P1 (High - Feature Enhancement)
 **Story Points:** 8

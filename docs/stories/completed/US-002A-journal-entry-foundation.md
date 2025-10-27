@@ -1,7 +1,7 @@
 # US-002A: Journal Entry Foundation (Double-Entry Phase 1)
 
 **Story ID:** US-002A
-**Epic:** [EPIC-001 - Account Management & Double-Entry Foundation](../../epics/epic-01-account-management.md)
+**Epic:** [EPIC-001 - Account Management & Double-Entry Foundation](../../epics/EPIC-001-account-management.md)
 **Status:** ✅ COMPLETE (All 10 Days Finished - 2 Days Ahead of Schedule!)
 **Priority:** P0 (Must Have - Blocking)
 **Story Points:** 8
@@ -735,7 +735,7 @@ def test_running_balance_calculation(journal_repo, test_account):
 
 ## 📚 References
 
-- [Epic 01: Account Management](../epics/epic-01-account-management.md)
+- [Epic 01: Account Management](../epics/EPIC-001-account-management.md)
 - [PRD: Feature #2 - Double-Entry Accounting](../prd.md#2-double-entry-accounting-system)
 - [Accounting Equation](https://en.wikipedia.org/wiki/Accounting_equation)
 - [Double-Entry Bookkeeping](https://en.wikipedia.org/wiki/Double-entry_bookkeeping)

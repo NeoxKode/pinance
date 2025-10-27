@@ -1,7 +1,7 @@
 # US-001: Account Type Taxonomy & Hierarchy
 
 **Story ID:** US-001
-**Epic:** [EPIC-001 - Account Management & Double-Entry Foundation](../epics/epic-01-account-management.md)
+**Epic:** [EPIC-001 - Account Management & Double-Entry Foundation](../epics/EPIC-001-account-management.md)
 **Status:** ✅ Implementation Complete - Ready for Production
 **Priority:** P0 (Must Have - Blocking)
 **Story Points:** 8
@@ -659,7 +659,7 @@ def test_migrate_legacy_accounts(db):
 
 ## 📚 References
 
-- [Epic 01: Account Management](../epics/epic-01-account-management.md)
+- [Epic 01: Account Management](../epics/EPIC-001-account-management.md)
 - [PRD: Feature #1 - Account Management](../prd.md#1-account-management)
 - [PRD: Feature #2 - Double-Entry Accounting](../prd.md#2-double-entry-accounting-system)
 - [Architecture: Data Models](../ARCHITECTURE.md#data-models)

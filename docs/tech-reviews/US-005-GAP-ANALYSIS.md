@@ -34,7 +34,7 @@ This document analyzes US-005 against Epic-01 requirements, completed stories (U
 
 ### 1.1 Epic-01 Original Requirements
 
-**From epic-01-account-management.md (lines 64-76):**
+**From EPIC-001-account-management.md (lines 64-76):**
 
 **Gaps in Epic:**
 ```

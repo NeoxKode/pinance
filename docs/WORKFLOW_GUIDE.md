@@ -28,6 +28,28 @@ This document describes the workflow for managing epics and user stories in the 
 - **User Story:** A small, implementable piece of functionality from the user's perspective (e.g., "As a user, I want to search transactions by description")
 - **Acceptance Criteria:** Specific, testable conditions that must be met for a story to be considered complete
 
+### Naming Standards
+
+**Epic Naming Convention:**
+- Format: `EPIC-XXX-descriptive-name.md` (e.g., `EPIC-001-account-management.md`)
+- Sequential numbering: EPIC-001, EPIC-002, EPIC-003, etc.
+- Use three-digit numbers with leading zeros
+- Descriptive kebab-case names
+
+**Story Naming Convention:**
+- Format: `US-XXX-descriptive-name.md` or `STORY-XXX-descriptive-name.md`
+- US-XXX: Stories that are part of the original project scope
+- STORY-XXX: Stories added later or from new epics
+- Sequential numbering within each prefix
+
+**Examples:**
+```
+docs/epics/EPIC-001-account-management.md
+docs/epics/EPIC-002-search-filter-transactions.md
+docs/stories/completed/US-001-account-type-taxonomy.md
+docs/stories/backlog/STORY-001-basic-text-search.md
+```
+
 ---
 
 ## Directory Structure

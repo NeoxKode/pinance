@@ -46,7 +46,7 @@
 **Optional Context:**
 1. [US-002B: Balanced Transaction Groups](/home/neoxkode/dev/pinance/docs/stories/completed/US-002B-balanced-transaction-groups.md) - See AC1: Opening Balance Migration
 2. [US-002A: Journal Entry Foundation](/home/neoxkode/dev/pinance/docs/stories/completed/US-002A-journal-entry-foundation.md) - DoubleEntryService
-3. [Epic-01](/home/neoxkode/dev/pinance/docs/epics/epic-01-account-management.md) - Original requirements
+3. [Epic-01](/home/neoxkode/dev/pinance/docs/epics/EPIC-001-account-management.md) - Original requirements
 
 ---
 

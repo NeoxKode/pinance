@@ -1,7 +1,7 @@
 # US-006: Account Hierarchy (Parent/Child Accounts)
 
 **Story ID:** US-006
-**Epic:** [EPIC-01: Account Management & Double-Entry Foundation](../../epics/epic-01-account-management.md)
+**Epic:** [EPIC-01: Account Management & Double-Entry Foundation](../../epics/EPIC-001-account-management.md)
 **Created:** 2025-10-26
 **Updated:** 2025-10-26
 **Status:** ✅ **COMPLETE** - Sprint 8 (All Phases Complete)

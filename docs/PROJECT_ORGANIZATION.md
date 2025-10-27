@@ -56,7 +56,7 @@ All project documentation is organized in the `docs/` folder:
 **Location:** `docs/epics/`
 
 Contains epic definitions describing major feature areas:
-- `epic-01-account-management.md` - Account Management & Double-Entry Foundation
+- `EPIC-001-account-management.md` - Account Management & Double-Entry Foundation
 - Additional epics as project grows
 
 **Purpose:** High-level feature planning and requirements definition.

@@ -1,7 +1,7 @@
 # US-004: Account Reconciliation
 
 **Story ID:** US-004
-**Epic:** [EPIC-01: Account Management & Double-Entry Foundation](../../epics/epic-01-account-management.md)
+**Epic:** [EPIC-01: Account Management & Double-Entry Foundation](../../epics/EPIC-001-account-management.md)
 **Created:** 2025-10-23
 **Completed:** 2025-10-25
 **Status:** ✅ Completed (Sprint 6)

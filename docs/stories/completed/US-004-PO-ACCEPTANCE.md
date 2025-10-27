@@ -207,7 +207,7 @@ I accept US-004 for production deployment based on:
 ### Immediate (Sprint 6 Completion)
 1. ✅ PO Acceptance - COMPLETE (this document)
 2. [ ] Move US-004 from `backlog/` to `completed/`
-3. [ ] Update epic-01 progress
+3. [ ] Update EPIC-001 progress
 4. [ ] Update EPIC_STORY_INDEX.md
 5. [ ] Commit all reconciliation code to repository
 6. [ ] Deploy to production

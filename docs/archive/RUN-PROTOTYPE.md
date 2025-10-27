@@ -92,7 +92,7 @@ Create `/docs/spikes/SPIKE-001-RESULTS.md` with:
 Review these files:
 1. `/docs/GETTING-STARTED.md` - Complete guide
 2. `/docs/PROJECT-STATUS.md` - Project overview
-3. `/docs/epics/epic-01-account-management.md` - Full epic
+3. `/docs/epics/EPIC-001-account-management.md` - Full epic
 
 ---
 

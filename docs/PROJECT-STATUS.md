@@ -10,7 +10,7 @@
 
 ### 1. Epic Created
 - **Epic 01: Account Management & Double-Entry Foundation**
-- Location: `/docs/epics/epic-01-account-management.md`
+- Location: `/docs/epics/EPIC-001-account-management.md`
 - 10 user stories, 63 story points, 2-3 weeks estimated
 
 ### 2. User Stories Created
@@ -43,7 +43,7 @@ docs/
 ├── ARCHITECTURE.md              (Current architecture)
 │
 ├── epics/
-│   └── epic-01-account-management.md  (Complete epic)
+│   └── EPIC-001-account-management.md  (Complete epic)
 │
 ├── stories/
 │   ├── README.md                (Story index)
@@ -213,7 +213,7 @@ docs/
 ### File Locations
 ```bash
 # Epic
-docs/epics/epic-01-account-management.md
+docs/epics/EPIC-001-account-management.md
 
 # Detailed Stories
 docs/stories/US-001-account-type-taxonomy.md
