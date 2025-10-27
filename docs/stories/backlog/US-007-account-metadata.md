@@ -3,14 +3,14 @@
 **Story ID:** US-007
 **Epic:** [EPIC-001: Account Management & Double-Entry Foundation](../../epics/EPIC-001-account-management.md)
 **Created:** 2025-10-27
-**Updated:** 2025-10-27 (Refined with task breakdown)
+**Updated:** 2025-10-27 (Tech Lead Review - Migration coordination with US-009)
 **Status:** Backlog (Ready for Sprint 11)
 **Priority:** P2 (Nice to Have - UX Enhancement)
-**Story Points:** 5
+**Story Points:** 5 (13 hours estimated)
 **Assignee:** Unassigned
 **Sprint:** Sprint 11 (Planned)
-**Dependencies:** ✅ US-001 (Account Type Taxonomy), ✅ US-006 (Account Hierarchy - UI patterns)
-**Related Stories:** US-009 (Color Coding - shares color_hex field), US-004 (Reconciliation - uses account_number)
+**Dependencies:** ✅ US-001 (Account Type Taxonomy), ✅ US-006 (Account Hierarchy - UI patterns), **📋 US-009 (Color Coding - MUST complete before US-007)**
+**Related Stories:** US-004 (Reconciliation - uses account_number)
 
 ---
 
@@ -263,8 +263,9 @@ assert accounts[0].name == "A"  # Alphabetical
 - Account name
 - Account number
 - Institution name
-- Notes (full text)
-- Account type/subtype
+- ~~Notes (full text)~~ **EXCLUDED for performance** - may add FTS5 in future
+
+**Performance Requirement:** Search must complete in <50ms for 1000+ accounts
 
 **Example:**
 ```python
@@ -283,9 +284,82 @@ assert len(results) == 1
 results = account_repo.search_accounts("Chase")
 assert len(results) == 1
 
-# Search by notes
+# Search by notes - NOT SUPPORTED in v1 (performance)
+# Future enhancement: Add FTS5 full-text search index
 results = account_repo.search_accounts("direct deposit")
-assert len(results) == 1
+assert len(results) == 0  # Notes not searchable
+```
+
+---
+
+### AC7: Display Order with Account Hierarchy (NEW)
+
+**Given** accounts are organized in a hierarchy (US-006)
+**When** display_order and is_favorite are used
+**Then** the system should:
+
+**Display Order Scope:**
+- Display order is **per-hierarchy-level** (siblings ordered independently)
+- Root accounts have order 0, 1, 2...
+- Children under each parent have their own order 0, 1, 2...
+- Example hierarchy with ordering:
+  ```
+  Assets (display_order=0)
+    └─ Bank Accounts (display_order=0 within parent)
+       ├─ Checking (display_order=0 within parent)
+       ├─ Savings (display_order=1 within parent)
+  Liabilities (display_order=1)
+    └─ Credit Cards (display_order=0 within parent)
+       ├─ Visa (display_order=0 within parent)
+       ├─ Mastercard (display_order=1 within parent)
+  ```
+
+**Favorites Behavior:**
+- Favorites displayed with ⭐ icon in tree view
+- Favorites NOT moved to separate section (stay in hierarchy)
+- Favorites appear before non-favorites **within each hierarchy level**
+- Optional: "Show only favorites" filter button (future enhancement)
+
+**Reorder Logic:**
+- Drag-and-drop only affects sibling order at same hierarchy level
+- Cannot drag across hierarchy levels (parent type constraint from US-006)
+- Reordering updates display_order for all siblings at that level
+- Parent accounts cannot be reordered below their children
+
+**Example:**
+```python
+# Create hierarchy with custom ordering
+parent = account_service.create_account(
+    name="Bank Accounts",
+    is_parent=True,
+    display_order=0
+)
+
+# Children with custom order
+savings = account_service.create_account(
+    name="Savings",
+    parent_account_id=parent.id,
+    display_order=0,  # First child
+    is_favorite=True
+)
+
+checking = account_service.create_account(
+    name="Checking",
+    parent_account_id=parent.id,
+    display_order=1,  # Second child
+    is_favorite=False
+)
+
+# Get children sorted by display_order
+children = account_repo.get_child_accounts(parent.id)
+assert children[0] == savings   # Favorite first, then by display_order
+assert children[1] == checking
+
+# Reorder: move Checking before Savings
+account_service.reorder_siblings([checking.id, savings.id])
+children = account_repo.get_child_accounts(parent.id)
+assert children[0] == checking  # Now first
+assert children[1] == savings   # Now second
 ```
 
 ---
@@ -294,47 +368,60 @@ assert len(results) == 1
 
 ### Database Changes (Migration 011)
 
-```sql
--- Migration 011: Account metadata and organization
--- Depends on: Migration 007 (US-006 hierarchy)
+**⚠️ CRITICAL DEPENDENCY:** This migration assumes Migration 010 (US-009) has already added:
+- `color_hex TEXT DEFAULT '#3B82F6'`
+- `icon TEXT`
+- `display_order INTEGER DEFAULT 0`
+- `is_favorite BOOLEAN DEFAULT 0`
 
--- Add metadata fields
+**Migration 011 ONLY adds the following NEW fields:**
+
+```sql
+-- Migration 011: Account metadata (account numbers, institutions, notes)
+-- Dependencies:
+--   - Migration 007 (US-006 hierarchy fields)
+--   - Migration 010 (US-009 color/display fields) ← MUST RUN FIRST
+
+-- Add metadata fields (US-007 specific)
 ALTER TABLE accounts ADD COLUMN account_number TEXT;
 ALTER TABLE accounts ADD COLUMN institution_name TEXT;
 ALTER TABLE accounts ADD COLUMN notes TEXT;
-ALTER TABLE accounts ADD COLUMN is_favorite BOOLEAN DEFAULT 0;
-ALTER TABLE accounts ADD COLUMN display_order INTEGER DEFAULT 0;
 
--- Note: color_hex and icon handled by US-009
+-- ❌ DO NOT ADD - Already in Migration 010 (US-009):
+-- ALTER TABLE accounts ADD COLUMN is_favorite BOOLEAN DEFAULT 0;
+-- ALTER TABLE accounts ADD COLUMN display_order INTEGER DEFAULT 0;
 -- ALTER TABLE accounts ADD COLUMN color_hex TEXT DEFAULT '#3B82F6';
 -- ALTER TABLE accounts ADD COLUMN icon TEXT;
 
--- Create indices for search and filtering
+-- Create indices for search and filtering (US-007 specific)
 CREATE INDEX idx_accounts_institution ON accounts(institution_name);
-CREATE INDEX idx_accounts_favorite ON accounts(is_favorite);
-CREATE INDEX idx_accounts_display_order ON accounts(display_order);
 CREATE INDEX idx_accounts_number ON accounts(account_number);
 
--- Update existing accounts to have display_order based on ID
-UPDATE accounts SET display_order = id WHERE display_order = 0;
+-- ❌ DO NOT CREATE - Already in Migration 010 (US-009):
+-- CREATE INDEX idx_accounts_favorite ON accounts(is_favorite);
+-- CREATE INDEX idx_accounts_display_order ON accounts(display_order);
 
--- Full-text search index for notes (optional, SQLite FTS5)
--- For production, consider: CREATE VIRTUAL TABLE accounts_fts USING fts5(...)
+-- Note: display_order initialization handled by Migration 010
+-- Note: FTS5 full-text search on notes is future enhancement (v2.2+)
 ```
 
 **Rollback:**
 ```sql
--- Rollback migration 011
+-- Rollback migration 011 (ONLY US-007 fields)
 DROP INDEX IF EXISTS idx_accounts_institution;
-DROP INDEX IF EXISTS idx_accounts_favorite;
-DROP INDEX IF EXISTS idx_accounts_display_order;
 DROP INDEX IF EXISTS idx_accounts_number;
 
 ALTER TABLE accounts DROP COLUMN account_number;
 ALTER TABLE accounts DROP COLUMN institution_name;
 ALTER TABLE accounts DROP COLUMN notes;
-ALTER TABLE accounts DROP COLUMN is_favorite;
-ALTER TABLE accounts DROP COLUMN display_order;
+
+-- ❌ DO NOT DROP - Owned by Migration 010 (US-009):
+-- DROP INDEX IF EXISTS idx_accounts_favorite;
+-- DROP INDEX IF EXISTS idx_accounts_display_order;
+-- ALTER TABLE accounts DROP COLUMN is_favorite;
+-- ALTER TABLE accounts DROP COLUMN display_order;
+-- ALTER TABLE accounts DROP COLUMN color_hex;
+-- ALTER TABLE accounts DROP COLUMN icon;
 ```
 
 ---
@@ -382,22 +469,8 @@ class Account:
     created_at: Optional[str] = None
     updated_at: Optional[str] = None
 
-    def __post_init__(self):
-        """Validate model fields."""
-        # Validate account_number length
-        if self.account_number:
-            if len(self.account_number) < 3:
-                raise ValueError("Account number must be at least 3 characters")
-            if len(self.account_number) > 50:
-                raise ValueError("Account number cannot exceed 50 characters")
-
-        # Validate notes length
-        if self.notes and len(self.notes) > 1000:
-            raise ValueError("Notes cannot exceed 1000 characters")
-
-        # Ensure display_order is non-negative
-        if self.display_order < 0:
-            raise ValueError("Display order must be non-negative")
+    # ❌ NO __post_init__ validation - follows existing codebase pattern
+    # ✅ Validation done in AccountValidator and AccountService (see below)
 
     @property
     def truncated_notes(self) -> str:
@@ -405,6 +478,133 @@ class Account:
         if not self.notes:
             return ""
         return self.notes[:100] + ("..." if len(self.notes) > 100 else "")
+```
+
+---
+
+### Validation Layer (NEW)
+
+**File:** `finance_app/business/validators.py`
+
+**⚠️ IMPORTANT:** Following existing codebase pattern, validation is done in `AccountValidator` class, NOT in model `__post_init__`. This matches the pattern from US-001 through US-006.
+
+Add validation methods to existing `AccountValidator` class:
+
+```python
+class AccountValidator:
+    """Validator for account fields (US-001 through US-007)."""
+
+    # ... existing methods from US-001 ...
+
+    # ========================================================================
+    # US-007: Metadata Field Validation
+    # ========================================================================
+
+    def validate_account_number(self, account_number: Optional[str]) -> Optional[str]:
+        """
+        Validate account number field.
+
+        Args:
+            account_number: Account number to validate (can be None)
+
+        Returns:
+            Validated account number (stripped, None if empty)
+
+        Raises:
+            ValidationError: If account number is invalid
+
+        Examples:
+            >>> validator.validate_account_number("  1234-5678  ")
+            "1234-5678"
+            >>> validator.validate_account_number("")
+            None
+            >>> validator.validate_account_number("12")  # Too short
+            ValidationError: "Account number must be at least 3 characters"
+        """
+        if account_number is None or account_number.strip() == "":
+            return None
+
+        account_number = account_number.strip()
+
+        # Length validation
+        if len(account_number) < 3:
+            raise ValidationError("Account number must be at least 3 characters")
+        if len(account_number) > 50:
+            raise ValidationError("Account number cannot exceed 50 characters")
+
+        return account_number
+
+    def validate_institution_name(self, institution_name: Optional[str]) -> Optional[str]:
+        """
+        Validate institution name field.
+
+        Args:
+            institution_name: Institution name to validate
+
+        Returns:
+            Validated institution name (stripped, None if empty)
+
+        Raises:
+            ValidationError: If institution name is invalid
+        """
+        if institution_name is None or institution_name.strip() == "":
+            return None
+
+        institution_name = institution_name.strip()
+
+        if len(institution_name) > 100:
+            raise ValidationError("Institution name cannot exceed 100 characters")
+
+        return institution_name
+
+    def validate_notes(self, notes: Optional[str]) -> Optional[str]:
+        """
+        Validate notes field.
+
+        Args:
+            notes: Notes text to validate
+
+        Returns:
+            Validated notes (stripped, sanitized, None if empty)
+
+        Raises:
+            ValidationError: If notes are invalid
+
+        Security:
+            Sanitizes HTML/special characters to prevent XSS
+        """
+        if notes is None or notes.strip() == "":
+            return None
+
+        notes = notes.strip()
+
+        # Length validation
+        if len(notes) > 1000:
+            raise ValidationError("Notes cannot exceed 1000 characters")
+
+        # Security: Sanitize HTML entities
+        import html
+        notes = html.escape(notes)
+
+        return notes
+
+    def validate_display_order(self, display_order: int) -> int:
+        """
+        Validate display_order field.
+
+        Args:
+            display_order: Display order value
+
+        Returns:
+            Validated display order
+
+        Raises:
+            ValidationError: If display_order is invalid
+        """
+        if display_order < 0:
+            raise ValidationError("Display order must be non-negative")
+
+        return display_order
 ```
 
 ---
@@ -463,7 +663,11 @@ class AccountRepository:
 
     def search_accounts(self, search_query: str) -> List[Account]:
         """
-        Search accounts by name, account_number, institution, or notes.
+        Search accounts by name, account_number, and institution.
+
+        **Performance Note:** Notes field excluded from search to maintain
+        <50ms performance with 1000+ accounts. Use FTS5 for full-text search
+        on notes in future enhancement (v2.2+).
 
         Args:
             search_query: Search term (case-insensitive)
@@ -476,15 +680,14 @@ class AccountRepository:
             WHERE
                 name LIKE ? OR
                 account_number LIKE ? OR
-                institution_name LIKE ? OR
-                notes LIKE ?
+                institution_name LIKE ?
             ORDER BY is_favorite DESC, display_order, name
         """
 
         search_pattern = f"%{search_query}%"
         rows = self.db.execute_query(
             query,
-            (search_pattern, search_pattern, search_pattern, search_pattern)
+            (search_pattern, search_pattern, search_pattern)
         )
 
         return [self._row_to_account(row) for row in rows]
@@ -550,12 +753,28 @@ class AccountRepository:
         return self.get_by_id(account_id)
 
     def reset_display_order(self) -> None:
-        """Reset all accounts to default display order (alphabetical by name)."""
+        """
+        Reset all accounts to default display order (alphabetical by name).
+
+        **Performance Note:** This basic implementation uses N sequential UPDATEs.
+        For 100+ accounts, consider batch UPDATE with CASE statement (10x faster).
+        Batch optimization is OPTIONAL stretch goal for Sprint 11.
+        """
         # Get all accounts sorted by name
         accounts = self.get_all()
         accounts_sorted = sorted(accounts, key=lambda a: a.name.lower())
 
         # Update display_order sequentially
+        # TODO (Stretch Goal): Optimize with batch UPDATE using CASE statement
+        # for idx, account in enumerate(accounts_sorted):
+        #     self.update_display_order(account.id, idx)
+        #
+        # Optimized version (stretch goal):
+        # UPDATE accounts SET display_order = CASE id
+        #   WHEN 1 THEN 0
+        #   WHEN 5 THEN 1
+        #   WHEN 3 THEN 2
+        # END WHERE id IN (1, 5, 3)
         for idx, account in enumerate(accounts_sorted):
             self.update_display_order(account.id, idx)
 ```
@@ -1041,32 +1260,45 @@ See US-006 `AccountTreeWidget.dropEvent()` for drag-drop pattern
 ## ✅ Definition of Done
 
 ### Backend (Database & Models)
-- [x] Migration 011 created and tested
-- [ ] Account model updated with 5 new fields
-- [ ] Model validation prevents invalid data
+- [x] ✅ Migration 011 coordinated with US-009 (Migration 010)
+- [x] ✅ Migration 011 ONLY adds 3 new fields (account_number, institution_name, notes)
+- [x] ✅ Migration 011 assumes display_order, is_favorite exist from US-009
+- [ ] Account model updated with 3 new fields + references US-009 fields
+- [x] ✅ NO __post_init__ validation (follows existing pattern)
 - [ ] All existing accounts migrated with default values
+
+### Validation Layer (NEW - Tech Lead Requirement)
+- [ ] AccountValidator methods added (validate_account_number, validate_institution_name, validate_notes)
+- [ ] Notes sanitization implemented (HTML escape for XSS prevention)
+- [ ] All validation in service layer (matches US-001 through US-006 pattern)
 
 ### Repository Layer
 - [ ] 7 new repository methods implemented
-- [ ] `_row_to_account()` and `_account_to_row()` updated
-- [ ] Search optimized with database indices
+- [ ] `_row_to_account()` updated with new fields
+- [x] ✅ Search excludes notes field (performance optimization)
+- [x] ✅ Search targets: name, account_number, institution_name only
+- [ ] Search performance < 50ms for 1000+ accounts
+- [ ] Database indices created (idx_accounts_institution, idx_accounts_number)
 - [ ] All methods handle NULL values
 
 ### Service Layer
 - [ ] 4 new service methods implemented
 - [ ] `create_account()` supports metadata parameters
-- [ ] Input validation and error handling complete
+- [ ] Input validation uses AccountValidator methods
+- [ ] Institution autocomplete working
 
 ### UI Layer
-- [ ] AccountDialog updated with 5 new fields
-- [ ] Institution autocomplete works
-- [ ] Favorite icon/toggle in account list
-- [ ] Drag-and-drop reordering works
-- [ ] Search box searches metadata
+- [ ] AccountDialog updated with 3 new fields (account_number, institution_name, notes)
+- [ ] Institution autocomplete dropdown works
+- [ ] Favorite icon/toggle in account list (uses US-009 field)
+- [ ] Drag-and-drop reordering works (uses US-009 display_order)
+- [x] ✅ Hierarchy integration: ordering per-level, favorites in-place (AC7)
+- [ ] Search box searches metadata (name, account_number, institution)
 
 ### Testing
 - [ ] Unit tests for all new methods (15+ tests)
 - [ ] Integration tests for workflows (8+ tests)
+- [ ] Hierarchy integration tests (AC7 scenarios)
 - [ ] Manual UI testing completed
 - [ ] Test coverage > 80%
 
@@ -1074,13 +1306,22 @@ See US-006 `AccountTreeWidget.dropEvent()` for drag-drop pattern
 - [ ] USER_GUIDE.md updated
 - [ ] ARCHITECTURE.md updated
 - [ ] Code comments comprehensive
-- [ ] Migration documented
+- [ ] Migration documented with US-009 dependency
 
 ### Quality Assurance
 - [ ] All tests passing
 - [ ] No regressions in existing features
 - [ ] Code reviewed and approved
-- [ ] Performance acceptable (search < 100ms)
+- [x] ✅ Performance acceptable (search < 50ms, notes excluded)
+- [x] ✅ Tech Lead review recommendations implemented
+
+### Tech Lead Review Items (2025-10-27)
+- [x] ✅ Migration conflict with US-009 resolved (Option B selected)
+- [x] ✅ Validation moved from model to AccountValidator
+- [x] ✅ Search performance optimized (notes excluded)
+- [x] ✅ Hierarchy integration clarified (AC7 added)
+- [x] ✅ Notes sanitization added (XSS prevention)
+- [ ] Batch update optimization (OPTIONAL stretch goal)
 
 ---
 

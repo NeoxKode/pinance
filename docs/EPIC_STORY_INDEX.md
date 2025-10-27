@@ -1,6 +1,6 @@
 # Epic and Story Index
 
-**Last Updated:** 2025-10-23
+**Last Updated:** 2025-10-27
 **Project:** Personal Finance Manager v2.1
 
 ---
@@ -51,7 +51,7 @@
 |----|-------|------|----------|--------|----------|--------|
 | [US-010](stories/backlog/US-010-account-balance-validation.md) | Account Balance Validation & Integrity | EPIC-001 | P0 | 8 | Unassigned | **Sprint 9** |
 | [US-009](stories/backlog/US-009-account-color-coding.md) | Account Color Coding & Visual Indicators | EPIC-001 | P1 | 5 | Unassigned | **Sprint 10** |
-| [US-007](stories/backlog/US-007-account-metadata.md) | Account Metadata & Organization | EPIC-001 | P2 | 5 | Unassigned | **Sprint 11** |
+| [US-007](stories/backlog/US-007-account-metadata.md) | Account Metadata & Organization ⚠️ **Depends on US-009** | EPIC-001 | P2 | 5 | Unassigned | **Sprint 11** |
 | [US-008](stories/backlog/US-008-multi-currency-setup.md) | Multi-Currency Account Setup | EPIC-001 | P3 | 5 | Unassigned | **Sprint 12** |
 | [STORY-001](stories/backlog/STORY-001-basic-text-search.md) | Basic Text Search | EPIC-002 | High | 3 | Unassigned | TBD |
 
@@ -92,7 +92,7 @@
 | [US-006](stories/completed/US-006-account-hierarchy.md) | Account Hierarchy | ✅ Sprint 8 | 5 | Full Stack Team | Sprint 8 |
 | [US-010](stories/backlog/US-010-account-balance-validation.md) | Account Balance Validation & Integrity | 📋 Ready | 8 | Unassigned | **Sprint 9** |
 | [US-009](stories/backlog/US-009-account-color-coding.md) | Account Color Coding & Visual Indicators | 📋 Ready | 5 | Unassigned | **Sprint 10** |
-| [US-007](stories/backlog/US-007-account-metadata.md) | Account Metadata & Organization | 📋 Ready | 5 | Unassigned | **Sprint 11** |
+| [US-007](stories/backlog/US-007-account-metadata.md) | Account Metadata & Organization (📋 Blocked until US-009 complete) | 📋 Ready | 5 | Unassigned | **Sprint 11** |
 | [US-008](stories/backlog/US-008-multi-currency-setup.md) | Multi-Currency Account Setup | 📋 Ready | 5 | Unassigned | **Sprint 12** |
 
 **Progress:** 68% (50/73 points completed)
