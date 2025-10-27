@@ -20,6 +20,9 @@ from finance_app.business.account_service import AccountService
 from finance_app.business.validators import AccountValidator
 from finance_app.utils.logger import setup_logger
 from finance_app.utils.exceptions import ValidationError
+# US-009: Color picker widget and color utilities
+from finance_app.ui.widgets.color_picker_widget import ColorPickerWidget
+from finance_app.ui.styles import get_default_color_for_account_type
 
 logger = setup_logger(__name__)
 
@@ -142,6 +145,11 @@ class AccountDialog(QDialog):
         # Account subtype (will be populated based on type)
         self.subtype_combo = QComboBox()
         form.addRow("Account Subtype:", self.subtype_combo)
+
+        # US-009: Account color picker
+        self.color_picker = ColorPickerWidget()
+        self.color_picker.color_changed.connect(self._on_color_changed)
+        form.addRow("Account Color:", self.color_picker)
 
         # US-006: Parent account selection
         self.parent_combo = QComboBox()
@@ -380,6 +388,22 @@ class AccountDialog(QDialog):
         # US-006: Populate parent account dropdown with compatible parent accounts
         self._populate_parent_accounts(account_type)
 
+        # US-009: Set default color for account type (only for new accounts)
+        if not self.is_edit_mode:
+            default_color = get_default_color_for_account_type(account_type)
+            self.color_picker.set_color(default_color)
+
+    def _on_color_changed(self, color_hex: str) -> None:
+        """
+        Handle color picker change.
+        US-009: Store selected color for account creation/update.
+
+        Args:
+            color_hex: Selected color as hex string
+        """
+        # Color is stored in the widget, will be retrieved during save
+        logger.debug(f"Account color changed to: {color_hex}")
+
     def _populate_parent_accounts(self, account_type: AccountType) -> None:
         """
         Populate parent account dropdown with compatible parent accounts.
@@ -450,6 +474,14 @@ class AccountDialog(QDialog):
         subtype_index = self.subtype_combo.findData(self.account.account_subtype)
         if subtype_index >= 0:
             self.subtype_combo.setCurrentIndex(subtype_index)
+
+        # US-009: Set account color
+        if hasattr(self.account, 'color_hex') and self.account.color_hex:
+            self.color_picker.set_color(self.account.color_hex)
+        else:
+            # Fallback to default color for account type
+            default_color = get_default_color_for_account_type(self.account.account_type)
+            self.color_picker.set_color(default_color)
 
         # US-006: Set parent account
         if self.account.parent_account_id:
@@ -530,19 +562,24 @@ class AccountDialog(QDialog):
                     self.opening_balance_edit.setFocus()
                     return
 
+            # US-009: Get selected color
+            color_hex = self.color_picker.get_color()
+
             # Create or update account
             if self.is_edit_mode:
                 # Update existing account
                 # US-006: Include parent_account_id in update
+                # US-009: Include color_hex in update
                 self.account_service.update_account(
                     account_id=self.account.id,
                     name=name,
                     account_type=account_type,
                     account_subtype=account_subtype,
                     currency=currency,
-                    parent_account_id=parent_account_id
+                    parent_account_id=parent_account_id,
+                    color_hex=color_hex
                 )
-                logger.info(f"Account updated: {name}")
+                logger.info(f"Account updated: {name}, color={color_hex}")
                 QMessageBox.information(self, "Success", f"Account '{name}' updated successfully")
             else:
                 # US-005: Create account with or without opening balance
@@ -550,6 +587,7 @@ class AccountDialog(QDialog):
                     # Create account with opening balance (US-005)
                     opening_balance = Decimal(opening_balance_str)
                     # US-006: Include parent_account_id and is_parent
+                    # US-009: Include color_hex
                     account, journal_entry = self.account_service.create_account_with_opening_balance(
                         name=name,
                         account_type=account_type,
@@ -558,9 +596,10 @@ class AccountDialog(QDialog):
                         opening_date=opening_date,
                         currency=currency,
                         parent_account_id=parent_account_id,
-                        is_parent=is_parent
+                        is_parent=is_parent,
+                        color_hex=color_hex
                     )
-                    logger.info(f"Account created with opening balance: {name}, balance={opening_balance}, date={opening_date}")
+                    logger.info(f"Account created with opening balance: {name}, balance={opening_balance}, date={opening_date}, color={color_hex}")
                     QMessageBox.information(
                         self,
                         "Success",
@@ -569,6 +608,7 @@ class AccountDialog(QDialog):
                 else:
                     # Create account without opening balance (original flow)
                     # US-006: Include parent_account_id and is_parent
+                    # US-009: Include color_hex
                     self.account_service.create_account(
                         name=name,
                         account_type=account_type,
@@ -576,9 +616,10 @@ class AccountDialog(QDialog):
                         initial_balance=initial_balance,
                         currency=currency,
                         parent_account_id=parent_account_id,
-                        is_parent=is_parent
+                        is_parent=is_parent,
+                        color_hex=color_hex
                     )
-                    logger.info(f"Account created: {name}")
+                    logger.info(f"Account created: {name}, color={color_hex}")
                     QMessageBox.information(self, "Success", f"Account '{name}' created successfully")
 
             self.accept()

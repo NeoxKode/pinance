@@ -14,6 +14,7 @@ from finance_app.data.repositories.transaction_repository import TransactionRepo
 from finance_app.data.repositories.journal_entry_repository import JournalEntryRepository
 from finance_app.business.validators import AccountValidator
 from finance_app.business.double_entry_service import DoubleEntryService
+from finance_app.ui.styles import get_default_color_for_account_type, validate_and_fix_color  # US-009
 from finance_app.utils.logger import setup_logger
 from finance_app.utils.exceptions import ValidationError, NotFoundError
 
@@ -46,12 +47,14 @@ class AccountService:
         initial_balance: str = "0.00",
         currency: str = "USD",
         parent_account_id: Optional[int] = None,
-        is_parent: bool = False
+        is_parent: bool = False,
+        color_hex: Optional[str] = None  # US-009: Optional custom color
     ) -> Account:
         """
         Create a new account with validation.
 
         US-006: Added hierarchy support with parent_account_id and is_parent parameters.
+        US-009: Added color_hex parameter with automatic default based on account type.
 
         Args:
             name: Account name
@@ -61,6 +64,7 @@ class AccountService:
             currency: Currency code (3 letters)
             parent_account_id: Optional ID of parent account (US-006)
             is_parent: Whether this is a parent/header account (US-006)
+            color_hex: Optional hex color (#RRGGBB). If None, defaults based on account type (US-009)
 
         Returns:
             Created account
@@ -128,6 +132,18 @@ class AccountService:
                 "Parent accounts should have zero balance (calculated from children)."
             )
 
+        # US-009: Get default color based on account type if not provided
+        if color_hex is None:
+            color_hex = get_default_color_for_account_type(account_type)
+            logger.debug(f"Assigned default color {color_hex} for account type {account_type.value}")
+        else:
+            # Validate custom color and fallback to default if invalid
+            color_hex = validate_and_fix_color(
+                color_hex,
+                fallback=get_default_color_for_account_type(account_type)
+            )
+            logger.debug(f"Using custom color {color_hex} for account {name}")
+
         # Create account object
         account = Account(
             id=None,
@@ -138,7 +154,8 @@ class AccountService:
             normal_balance=normal_balance,
             currency=validated_currency,
             parent_account_id=parent_account_id,  # US-006
-            is_parent=is_parent  # US-006
+            is_parent=is_parent,  # US-006
+            color_hex=color_hex  # US-009: Auto-assigned default color
         )
 
         # Save account (repository will calculate hierarchy_path)
@@ -1100,3 +1117,131 @@ class AccountService:
         logger.info(f"Deleted account {account.name} (ID: {account_id})")
 
         return success
+
+    # ========================================================================
+    # US-009: Visual Customization Methods
+    # ========================================================================
+
+    def update_color(
+        self,
+        account_id: int,
+        color_hex: str,
+        validate_wcag: bool = True
+    ) -> Account:
+        """
+        Update account color with optional WCAG AA compliance validation.
+
+        US-009: Account Color Coding & Visual Indicators.
+
+        Args:
+            account_id: Account ID
+            color_hex: Hex color code (#RRGGBB format)
+            validate_wcag: If True, warn if color doesn't meet WCAG AA (but still allow)
+
+        Returns:
+            Updated Account object
+
+        Raises:
+            NotFoundError: If account doesn't exist
+            ValidationError: If color format is invalid
+        """
+        from finance_app.ui.styles import is_valid_hex_color, is_wcag_aa_compliant
+
+        # Validate color format
+        if not is_valid_hex_color(color_hex):
+            raise ValidationError(
+                f"Invalid color format: {color_hex}. Expected #RRGGBB format (e.g., #2563EB)."
+            )
+
+        # Check WCAG AA compliance (warning only)
+        if validate_wcag and not is_wcag_aa_compliant(color_hex, '#FFFFFF'):
+            logger.warning(
+                f"Color {color_hex} does not meet WCAG AA contrast ratio (≥4.5:1) "
+                "with white text. Consider using a darker shade for better accessibility."
+            )
+
+        # Update color via repository
+        updated_account = self.account_repo.update_color(account_id, color_hex)
+
+        logger.info(f"Updated color for account {updated_account.name} (ID: {account_id}) to {color_hex}")
+
+        return updated_account
+
+    def toggle_favorite(self, account_id: int) -> Account:
+        """
+        Toggle favorite status of an account.
+
+        US-009: Account Color Coding & Visual Indicators.
+
+        Args:
+            account_id: Account ID
+
+        Returns:
+            Updated Account object with toggled favorite status
+
+        Raises:
+            NotFoundError: If account doesn't exist
+        """
+        updated_account = self.account_repo.toggle_favorite(account_id)
+
+        status = "favorited" if updated_account.is_favorite else "unfavorited"
+        logger.info(f"Account {updated_account.name} (ID: {account_id}) {status}")
+
+        return updated_account
+
+    def reorder_accounts(self, account_order_list: List[Tuple[int, int]]) -> List[Account]:
+        """
+        Update display order for multiple accounts in a batch operation.
+
+        US-009: Account Color Coding & Visual Indicators.
+
+        Args:
+            account_order_list: List of (account_id, display_order) tuples
+                Example: [(1, 10), (2, 20), (3, 30)]
+
+        Returns:
+            List of updated Account objects
+
+        Raises:
+            NotFoundError: If any account doesn't exist
+            ValidationError: If display_order is negative
+        """
+        updated_accounts = []
+
+        for account_id, display_order in account_order_list:
+            # Validate display_order
+            if display_order < 0:
+                raise ValidationError(
+                    f"Display order must be non-negative, got {display_order} for account {account_id}"
+                )
+
+            # Update display order
+            updated_account = self.account_repo.update_display_order(account_id, display_order)
+            updated_accounts.append(updated_account)
+
+        logger.info(f"Reordered {len(updated_accounts)} accounts")
+
+        return updated_accounts
+
+    def get_favorite_accounts(self) -> List[Account]:
+        """
+        Get all accounts marked as favorite.
+
+        US-009: Account Color Coding & Visual Indicators.
+
+        Returns:
+            List of favorite Account objects sorted by type and name
+        """
+        return self.account_repo.get_favorite_accounts()
+
+    def get_accounts_by_display_order(self) -> List[Account]:
+        """
+        Get all accounts sorted by custom display order.
+
+        US-009: Account Color Coding & Visual Indicators.
+        Accounts with display_order=0 are sorted alphabetically at the end.
+
+        Returns:
+            List of Account objects sorted by display_order, then alphabetically
+        """
+        return self.account_repo.get_accounts_by_display_order()

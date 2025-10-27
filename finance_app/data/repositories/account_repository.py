@@ -42,9 +42,12 @@ class AccountRepository:
                     SELECT id, name, account_type, account_subtype, balance,
                            normal_balance, currency, parent_account_id,
                            legacy_type, last_reconciled_date, opening_balance_date,
-                           is_parent, hierarchy_level, hierarchy_path
+                           is_parent, hierarchy_level, hierarchy_path,
+                           color_hex, display_order, is_favorite
                     FROM accounts
-                    ORDER BY account_type, name
+                    ORDER BY
+                        CASE WHEN display_order = 0 THEN 999999 ELSE display_order END,
+                        account_type, name
                 """)
                 rows = cursor.fetchall()
                 return [self._row_to_account(row) for row in rows]
@@ -72,7 +75,8 @@ class AccountRepository:
                     SELECT id, name, account_type, account_subtype, balance,
                            normal_balance, currency, parent_account_id,
                            legacy_type, last_reconciled_date, opening_balance_date,
-                           is_parent, hierarchy_level, hierarchy_path
+                           is_parent, hierarchy_level, hierarchy_path,
+                           color_hex, display_order, is_favorite
                     FROM accounts
                     WHERE id = ?
                 """, (account_id,))
@@ -121,9 +125,10 @@ class AccountRepository:
                     INSERT INTO accounts (
                         name, type, account_type, account_subtype, balance,
                         normal_balance, currency, parent_account_id, legacy_type,
-                        is_parent, hierarchy_level
+                        is_parent, hierarchy_level,
+                        color_hex, display_order, is_favorite
                     )
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """, (
                     account.name,
                     legacy_type,  # Old type column for backward compatibility
@@ -135,7 +140,10 @@ class AccountRepository:
                     account.parent_account_id,
                     legacy_type,  # Also store in legacy_type
                     1 if account.is_parent else 0,  # US-006: Hierarchy support
-                    account.hierarchy_level  # US-006: Hierarchy support
+                    account.hierarchy_level,  # US-006: Hierarchy support
+                    account.color_hex,  # US-009: Color coding
+                    account.display_order,  # US-009: Custom order
+                    1 if account.is_favorite else 0  # US-009: Favorite flag
                 ))
                 account.id = cursor.lastrowid
 
@@ -220,7 +228,10 @@ class AccountRepository:
                         parent_account_id = ?,
                         is_parent = ?,
                         last_reconciled_date = ?,
-                        opening_balance_date = ?
+                        opening_balance_date = ?,
+                        color_hex = ?,
+                        display_order = ?,
+                        is_favorite = ?
                     WHERE id = ?
                 """, (
                     account.name,
@@ -234,6 +245,9 @@ class AccountRepository:
                     1 if account.is_parent else 0,  # US-006
                     account.last_reconciled_date,  # US-004
                     account.opening_balance_date,  # US-005
+                    account.color_hex,  # US-009
+                    account.display_order,  # US-009
+                    1 if account.is_favorite else 0,  # US-009
                     account.id
                 ))
 
@@ -328,6 +342,216 @@ class AccountRepository:
             raise DatabaseError(f"Failed to update balance: {e}") from e
 
     # ========================================================================
+    # US-009: Visual Customization Methods
+    # ========================================================================
+
+    def update_color(self, account_id: int, color_hex: str) -> Account:
+        """
+        Update account color.
+
+        US-009: Account Color Coding & Visual Indicators.
+
+        Args:
+            account_id: Account ID
+            color_hex: Hex color code (#RRGGBB format)
+
+        Returns:
+            Updated Account object
+
+        Raises:
+            NotFoundError: If account doesn't exist
+            DatabaseError: If update fails
+            ValueError: If color_hex format is invalid
+        """
+        # Validate color format
+        import re
+        if not re.match(r'^#[0-9A-Fa-f]{6}$', color_hex):
+            raise ValueError(f"Invalid color format: {color_hex}. Expected #RRGGBB format.")
+
+        try:
+            with self.db.get_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute("""
+                    UPDATE accounts
+                    SET color_hex = ?
+                    WHERE id = ?
+                """, (color_hex, account_id))
+
+                if cursor.rowcount == 0:
+                    raise NotFoundError(f"Account with ID {account_id} not found")
+
+                logger.info(f"Updated color for account {account_id} to {color_hex}")
+
+            return self.get_by_id(account_id)
+
+        except NotFoundError:
+            raise
+        except ValueError:
+            raise
+        except sqlite3.Error as e:
+            logger.error(f"Failed to update color for account {account_id}: {e}")
+            raise DatabaseError(f"Failed to update color: {e}") from e
+
+    def toggle_favorite(self, account_id: int) -> Account:
+        """
+        Toggle favorite status of an account.
+
+        US-009: Account Color Coding & Visual Indicators.
+
+        Args:
+            account_id: Account ID
+
+        Returns:
+            Updated Account object with toggled favorite status
+
+        Raises:
+            NotFoundError: If account doesn't exist
+            DatabaseError: If update fails
+        """
+        try:
+            # Get current favorite status
+            account = self.get_by_id(account_id)
+            if not account:
+                raise NotFoundError(f"Account with ID {account_id} not found")
+
+            new_favorite_status = not account.is_favorite
+
+            with self.db.get_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute("""
+                    UPDATE accounts
+                    SET is_favorite = ?
+                    WHERE id = ?
+                """, (1 if new_favorite_status else 0, account_id))
+
+                if cursor.rowcount == 0:
+                    raise NotFoundError(f"Account with ID {account_id} not found")
+
+                logger.info(
+                    f"Toggled favorite for account {account_id}: "
+                    f"{account.is_favorite} → {new_favorite_status}"
+                )
+
+            return self.get_by_id(account_id)
+
+        except NotFoundError:
+            raise
+        except sqlite3.Error as e:
+            logger.error(f"Failed to toggle favorite for account {account_id}: {e}")
+            raise DatabaseError(f"Failed to toggle favorite: {e}") from e
+
+    def update_display_order(self, account_id: int, display_order: int) -> Account:
+        """
+        Update account display order for custom sorting.
+
+        US-009: Account Color Coding & Visual Indicators.
+
+        Args:
+            account_id: Account ID
+            display_order: Display order value (0 = alphabetical default)
+
+        Returns:
+            Updated Account object
+
+        Raises:
+            NotFoundError: If account doesn't exist
+            DatabaseError: If update fails
+        """
+        try:
+            with self.db.get_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute("""
+                    UPDATE accounts
+                    SET display_order = ?
+                    WHERE id = ?
+                """, (display_order, account_id))
+
+                if cursor.rowcount == 0:
+                    raise NotFoundError(f"Account with ID {account_id} not found")
+
+                logger.info(f"Updated display order for account {account_id} to {display_order}")
+
+            return self.get_by_id(account_id)
+
+        except NotFoundError:
+            raise
+        except sqlite3.Error as e:
+            logger.error(f"Failed to update display order for account {account_id}: {e}")
+            raise DatabaseError(f"Failed to update display order: {e}") from e
+
+    def get_favorite_accounts(self) -> List[Account]:
+        """
+        Get all accounts marked as favorite.
+
+        US-009: Account Color Coding & Visual Indicators.
+
+        Returns:
+            List of favorite Account objects sorted by type and name
+
+        Raises:
+            DatabaseError: If query fails
+        """
+        try:
+            with self.db.get_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute("""
+                    SELECT id, name, account_type, account_subtype, balance,
+                           normal_balance, currency, parent_account_id,
+                           legacy_type, last_reconciled_date, opening_balance_date,
+                           is_parent, hierarchy_level, hierarchy_path,
+                           color_hex, display_order, is_favorite
+                    FROM accounts
+                    WHERE is_favorite = 1
+                    ORDER BY account_type, name
+                """)
+                rows = cursor.fetchall()
+                accounts = [self._row_to_account(row) for row in rows]
+
+                logger.debug(f"Retrieved {len(accounts)} favorite accounts")
+                return accounts
+
+        except sqlite3.Error as e:
+            logger.error(f"Failed to fetch favorite accounts: {e}")
+            raise DatabaseError(f"Failed to fetch favorite accounts: {e}") from e
+
+    def get_accounts_by_display_order(self) -> List[Account]:
+        """
+        Get all accounts sorted by custom display order.
+
+        US-009: Account Color Coding & Visual Indicators.
+        Accounts with display_order=0 are sorted alphabetically at the end.
+
+        Returns:
+            List of Account objects sorted by display_order, then alphabetically
+
+        Raises:
+            DatabaseError: If query fails
+        """
+        try:
+            with self.db.get_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute("""
+                    SELECT id, name, account_type, account_subtype, balance,
+                           normal_balance, currency, parent_account_id,
+                           legacy_type, last_reconciled_date, opening_balance_date,
+                           is_parent, hierarchy_level, hierarchy_path,
+                           color_hex, display_order, is_favorite
+                    FROM accounts
+                    ORDER BY
+                        CASE WHEN display_order = 0 THEN 999999 ELSE display_order END,
+                        name
+                """)
+                rows = cursor.fetchall()
+                accounts = [self._row_to_account(row) for row in rows]
+
+                logger.debug(f"Retrieved {len(accounts)} accounts by display order")
+                return accounts
+
+        except sqlite3.Error as e:
+            logger.error(f"Failed to fetch accounts by display order: {e}")
+            raise DatabaseError(f"Failed to fetch accounts by display order: {e}") from e
+
+    # ========================================================================
     # US-006: Hierarchy Query Methods
     # ========================================================================
 
@@ -350,9 +574,16 @@ class AccountRepository:
             with self.db.get_connection() as conn:
                 cursor = conn.cursor()
                 cursor.execute("""
-                    SELECT * FROM accounts
+                    SELECT id, name, account_type, account_subtype, balance,
+                           normal_balance, currency, parent_account_id,
+                           legacy_type, last_reconciled_date, opening_balance_date,
+                           is_parent, hierarchy_level, hierarchy_path,
+                           color_hex, display_order, is_favorite
+                    FROM accounts
                     WHERE parent_account_id = ?
-                    ORDER BY name
+                    ORDER BY
+                        CASE WHEN display_order = 0 THEN 999999 ELSE display_order END,
+                        name
                 """, (parent_id,))
 
                 rows = cursor.fetchall()
@@ -401,7 +632,12 @@ class AccountRepository:
                 pattern = f"{parent.hierarchy_path}/%"
 
                 cursor.execute("""
-                    SELECT * FROM accounts
+                    SELECT id, name, account_type, account_subtype, balance,
+                           normal_balance, currency, parent_account_id,
+                           legacy_type, last_reconciled_date, opening_balance_date,
+                           is_parent, hierarchy_level, hierarchy_path,
+                           color_hex, display_order, is_favorite
+                    FROM accounts
                     WHERE hierarchy_path LIKE ?
                     ORDER BY hierarchy_path
                 """, (pattern,))
@@ -434,9 +670,16 @@ class AccountRepository:
             with self.db.get_connection() as conn:
                 cursor = conn.cursor()
                 cursor.execute("""
-                    SELECT * FROM accounts
+                    SELECT id, name, account_type, account_subtype, balance,
+                           normal_balance, currency, parent_account_id,
+                           legacy_type, last_reconciled_date, opening_balance_date,
+                           is_parent, hierarchy_level, hierarchy_path,
+                           color_hex, display_order, is_favorite
+                    FROM accounts
                     WHERE parent_account_id IS NULL
-                    ORDER BY account_type, name
+                    ORDER BY
+                        CASE WHEN display_order = 0 THEN 999999 ELSE display_order END,
+                        account_type, name
                 """)
 
                 rows = cursor.fetchall()
@@ -600,6 +843,7 @@ class AccountRepository:
         Convert database row to Account object.
 
         US-006: Added hierarchy field mapping.
+        US-009: Added visual customization field mapping.
 
         Args:
             row: Database row
@@ -625,6 +869,10 @@ class AccountRepository:
             last_reconciled_date=row['last_reconciled_date'] if 'last_reconciled_date' in row.keys() else None,
             # US-005: Opening balance
             opening_balance_date=row['opening_balance_date'] if 'opening_balance_date' in row.keys() else None,
+            # US-009: Visual customization
+            color_hex=row['color_hex'] if 'color_hex' in row.keys() else '#2563EB',
+            display_order=row['display_order'] if 'display_order' in row.keys() else 0,
+            is_favorite=bool(row['is_favorite']) if 'is_favorite' in row.keys() else False,
             created_at=None,  # Not in current schema
             updated_at=None   # Not in current schema
         )

@@ -6,6 +6,7 @@ from datetime import datetime
 from decimal import Decimal
 from enum import Enum
 from typing import Optional
+import re
 
 
 class AccountType(str, Enum):
@@ -87,6 +88,8 @@ class Account:
     US-004: Account reconciliation tracking
     US-005: Opening balance tracking
     US-006: Account hierarchy (parent/child relationships)
+    US-009: Account color coding & visual indicators (Sprint 10)
+    US-007: Account metadata & organization (Sprint 11, fields pre-created but inactive)
     """
     id: Optional[int]
     name: str
@@ -108,6 +111,18 @@ class Account:
 
     # US-005: Opening balance tracking
     opening_balance_date: Optional[str] = None  # ISO 8601: YYYY-MM-DD
+
+    # US-009: Visual customization (ACTIVE in Sprint 10) ✅
+    color_hex: str = '#2563EB'  # Default Blue-600 (WCAG AA: 5.14:1 contrast with white)
+    display_order: int = 0  # Custom sort order (0 = alphabetical default)
+    is_favorite: bool = False  # Star/favorite accounts for quick access
+
+    # US-007: Metadata (INACTIVE until Sprint 11) 💤
+    icon: Optional[str] = None  # Optional icon name/emoji (e.g., "💰", "credit-card")
+    notes: Optional[str] = None  # Free-form notes (e.g., "Primary checking", "Emergency fund")
+    tags: Optional[str] = None  # JSON array of tags (e.g., '["personal", "tax-deductible"]')
+    account_number: Optional[str] = None  # Masked account number (e.g., "****1234")
+    institution_name: Optional[str] = None  # Financial institution (e.g., "Chase", "Wells Fargo")
 
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
@@ -163,6 +178,20 @@ class Account:
                     f"Maximum hierarchy depth is 5 levels (hierarchy_level 0-4). "
                     f"Got hierarchy_level {self.hierarchy_level} from path '{self.hierarchy_path}'"
                 )
+
+        # US-009: Visual customization validation
+        # Validate color_hex format (#RRGGBB - 6 hex digits)
+        if self.color_hex and not re.match(r'^#[0-9A-Fa-f]{6}$', self.color_hex):
+            raise ValueError(
+                f"Invalid color_hex format: '{self.color_hex}'. "
+                f"Expected format: #RRGGBB (e.g., #3B82F6)"
+            )
+
+        # Validate display_order is non-negative
+        if self.display_order < 0:
+            raise ValueError(
+                f"display_order must be non-negative, got {self.display_order}"
+            )
 
     def is_debit_account(self) -> bool:
         """

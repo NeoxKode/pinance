@@ -207,6 +207,13 @@ class MainWindow(QMainWindow):
         self.show_system_accounts_checkbox.stateChanged.connect(self._load_accounts)
         header_layout.addWidget(self.show_system_accounts_checkbox)
 
+        # US-009: Show Favorites Only toggle
+        self.show_favorites_only_checkbox = QCheckBox("⭐ Favorites Only")
+        self.show_favorites_only_checkbox.setToolTip("Show only favorite accounts")
+        self.show_favorites_only_checkbox.setChecked(False)  # Show all by default
+        self.show_favorites_only_checkbox.stateChanged.connect(self._on_favorites_filter_changed)
+        header_layout.addWidget(self.show_favorites_only_checkbox)
+
         add_account_btn = QPushButton("+ Add")
         add_account_btn.setToolTip("Add New Account")
         add_account_btn.clicked.connect(self.add_account)
@@ -312,6 +319,15 @@ class MainWindow(QMainWindow):
         except FinanceAppError as e:
             logger.error(f"Failed to load accounts: {e}")
             raise
+
+    def _on_favorites_filter_changed(self):
+        """
+        Handle favorites filter checkbox change.
+        US-009: Toggle favorites-only view in account tree.
+        """
+        is_checked = self.show_favorites_only_checkbox.isChecked()
+        self.account_tree.set_favorites_filter(is_checked)
+        logger.info(f"Favorites filter {'enabled' if is_checked else 'disabled'}")
 
     def _load_transactions(self, account_id: Optional[int] = None) -> None:
         """

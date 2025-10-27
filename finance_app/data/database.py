@@ -609,6 +609,100 @@ def _apply_balance_validation_migration(conn: sqlite3.Connection) -> None:
         logger.debug("Balance validation migration already applied, skipping")
 
 
+def _apply_account_visual_metadata_migration(conn: sqlite3.Connection) -> None:
+    """
+    Apply account visual metadata migration (010_account_visual_metadata.sql).
+
+    This adds visual customization fields (color_hex, display_order, is_favorite)
+    and metadata fields for accounts.
+    Story: US-009 - Account Color Coding & Visual Indicators (Sprint 10)
+    Story: US-007 - Account Metadata & Organization (Sprint 11, fields pre-created)
+
+    Consolidated Migration Strategy:
+    - US-009 fields (ACTIVE Sprint 10): color_hex, display_order, is_favorite
+    - US-007 fields (INACTIVE until Sprint 11): icon, notes, tags, account_number, institution_name
+
+    Args:
+        conn: Database connection
+    """
+    cursor = conn.cursor()
+
+    # Check if migration is needed (look for color_hex column)
+    cursor.execute("PRAGMA table_info(accounts)")
+    columns = [row[1] for row in cursor.fetchall()]
+
+    if 'color_hex' not in columns:
+        logger.info("Applying account visual metadata migration (010)...")
+
+        # Read and execute migration file
+        migration_path = Path(__file__).parent / "migrations" / "010_account_visual_metadata.sql"
+
+        if not migration_path.exists():
+            logger.warning(f"Migration file not found: {migration_path}")
+            return
+
+        with open(migration_path, 'r') as f:
+            migration_sql = f.read()
+
+        # Execute migration
+        cursor.executescript(migration_sql)
+
+        conn.commit()
+        logger.info("Account visual metadata migration (010) completed")
+
+        # Verify US-009 columns (ACTIVE) in accounts
+        cursor.execute("PRAGMA table_info(accounts)")
+        columns = [row[1] for row in cursor.fetchall()]
+
+        us009_fields = ['color_hex', 'display_order', 'is_favorite']
+        for field in us009_fields:
+            if field in columns:
+                logger.info(f"Migration verification: ✓ {field} column added (US-009 ACTIVE)")
+            else:
+                logger.error(f"Migration verification failed: {field} column not found")
+
+        # Verify US-007 columns (INACTIVE) in accounts
+        us007_fields = ['icon', 'notes', 'tags', 'account_number', 'institution_name']
+        for field in us007_fields:
+            if field in columns:
+                logger.info(f"Migration verification: ✓ {field} column added (US-007 INACTIVE)")
+            else:
+                logger.error(f"Migration verification failed: {field} column not found")
+
+        # Verify indices created
+        cursor.execute("""
+            SELECT name FROM sqlite_master
+            WHERE type='index' AND name IN (
+                'idx_accounts_favorite',
+                'idx_accounts_display_order',
+                'idx_accounts_color'
+            )
+        """)
+        indices = [row[0] for row in cursor.fetchall()]
+
+        if len(indices) >= 3:
+            logger.info(f"Migration verification: ✓ All 3 visual metadata indices created")
+            for index_name in indices:
+                logger.info(f"  - {index_name}")
+        else:
+            logger.warning(f"Migration verification: Found {len(indices)}/3 indices: {indices}")
+
+        # Verify display_order was initialized for existing accounts
+        cursor.execute("SELECT COUNT(*) FROM accounts WHERE display_order > 0")
+        initialized_count = cursor.fetchone()[0]
+        if initialized_count > 0:
+            logger.info(f"Migration verification: ✓ {initialized_count} accounts initialized with display_order")
+        else:
+            logger.info("Migration verification: No existing accounts, display_order defaults ready")
+
+        # Log summary
+        logger.info("Account visual metadata migration (010) verification complete")
+        logger.info("✓ Ready for account color coding (US-009 Sprint 10)")
+        logger.info("✓ US-007 fields pre-created for Sprint 11 (currently inactive)")
+    else:
+        logger.debug("Account visual metadata migration already applied, skipping")
+
+
 class Database:
     """
     Database manager with connection pooling and lifecycle management.
@@ -778,6 +872,9 @@ class Database:
                 # Apply balance validation migration for new databases
                 _apply_balance_validation_migration(conn)
 
+                # Apply account visual metadata migration for new databases
+                _apply_account_visual_metadata_migration(conn)
+
                 # Add sample data if empty
                 self._add_sample_data(conn)
 
@@ -797,6 +894,7 @@ class Database:
                 _apply_opening_balance_equity_migration(conn)
                 _apply_account_hierarchy_migration(conn)
                 _apply_balance_validation_migration(conn)
+                _apply_account_visual_metadata_migration(conn)
                 logger.info("All migrations applied successfully")
         except Exception as e:
             logger.error(f"Failed to apply migrations: {e}")

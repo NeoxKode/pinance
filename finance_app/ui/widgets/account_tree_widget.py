@@ -2,6 +2,7 @@
 Account Tree Widget for hierarchical account display.
 
 US-006: Displays accounts in a tree structure with parent/child relationships.
+US-009: Enhanced with color-coded indicators and visual customization.
 """
 from typing import Optional, Dict
 from decimal import Decimal
@@ -9,8 +10,8 @@ from decimal import Decimal
 from PySide6.QtWidgets import (
     QTreeWidget, QTreeWidgetItem, QTreeWidgetItemIterator, QMessageBox, QMenu, QHeaderView
 )
-from PySide6.QtCore import Qt, Signal
-from PySide6.QtGui import QDropEvent, QDragMoveEvent, QIcon, QAction
+from PySide6.QtCore import Qt, Signal, QSize
+from PySide6.QtGui import QDropEvent, QDragMoveEvent, QIcon, QAction, QColor, QBrush, QPixmap, QPainter
 
 from finance_app.business.account_service import AccountService
 from finance_app.data.models import Account
@@ -48,6 +49,7 @@ class AccountTreeWidget(QTreeWidget):
         super().__init__(parent)
         self.account_service = account_service
         self._expansion_state: Dict[int, bool] = {}  # Remember expanded state
+        self._show_favorites_only = False  # US-009: Favorites filter
 
         self.setup_ui()
         self.setup_drag_drop()
@@ -55,15 +57,19 @@ class AccountTreeWidget(QTreeWidget):
 
     def setup_ui(self):
         """Configure tree widget appearance and behavior."""
-        # Column configuration
-        self.setHeaderLabels(["Account", "Balance"])
-        self.setColumnWidth(0, 300)
-        self.setColumnWidth(1, 150)
+        # Column configuration - US-009: Added Type column for visual context
+        self.setHeaderLabels(["Account", "Type", "Balance", "Actions"])
+        self.setColumnWidth(0, 280)  # Account name with color indicator
+        self.setColumnWidth(1, 100)  # Account type
+        self.setColumnWidth(2, 120)  # Balance
+        self.setColumnWidth(3, 60)   # Actions (favorite star)
 
         # Make columns user-resizable but maintain minimum sizes
         self.header().setStretchLastSection(False)
-        self.header().setSectionResizeMode(0, QHeaderView.Interactive)
-        self.header().setSectionResizeMode(1, QHeaderView.ResizeToContents)
+        self.header().setSectionResizeMode(0, QHeaderView.Interactive)  # Account
+        self.header().setSectionResizeMode(1, QHeaderView.ResizeToContents)  # Type
+        self.header().setSectionResizeMode(2, QHeaderView.ResizeToContents)  # Balance
+        self.header().setSectionResizeMode(3, QHeaderView.Fixed)  # Actions (fixed width)
 
         # Tree behavior
         self.setIndentation(20)  # Indentation for child items
@@ -245,8 +251,15 @@ class AccountTreeWidget(QTreeWidget):
             if not show_system_accounts:
                 accounts = [acc for acc in accounts if not acc.name.startswith("Opening Balance Equity")]
 
-            # Build tree using repository's tree builder
-            account_tree = self.account_service.account_repo.build_account_tree(accounts)
+            # US-009: Filter by favorites if enabled
+            if self._show_favorites_only:
+                favorite_accounts = [acc for acc in accounts if acc.is_favorite]
+                # Build tree with only favorites (tree builder will maintain hierarchy)
+                account_tree = self.account_service.account_repo.build_account_tree(favorite_accounts)
+                logger.info(f"Showing {len(favorite_accounts)} favorite accounts")
+            else:
+                # Build tree using repository's tree builder
+                account_tree = self.account_service.account_repo.build_account_tree(accounts)
 
             # Add each root account and its descendants
             for root_account in account_tree:
@@ -269,6 +282,18 @@ class AccountTreeWidget(QTreeWidget):
                 f"Failed to load accounts:\n{str(e)}"
             )
 
+    def set_favorites_filter(self, enabled: bool):
+        """
+        Toggle favorites-only filter.
+        US-009: Show only favorite accounts when enabled.
+
+        Args:
+            enabled: True to show only favorites, False to show all
+        """
+        self._show_favorites_only = enabled
+        self.load_accounts()
+        logger.info(f"Favorites filter {'enabled' if enabled else 'disabled'}")
+
     def _add_account_item(self, account: Account, parent_item: Optional[QTreeWidgetItem]):
         """
         Add account to tree recursively with its children.
@@ -283,10 +308,15 @@ class AccountTreeWidget(QTreeWidget):
         else:
             item = QTreeWidgetItem(parent_item)
 
-        # Store account ID in item data
+        # Store account ID and full account object in item data
         item.setData(0, Qt.UserRole, account.id)
+        item.setData(0, Qt.UserRole + 1, account)  # Store full account for quick access
 
-        # Format account name with icon
+        # US-009: Create colored icon indicator
+        color_icon = self._create_color_icon(account.color_hex)
+        item.setIcon(0, color_icon)
+
+        # Format account name with type icon
         if account.is_parent:
             # Parent account - folder icon
             account_name = f"📁 {account.name}"
@@ -297,7 +327,12 @@ class AccountTreeWidget(QTreeWidget):
 
         item.setText(0, account_name)
 
-        # Format balance
+        # US-009: Display account type in column 1
+        account_type_display = account.account_subtype.value.replace('_', ' ').title()
+        item.setText(1, account_type_display)
+        item.setForeground(1, QColor("#666666"))  # Gray text for type
+
+        # Format balance in column 2
         if account.is_parent:
             # Calculate parent balance from children
             try:
@@ -306,27 +341,38 @@ class AccountTreeWidget(QTreeWidget):
             except Exception as e:
                 logger.warning(f"Failed to calculate parent balance for {account.name}: {e}")
                 balance_text = "$0.00"
+                parent_balance = Decimal('0')
 
             # Bold font for parent accounts
             font = item.font(0)
             font.setBold(True)
             item.setFont(0, font)
             item.setFont(1, font)
+            item.setFont(2, font)
 
             # Gray color for parent balance
-            item.setForeground(1, Qt.gray)
+            item.setForeground(2, QColor("#666666"))
         else:
             # Leaf account - use actual balance
             balance_text = f"${account.balance:,.2f}"
+            parent_balance = None
 
-        # Color code balance (red for negative, green for positive)
-        if account.balance < 0 or (account.is_parent and "parent_balance" in locals() and parent_balance < 0):
-            item.setForeground(1, Qt.red)
-        elif account.balance > 0 or (account.is_parent and "parent_balance" in locals() and parent_balance > 0):
-            item.setForeground(1, Qt.darkGreen)
+        # US-009: Color code balance using backend color logic
+        balance_color = self._get_balance_color(account, parent_balance)
+        if balance_color:
+            item.setForeground(2, balance_color)
 
-        item.setText(1, balance_text)
-        item.setTextAlignment(1, Qt.AlignRight | Qt.AlignVCenter)
+        item.setText(2, balance_text)
+        item.setTextAlignment(2, Qt.AlignRight | Qt.AlignVCenter)
+
+        # US-009: Add favorite star in column 3
+        if hasattr(account, 'is_favorite') and account.is_favorite:
+            item.setText(3, "⭐")
+            item.setToolTip(3, "Favorite Account")
+        else:
+            item.setText(3, "")
+
+        item.setTextAlignment(3, Qt.AlignCenter)
 
         # Add helpful tooltip
         tooltip = self._create_account_tooltip(account, parent_balance if account.is_parent else None)
@@ -417,6 +463,70 @@ class AccountTreeWidget(QTreeWidget):
         subtype_str = account.account_subtype.value if hasattr(account.account_subtype, 'value') else str(account.account_subtype)
 
         return icon_map.get(subtype_str, '📝')
+
+    def _create_color_icon(self, color_hex: str) -> QIcon:
+        """
+        Create a colored circle icon for the account.
+
+        US-009: Uses the account's custom color_hex field to create a visual indicator.
+        Creates a small circular icon filled with the account's color.
+
+        Args:
+            color_hex: Hex color code (e.g., '#2563EB')
+
+        Returns:
+            QIcon with colored circle
+        """
+        # Create a 16x16 pixmap
+        pixmap = QPixmap(16, 16)
+        pixmap.fill(Qt.transparent)
+
+        # Draw a filled circle with the account color
+        painter = QPainter(pixmap)
+        painter.setRenderHint(QPainter.Antialiasing)
+
+        # Set the brush to the account color
+        color = QColor(color_hex) if color_hex else QColor("#2563EB")
+        painter.setBrush(QBrush(color))
+        painter.setPen(Qt.NoPen)
+
+        # Draw circle (slightly smaller than pixmap to avoid edge clipping)
+        painter.drawEllipse(2, 2, 12, 12)
+        painter.end()
+
+        return QIcon(pixmap)
+
+    def _get_balance_color(self, account: Account, parent_balance: Optional[Decimal] = None) -> Optional[QColor]:
+        """
+        Get the color for balance display based on account type and balance value.
+
+        US-009: Uses backend color logic for consistent balance coloring.
+
+        Args:
+            account: Account object
+            parent_balance: Calculated balance for parent accounts
+
+        Returns:
+            QColor for balance display, or None for default
+        """
+        from finance_app.data.models import AccountType
+
+        balance = parent_balance if parent_balance is not None else account.balance
+
+        if balance == 0:
+            return QColor("#666666")  # Gray for zero balance
+
+        # Asset accounts: positive = green, negative = red
+        if account.account_type == AccountType.ASSET:
+            return QColor("#059669") if balance > 0 else QColor("#DC2626")
+
+        # Liability accounts: INVERTED - positive balance = owe money = red
+        elif account.account_type == AccountType.LIABILITY:
+            return QColor("#DC2626") if balance > 0 else QColor("#059669")
+
+        # For other types (Equity, Income, Expense), use default coloring
+        else:
+            return QColor("#059669") if balance > 0 else QColor("#DC2626")
 
     def _on_selection_changed(self):
         """Handle account selection."""
@@ -586,6 +696,23 @@ class AccountTreeWidget(QTreeWidget):
         set_balance_action.triggered.connect(lambda: self._set_opening_balance(account_id))
         menu.addAction(set_balance_action)
 
+        # US-009: Toggle Favorite
+        favorite_text = "⭐ Remove from Favorites" if account.is_favorite else "☆ Add to Favorites"
+        toggle_favorite_action = QAction(favorite_text, self)
+        toggle_favorite_action.triggered.connect(lambda: self._toggle_favorite(account_id))
+        menu.addAction(toggle_favorite_action)
+
+        menu.addSeparator()
+
+        # US-009: Display order operations
+        move_up_action = QAction("⬆ Move Up", self)
+        move_up_action.triggered.connect(lambda: self._move_account_up(account_id))
+        menu.addAction(move_up_action)
+
+        move_down_action = QAction("⬇ Move Down", self)
+        move_down_action.triggered.connect(lambda: self._move_account_down(account_id))
+        menu.addAction(move_down_action)
+
         menu.addSeparator()
 
         # US-006: Hierarchy operations
@@ -709,3 +836,100 @@ class AccountTreeWidget(QTreeWidget):
     def _delete_account(self, account_id: int):
         """Delete account (handled by main window)."""
         logger.info(f"Delete account requested: {account_id}")
+
+    def _move_account_up(self, account_id: int):
+        """
+        Move account up in display order (US-009).
+
+        Args:
+            account_id: Account to move up
+        """
+        try:
+            account = self.account_service.get_account(account_id)
+            if not account:
+                return
+
+            # Get all accounts at the same hierarchy level
+            if account.parent_account_id:
+                siblings = self.account_service.account_repo.get_child_accounts(account.parent_account_id)
+            else:
+                siblings = self.account_service.account_repo.get_root_accounts()
+
+            # Find current position
+            current_idx = next((i for i, acc in enumerate(siblings) if acc.id == account_id), None)
+            if current_idx is None or current_idx == 0:
+                return  # Already at top
+
+            # Swap display_order with previous account
+            prev_account = siblings[current_idx - 1]
+            temp_order = account.display_order
+            self.account_service.account_repo.update_display_order(account.id, prev_account.display_order)
+            self.account_service.account_repo.update_display_order(prev_account.id, temp_order)
+
+            # Reload tree
+            self.load_accounts()
+            logger.info(f"Moved account {account.name} up in display order")
+
+        except Exception as e:
+            logger.error(f"Failed to move account up: {e}")
+            QMessageBox.critical(self, "Move Error", f"Failed to move account:\n{str(e)}")
+
+    def _move_account_down(self, account_id: int):
+        """
+        Move account down in display order (US-009).
+
+        Args:
+            account_id: Account to move down
+        """
+        try:
+            account = self.account_service.get_account(account_id)
+            if not account:
+                return
+
+            # Get all accounts at the same hierarchy level
+            if account.parent_account_id:
+                siblings = self.account_service.account_repo.get_child_accounts(account.parent_account_id)
+            else:
+                siblings = self.account_service.account_repo.get_root_accounts()
+
+            # Find current position
+            current_idx = next((i for i, acc in enumerate(siblings) if acc.id == account_id), None)
+            if current_idx is None or current_idx == len(siblings) - 1:
+                return  # Already at bottom
+
+            # Swap display_order with next account
+            next_account = siblings[current_idx + 1]
+            temp_order = account.display_order
+            self.account_service.account_repo.update_display_order(account.id, next_account.display_order)
+            self.account_service.account_repo.update_display_order(next_account.id, temp_order)
+
+            # Reload tree
+            self.load_accounts()
+            logger.info(f"Moved account {account.name} down in display order")
+
+        except Exception as e:
+            logger.error(f"Failed to move account down: {e}")
+            QMessageBox.critical(self, "Move Error", f"Failed to move account:\n{str(e)}")
+
+    def _toggle_favorite(self, account_id: int):
+        """
+        Toggle favorite status for account (US-009).
+
+        Args:
+            account_id: Account to toggle favorite
+        """
+        try:
+            account = self.account_service.get_account(account_id)
+            if not account:
+                return
+
+            # Toggle favorite status
+            updated_account = self.account_service.toggle_favorite(account_id)
+
+            # Reload tree to update star indicator
+            self.load_accounts()
+            logger.info(f"Toggled favorite for account {account.name}: {account.is_favorite} → {updated_account.is_favorite}")
+
+        except Exception as e:
+            logger.error(f"Failed to toggle favorite: {e}")
+            QMessageBox.critical(self, "Favorite Error", f"Failed to toggle favorite:\n{str(e)}")
