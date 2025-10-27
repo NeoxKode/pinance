@@ -1563,6 +1563,479 @@ Added in US-009 (Sprint 10):
 
 ---
 
+## 👥 Sprint 10 Task Assignments by Developer
+
+**Team Structure:** Backend Developer, Frontend Developer, Tech Lead
+**Sprint Duration:** 4 days (13.5 hours total)
+**Coordination:** Daily standups + 3 handoff meetings
+
+### Task Distribution Summary
+
+| Developer | Tasks | Hours | Days | Critical Deliverables |
+|-----------|-------|-------|------|------------------------|
+| **Backend Developer** | 8 tasks | 5.5 hrs | Day 1-2 | Migration 010 (BLOCKS US-007), color module, repository |
+| **Frontend Developer** | 5 tasks | 5 hrs | Day 2-3 | AccountListItem widget, color picker, tree integration |
+| **Tech Lead** | 5 tasks | 3 hrs | Day 3-4 | Testing (15+ tests), accessibility, US-007 handoff |
+| **TOTAL** | **18 tasks** | **13.5 hrs** | **4 days** | All 6 ACs complete, tests passing, docs updated |
+
+---
+
+### 👨‍💻 Backend Developer: 8 Tasks (5.5 hours, Day 1-2)
+
+**Critical:** Migration 010 MUST be completed by end of Day 2 (blocks US-007 Sprint 11)
+
+#### Day 1 Morning (2 hours) - Phase 1: Database & Model
+
+**Task 1.1: Create Migration 010** ⚠️ CRITICAL
+- **Time:** 45 minutes
+- **Priority:** P0 (BLOCKS US-007)
+- **Files:** `finance_app/data/migrations/010_account_visual_fields.sql`
+- **Deliverables:**
+  - 4 columns: color_hex, icon, display_order, is_favorite
+  - 3 indices: favorite, display_order, color
+  - UPDATE existing accounts: display_order = id
+  - Rollback tested
+- **Testing:** Verify columns exist, indices created
+- **Handoff:** Notify team when committed to main
+
+**Task 1.2: Update Account Model**
+- **Time:** 45 minutes
+- **Priority:** P0
+- **Files:** `finance_app/data/models.py`
+- **Deliverables:**
+  - Add 4 visual fields to Account dataclass
+  - Type hints + docstrings
+  - Default values: color_hex='#3B82F6', display_order=0, is_favorite=False
+- **Testing:** Test account creation with visual fields
+
+**Task 1.3: Database Integration**
+- **Time:** 30 minutes
+- **Priority:** P0
+- **Files:** `finance_app/data/database.py`
+- **Deliverables:**
+  - Add migration 010 to MIGRATIONS list
+  - Update SCHEMA_VERSION = 10
+  - Verify migration runs on startup
+
+#### Day 1 Afternoon (1.5 hours) - Phase 2: Color Module
+
+**Task 2.1: Create account_colors.py Module** ⭐ CORE MODULE
+- **Time:** 1 hour
+- **Priority:** P0
+- **Files:** `finance_app/ui/styles/account_colors.py` (NEW - 140 lines)
+- **Deliverables:**
+  - ACCOUNT_TYPE_COLORS dict (8 account types)
+  - BALANCE_COLORS dict
+  - get_default_color() function
+  - get_balance_color() function (asset/liability/investment logic)
+  - get_transaction_count_color() function
+- **Important:** Use '#059669' (dark green) for savings (WCAG AA compliance)
+- **Testing:** 15+ unit tests (see Phase 6)
+
+**Task 2.2: Create styles/__init__.py**
+- **Time:** 15 minutes
+- **Priority:** P0
+- **Files:** `finance_app/ui/styles/__init__.py` (NEW)
+- **Deliverables:** Export all color functions
+
+**Task 2.3: Update AccountService**
+- **Time:** 15 minutes
+- **Priority:** P1
+- **Files:** `finance_app/business/account_service.py`
+- **Deliverables:**
+  - Add color_hex parameter to create_account()
+  - Call get_default_color() if not provided
+  - Persist color to database
+
+#### Day 2 Morning (2 hours) - Phase 3: Repository Layer
+
+**Task 3.1: Add get_account_summary() Method** ⭐ KEY METHOD
+- **Time:** 1.5 hours
+- **Priority:** P0
+- **Files:** `finance_app/data/repositories/account_repository.py`
+- **Deliverables:**
+  - Single SQL query with LEFT JOIN on journal_entries
+  - Explicit column selection (NOT SELECT *)
+  - Aggregates: transaction_count, reconciled_count, pending_count
+  - Returns dict with account + statistics
+- **Performance:** <10ms per account (test with 100 accounts)
+- **Testing:** Test with/without transactions
+
+**Task 3.2: Update _row_to_account() Helper**
+- **Time:** 30 minutes
+- **Priority:** P0
+- **Files:** `finance_app/data/repositories/account_repository.py`
+- **Deliverables:**
+  - Map 4 visual fields in row conversion
+  - Handle NULL values with defaults
+  - Boolean conversion for is_favorite
+
+#### Backend Handoff (End of Day 2)
+- [ ] Migration 010 committed to main branch
+- [ ] account_colors.py complete and importable
+- [ ] get_account_summary() working
+- [ ] Unit tests written for backend components
+- [ ] Sample data available for Frontend testing
+
+---
+
+### 🎨 Frontend Developer: 5 Tasks (5 hours, Day 2-3)
+
+**Prerequisites:** Backend Migration 010 + color module complete
+
+#### Day 2 Afternoon (2.5 hours) - Phase 4: UI Components (Part 1)
+
+**Task 4.1: Create AccountListItem Widget** ⭐ MAIN UI COMPONENT
+- **Time:** 2 hours
+- **Priority:** P0
+- **Files:** `finance_app/ui/widgets/account_list_item.py` (NEW - 200+ lines)
+- **Deliverables:**
+  - QWidget with QHBoxLayout
+  - Color circle (24x24 px) using account.color_hex
+  - Account name (bold, 14px) + type label (gray, 11px)
+  - Balance label (color-coded with get_balance_color())
+  - Transaction count badge (color-coded by activity)
+  - Favorite star button (clickable, emits signal)
+  - Status icons (⚠️ needs reconciliation)
+  - Tooltips for accessibility
+- **Signals:** favorite_toggled = Signal(int, bool)
+- **Testing:** Manual UI testing with various account types
+
+**Task 4.2: Update widgets/__init__.py**
+- **Time:** 15 minutes
+- **Priority:** P0
+- **Files:** `finance_app/ui/widgets/__init__.py`
+- **Deliverables:** Export AccountListItem
+
+**Task 4.3: Add Color Picker to AccountDialog** ⭐ USER FEATURE
+- **Time:** 1.5 hours (starts Day 2, finishes Day 3)
+- **Priority:** P0
+- **Files:** `finance_app/ui/dialogs/account_dialog.py`
+- **Deliverables:**
+  - setup_color_section() method
+  - Color preview (40x40 QLabel with border-radius)
+  - "Choose Color..." button → QColorDialog
+  - "Reset to Default" button (uses get_default_color())
+  - "Mark as favorite" checkbox
+  - Update get_account_data() to include color_hex + is_favorite
+- **Testing:** Open dialog, select color, verify persistence
+
+#### Day 3 Morning (1.5 hours) - Phase 4 & 5: Integration
+
+**Task 4.4: Update AccountTreeWidget Integration**
+- **Time:** 30 minutes
+- **Priority:** P1
+- **Files:** `finance_app/ui/widgets/account_tree_widget.py`
+- **Deliverables:**
+  - Replace simple items with AccountListItem widgets
+  - Call get_account_summary() for each account
+  - Connect favorite_toggled signal
+  - Handle favorite toggle (update database, refresh)
+  - Preserve drag-drop functionality
+- **Testing:** Verify tree displays visual indicators
+
+**Task 5.1: Verify MainWindow Display** (Phase 5)
+- **Time:** 1 hour
+- **Priority:** P1
+- **Files:** `finance_app/ui/main_window.py`
+- **Deliverables:**
+  - Verify AccountTreeWidget shows visual indicators
+  - Test with various account types (assets, liabilities)
+  - Verify color coding visible
+  - Test favorite toggle from main window
+  - Performance check with 50+ accounts
+- **Manual Testing:**
+  - Create 50+ accounts
+  - Verify load time <500ms
+  - Test positive/negative balances (color-coded)
+  - Click favorite stars (verify persistence)
+  - Test color picker in create/edit dialogs
+
+#### Frontend Handoff (End of Day 3)
+- [ ] AccountListItem widget complete
+- [ ] Color picker working in AccountDialog
+- [ ] AccountTreeWidget displays visual indicators
+- [ ] Manual testing completed (50+ accounts)
+- [ ] Screenshots captured for documentation
+- [ ] No UI glitches or layout issues
+
+---
+
+### 🔍 Tech Lead: 5 Tasks (3 hours, Day 3-4)
+
+**Prerequisites:** Backend + Frontend implementation complete
+
+#### Day 3 Afternoon (2 hours) - Phase 6: Testing
+
+**Task 6.1: Unit Tests for Color Utilities** ⭐ CORE TESTING
+- **Time:** 1 hour
+- **Priority:** P0
+- **Files:** `finance_app/tests/unit/test_account_colors.py` (NEW)
+- **Deliverables:**
+  - 15+ unit tests for account_colors.py
+  - Test all color utility functions
+  - Edge cases: zero, negative, unknown types
+  - Test coverage >95% for account_colors.py
+- **Test Suite:**
+  ```
+  test_get_default_color_asset_accounts()
+  test_get_default_color_liability_accounts()
+  test_get_default_color_unknown_type()
+  test_balance_color_asset_positive()
+  test_balance_color_asset_negative()
+  test_balance_color_asset_zero()
+  test_balance_color_liability_paid_off()
+  test_balance_color_liability_normal()
+  test_transaction_count_color_high_activity()
+  test_transaction_count_color_moderate_activity()
+  test_transaction_count_color_low_activity()
+  ... (4 more tests)
+  ```
+- **Run:** `pytest finance_app/tests/unit/test_account_colors.py -v --cov`
+
+**Task 6.2: Integration + Accessibility Tests** ⚠️ CRITICAL (AC6)
+- **Time:** 1 hour
+- **Priority:** P0 (AC6 requirement)
+- **Files:** `finance_app/tests/integration/test_account_visual_integration.py` (NEW)
+- **Deliverables:**
+  - 4+ integration tests (create account, custom color, favorite toggle, account summary)
+  - **NEW: Accessibility tests (WCAG AA contrast 4.5:1)**
+  - Colorblind simulation test
+  - Icons visible without color test
+- **Test Suite:**
+  ```python
+  # Integration Tests
+  test_create_account_assigns_default_color()
+  test_custom_color_persisted()
+  test_favorite_toggle()
+  test_get_account_summary_includes_stats()
+
+  # Accessibility Tests (NEW)
+  test_color_contrast_wcag_aa()  # Test all colors meet 4.5:1 ratio
+  test_colorblind_simulation()   # Protanopia/deuteranopia
+  test_icons_visible_without_color()  # Text + icons present
+  ```
+- **Critical:** Verify dark green (#059669) for savings passes WCAG AA
+- **Run:** `pytest finance_app/tests/integration/test_account_visual_integration.py -v`
+
+#### Day 3 Late Afternoon (1 hour) - Phase 7: Documentation
+
+**Task 7.1: Update USER_GUIDE.md**
+- **Time:** 30 minutes
+- **Priority:** P1
+- **Files:** `docs/USER_GUIDE.md`
+- **Deliverables:**
+  - New section "Visual Account Customization" (~560 lines)
+  - Subsections: Account Colors, Favorite Accounts, Visual Indicators
+  - Step-by-step instructions for color customization
+  - Screenshots (optional but recommended)
+  - What/Why/How structure
+- **Insert:** After "Organizing Accounts with Hierarchy" section
+
+**Task 7.2: Update ARCHITECTURE.md**
+- **Time:** 30 minutes
+- **Priority:** P1
+- **Files:** `docs/ARCHITECTURE.md`
+- **Deliverables:**
+  - New section "Visual Customization Fields (Migration 010)" (~370 lines)
+  - Document 4 database fields + indices
+  - Document account_colors.py module
+  - Document UI components (AccountListItem, color picker)
+  - Performance metrics
+- **Insert:** In "Database Schema" section after US-006
+
+#### Day 4 Morning (30 minutes) - Critical Handoff
+
+**Task 6.3: Code Review**
+- **Time:** 20 minutes
+- **Priority:** P0
+- **Checklist:**
+  - [ ] Backend PR reviewed (migration, models, repository, service)
+  - [ ] Frontend PR reviewed (widgets, dialogs, integration)
+  - [ ] All tests passing (unit + integration + accessibility)
+  - [ ] Code follows US-005/US-006 patterns
+  - [ ] No regressions in existing features
+  - [ ] Performance acceptable (<100ms rendering)
+
+**Task 6.4: US-007 Handoff Verification** ⚠️ CRITICAL (BLOCKS SPRINT 11)
+- **Time:** 10 minutes
+- **Priority:** P0 (BLOCKS US-007)
+- **US-007 Handoff Checklist:**
+  - [ ] **Migration 010 committed** to main branch
+  - [ ] **Fields verified present**: color_hex, icon, display_order, is_favorite
+  - [ ] **Test Migration 011** (create dummy US-007 migration: account_number, institution_name, notes)
+  - [ ] **Migration 011 test passes** with Migration 010 in place
+  - [ ] **Documentation updated** showing field ownership:
+    - Migration 010 (US-009): color_hex, icon, display_order, is_favorite
+    - Migration 011 (US-007): account_number, institution_name, notes (ONLY)
+  - [ ] **US-007 developer notified** fields available
+- **Verification Script:**
+  ```bash
+  sqlite3 data/finance.db "PRAGMA table_info(accounts);" | grep -E "(color_hex|icon|display_order|is_favorite)"
+  # Should show all 4 fields
+  ```
+
+#### Tech Lead Sprint Completion
+- [ ] All 15+ unit tests passing
+- [ ] All 4+ integration tests passing
+- [ ] **Accessibility tests passing (WCAG AA)**
+- [ ] USER_GUIDE.md + ARCHITECTURE.md updated
+- [ ] Code review complete (backend + frontend)
+- [ ] **US-007 handoff verified (Migration 010 → 011)**
+- [ ] Sprint 10 demo prepared
+- [ ] No regressions
+
+---
+
+## 📅 4-Day Sprint Timeline
+
+### Day 1: Backend Foundation
+**Morning (4 hours):**
+- Backend: Task 1.1-1.3 (Database & Model) - 2 hours
+- Backend: Task 2.1-2.3 (Color Module) - 1.5 hours
+- Daily Standup: 15 minutes
+
+**Afternoon (4 hours):**
+- Backend: Task 3.1-3.2 (Repository Layer) - 2 hours
+- Backend: Write backend unit tests - 1 hour
+- Tech Lead: Review Migration 010 - 30 minutes
+
+**End of Day 1 Deliverables:**
+- [ ] Migration 010 complete (not yet committed)
+- [ ] account_colors.py module complete
+- [ ] Repository methods complete
+
+---
+
+### Day 2: Backend Finish + Frontend Start
+**Morning (4 hours):**
+- Backend: Finish Task 3.1-3.2 (if needed) - 1 hour
+- Backend: Backend integration testing - 1 hour
+- Frontend: Task 4.1 (AccountListItem widget) - 2 hours
+- Daily Standup: 15 minutes
+
+**Afternoon (4 hours):**
+- Frontend: Task 4.2 (widgets/__init__.py) - 15 minutes
+- Frontend: Task 4.3 (Color Picker) - Start (1.5 hours)
+- Backend/Frontend: **Handoff Meeting** - 30 minutes
+  - Backend demos: Migration, color module, get_account_summary()
+  - Frontend asks API questions
+  - Tech Lead verifies migration safety
+
+**End of Day 2 Deliverables:**
+- [ ] **Migration 010 committed to main** ⚠️ CRITICAL
+- [ ] Backend PR submitted
+- [ ] AccountListItem widget 80% complete
+- [ ] Color picker integration started
+
+---
+
+### Day 3: Frontend Finish + Testing Start
+**Morning (4 hours):**
+- Frontend: Task 4.3 (Color Picker) - Finish (30 minutes)
+- Frontend: Task 4.4 (AccountTreeWidget integration) - 30 minutes
+- Frontend: Task 5.1 (MainWindow verification) - 1 hour
+- Tech Lead: Task 6.1 (Unit tests) - 1 hour
+- Daily Standup: 15 minutes
+- All: Bug fixes from integration - 1 hour
+
+**Afternoon (4 hours):**
+- Tech Lead: Task 6.2 (Integration + Accessibility tests) - 1 hour
+- Tech Lead: Task 7.1-7.2 (Documentation) - 1 hour
+- Frontend/Tech Lead: **Handoff Meeting** - 30 minutes
+  - Frontend demos: UI components, color picker, tree
+  - Tech Lead reviews visual design
+  - Identify manual testing scenarios
+- All: Final integration testing - 1.5 hours
+
+**End of Day 3 Deliverables:**
+- [ ] Frontend PR submitted
+- [ ] All UI components complete
+- [ ] 15+ unit tests passing
+- [ ] 4+ integration tests passing
+- [ ] **Accessibility tests passing**
+
+---
+
+### Day 4: Polish + US-007 Handoff
+**Morning (2 hours):**
+- Tech Lead: Task 6.3 (Code review) - 20 minutes
+- Tech Lead: Task 6.4 (US-007 handoff verification) - 10 minutes
+- All: **Handoff Meeting** - 30 minutes
+  - Tech Lead presents: Test results, documentation, US-007 status
+  - Team reviews DoD checklist
+  - Prepare sprint demo
+- All: Final bug fixes - 1 hour
+
+**Afternoon (1 hour):**
+- Sprint 10 demo/review - 30 minutes
+- Retrospective - 30 minutes
+- **US-007 handoff to Sprint 11 team**
+
+**End of Day 4 Deliverables:**
+- [ ] All 18 tasks complete
+- [ ] All 6 ACs met
+- [ ] All tests passing
+- [ ] Documentation complete
+- [ ] Code merged to main
+- [ ] **Migration 010 committed (US-007 ready)**
+- [ ] Sprint demo delivered
+- [ ] **Grade: A expected**
+
+---
+
+## 🤝 Coordination & Handoffs
+
+### Daily Standups (15 min, 9:00 AM)
+**Day 1-4:** Each developer shares:
+- Yesterday's progress
+- Today's plan
+- Blockers
+
+### Handoff Meeting 1: Backend → Frontend (Day 2 Afternoon, 30 min)
+**Agenda:**
+- Backend demonstrates: Migration 010, account_colors.py, get_account_summary()
+- Frontend asks questions about APIs
+- Tech Lead reviews migration safety
+- **Critical:** Confirm Migration 010 committed before Frontend proceeds
+
+### Handoff Meeting 2: Frontend → Tech Lead (Day 3 Afternoon, 30 min)
+**Agenda:**
+- Frontend demonstrates: AccountListItem, color picker, tree integration
+- Tech Lead reviews visual design
+- Identify manual testing scenarios
+- **Critical:** Capture screenshots for documentation
+
+### Handoff Meeting 3: Tech Lead → Team (Day 4 Morning, 30 min)
+**Agenda:**
+- Tech Lead presents: Test results, documentation, US-007 handoff status
+- Team reviews Definition of Done checklist
+- Prepare sprint demo
+- **Critical:** Verify US-007 handoff complete
+
+---
+
+## 🚨 Critical Success Factors
+
+### P0: Must Have (Sprint Cannot Complete Without)
+1. ✅ **Migration 010 committed by end of Day 2** - BLOCKS US-007 Sprint 11
+2. ✅ **All 6 Acceptance Criteria met** - Story closure requirement
+3. ✅ **All tests passing** - Quality gate (15+ unit, 4+ integration, accessibility)
+4. ✅ **US-007 handoff verified** - Migration 010 → 011 sequence tested
+
+### P1: Should Have (Important for Quality)
+1. ✅ **Accessibility testing** - AC6 requirement (WCAG AA 4.5:1 contrast)
+2. ✅ **Documentation complete** - USER_GUIDE.md + ARCHITECTURE.md
+3. ✅ **Code review** - Pattern consistency with US-005/US-006
+4. ✅ **Performance verified** - <100ms rendering for 100 accounts
+
+### P2: Nice to Have (Optional Enhancements)
+1. 💡 E2E GUI tests (Xvfb) - Recommended but not required
+2. 💡 Performance benchmarks - Helps with scalability confidence
+3. 💡 Color hex validation - Additional safety (QColorDialog already safe)
+
+---
+
 ## ✅ Definition of Done
 
 ### Database & Model (Phase 1)

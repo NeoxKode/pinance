@@ -850,3 +850,241 @@ class Reconciliation:
             f"cleared=${self.cleared_balance}, "
             f"{status})"
         )
+
+
+@dataclass
+class ValidationResult:
+    """
+    Result of validating a single account's balance.
+
+    Represents the outcome of comparing an account's cached balance
+    (stored in accounts.balance) against the calculated balance from
+    summing journal entries.
+
+    Story: US-010 - Account Balance Validation & Integrity
+
+    Attributes:
+        account_id: ID of validated account
+        account_name: Name of account (for display)
+        cached_balance: Balance stored in accounts table
+        calculated_balance: Balance calculated from journal entries
+        difference: cached_balance - calculated_balance
+        is_valid: True if difference < tolerance (default $0.01)
+        validated_at: Timestamp of validation
+        tolerance: Acceptable difference (default $0.01 for rounding)
+    """
+    account_id: int
+    account_name: str
+    cached_balance: Decimal
+    calculated_balance: Decimal
+    difference: Decimal
+    is_valid: bool
+    validated_at: datetime
+    tolerance: Decimal = Decimal('0.01')
+
+    def __post_init__(self):
+        """
+        Convert amounts to Decimal if needed.
+
+        Ensures all balance values are Decimal for precise arithmetic.
+        """
+        if not isinstance(self.cached_balance, Decimal):
+            self.cached_balance = Decimal(str(self.cached_balance))
+
+        if not isinstance(self.calculated_balance, Decimal):
+            self.calculated_balance = Decimal(str(self.calculated_balance))
+
+        if not isinstance(self.difference, Decimal):
+            self.difference = Decimal(str(self.difference))
+
+        if not isinstance(self.tolerance, Decimal):
+            self.tolerance = Decimal(str(self.tolerance))
+
+    @property
+    def severity(self) -> str:
+        """
+        Get severity level based on difference magnitude.
+
+        Returns:
+            'OK': Difference < $0.01 (valid)
+            'MINOR': Difference < $1.00 (rounding errors)
+            'MODERATE': Difference < $100.00 (data entry errors)
+            'CRITICAL': Difference >= $100.00 (serious corruption)
+        """
+        abs_diff = abs(self.difference)
+
+        if abs_diff < Decimal('0.01'):
+            return 'OK'
+        elif abs_diff < Decimal('1.00'):
+            return 'MINOR'
+        elif abs_diff < Decimal('100.00'):
+            return 'MODERATE'
+        else:
+            return 'CRITICAL'
+
+    @property
+    def severity_color(self) -> str:
+        """Get color code for severity level (for UI display)."""
+        severity_colors = {
+            'OK': '#10B981',        # Green
+            'MINOR': '#F59E0B',     # Amber
+            'MODERATE': '#F97316',  # Orange
+            'CRITICAL': '#EF4444',  # Red
+        }
+        return severity_colors[self.severity]
+
+    def __str__(self) -> str:
+        """Human-readable validation result."""
+        status = "✅ VALID" if self.is_valid else "❌ INVALID"
+        return (
+            f"{status} - {self.account_name}: "
+            f"Cached=${self.cached_balance:.2f}, "
+            f"Calculated=${self.calculated_balance:.2f}, "
+            f"Diff=${self.difference:.2f} ({self.severity})"
+        )
+
+
+@dataclass
+class TrialBalanceEntry:
+    """
+    Single entry in trial balance report.
+
+    Represents one account with its balance displayed in either
+    debit or credit column based on account's normal balance.
+
+    Story: US-010 - Account Balance Validation & Integrity
+
+    Attributes:
+        account_id: Account ID
+        account_name: Account name for display
+        account_type: Asset, Liability, Equity, Income, Expense
+        debit_balance: Balance shown in debit column (or $0)
+        credit_balance: Balance shown in credit column (or $0)
+
+    Business Rules:
+        - Debit normal balance accounts (Assets, Expenses):
+          Show positive balances in debit column
+        - Credit normal balance accounts (Liabilities, Equity, Income):
+          Show positive balances in credit column
+    """
+    account_id: int
+    account_name: str
+    account_type: str
+    debit_balance: Decimal = Decimal('0.00')
+    credit_balance: Decimal = Decimal('0.00')
+
+    def __post_init__(self):
+        """Convert amounts to Decimal if needed."""
+        if not isinstance(self.debit_balance, Decimal):
+            self.debit_balance = Decimal(str(self.debit_balance))
+
+        if not isinstance(self.credit_balance, Decimal):
+            self.credit_balance = Decimal(str(self.credit_balance))
+
+    @property
+    def net_balance(self) -> Decimal:
+        """Get net balance (debit - credit)."""
+        return self.debit_balance - self.credit_balance
+
+
+@dataclass
+class TrialBalance:
+    """
+    Trial balance report for accounting integrity.
+
+    Lists all accounts with debit/credit balances and verifies
+    that accounting equation holds: Total Debits = Total Credits.
+
+    Story: US-010 - Account Balance Validation & Integrity
+
+    Attributes:
+        report_date: Date report generated (ISO format YYYY-MM-DD)
+        as_of_date: Data as of this date (for historical reports)
+        accounts: List of trial balance entries
+        total_debits: Sum of all debit balances
+        total_credits: Sum of all credit balances
+        generated_at: Timestamp when report generated
+    """
+    report_date: str
+    as_of_date: str
+    accounts: list = None  # Will be list[TrialBalanceEntry]
+    total_debits: Decimal = Decimal('0.00')
+    total_credits: Decimal = Decimal('0.00')
+    generated_at: datetime = None
+
+    def __post_init__(self):
+        """Initialize defaults."""
+        if self.accounts is None:
+            self.accounts = []
+
+        if self.generated_at is None:
+            self.generated_at = datetime.now()
+
+        # Convert totals to Decimal
+        if not isinstance(self.total_debits, Decimal):
+            self.total_debits = Decimal(str(self.total_debits))
+
+        if not isinstance(self.total_credits, Decimal):
+            self.total_credits = Decimal(str(self.total_credits))
+
+    @property
+    def is_balanced(self) -> bool:
+        """
+        Check if trial balance is balanced.
+
+        Returns True if total debits = total credits (within $0.01 tolerance).
+        A balanced trial balance indicates accounting equation is maintained.
+        """
+        return abs(self.total_debits - self.total_credits) < Decimal('0.01')
+
+    @property
+    def difference(self) -> Decimal:
+        """
+        Get difference between debits and credits.
+
+        Returns:
+            Positive: Debits > Credits (assets overstated or equity understated)
+            Negative: Credits > Debits (liabilities overstated or assets understated)
+            ~0: Balanced (good!)
+        """
+        return self.total_debits - self.total_credits
+
+    @property
+    def status(self) -> str:
+        """Get trial balance status for display."""
+        if self.is_balanced:
+            return "✅ BALANCED"
+        else:
+            return f"❌ UNBALANCED (Diff: ${abs(self.difference):.2f})"
+
+    def add_entry(self, entry: TrialBalanceEntry):
+        """Add entry and update totals."""
+        self.accounts.append(entry)
+        self.total_debits += entry.debit_balance
+        self.total_credits += entry.credit_balance
+
+    def __str__(self) -> str:
+        """Format trial balance as text table."""
+        lines = [
+            f"TRIAL BALANCE - {self.report_date}",
+            f"As of: {self.as_of_date}",
+            "",
+            f"{'Account':<40} | {'Debit':>15} | {'Credit':>15}",
+            "-" * 75,
+        ]
+
+        for entry in self.accounts:
+            debit_str = f"${entry.debit_balance:,.2f}" if entry.debit_balance else ""
+            credit_str = f"${entry.credit_balance:,.2f}" if entry.credit_balance else ""
+            lines.append(
+                f"{entry.account_name:<40} | {debit_str:>15} | {credit_str:>15}"
+            )
+
+        lines.extend([
+            "-" * 75,
+            f"{'TOTALS':<40} | ${self.total_debits:>14,.2f} | ${self.total_credits:>14,.2f}",
+            "",
+            f"Status: {self.status}",
+        ])
+
+        return "\n".join(lines)

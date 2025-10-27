@@ -11,6 +11,7 @@ from finance_app.data.models import (
 from finance_app.data.database import Database
 from finance_app.data.repositories.account_repository import AccountRepository
 from finance_app.data.repositories.transaction_repository import TransactionRepository
+from finance_app.data.repositories.journal_entry_repository import JournalEntryRepository
 from finance_app.business.validators import AccountValidator
 from finance_app.business.double_entry_service import DoubleEntryService
 from finance_app.utils.logger import setup_logger
@@ -32,8 +33,10 @@ class AccountService:
         self.db = database
         self.account_repo = AccountRepository(database)
         self.transaction_repo = TransactionRepository(database)
+        self.journal_repo = JournalEntryRepository(database)
         self.validator = AccountValidator()
         self.double_entry_service = DoubleEntryService(database)
+        self.logger = logger
 
     def create_account(
         self,
@@ -148,6 +151,10 @@ class AccountService:
             f"is_parent: {is_parent})"
         )
 
+        # US-010 Task 5.2: Validate balance after creation (if opening balance set)
+        if validated_balance != Decimal('0.00'):
+            self.validate_account_balance_after_operation(created_account.id)
+
         return created_account
 
     def update_account(
@@ -206,6 +213,9 @@ class AccountService:
         # Save updates
         updated_account = self.account_repo.update(account)
         logger.info(f"Account updated: {updated_account.name} (ID: {updated_account.id})")
+
+        # US-010 Task 5.2: Validate balance after update
+        self.validate_account_balance_after_operation(updated_account.id)
 
         return updated_account
 
@@ -277,6 +287,55 @@ class AccountService:
             raise NotFoundError(f"Account with ID {account_id} not found")
 
         return account.balance
+
+    # ========================================================================
+    # Balance Validation (US-010)
+    # ========================================================================
+
+    def validate_account_balance_after_operation(self, account_id: int):
+        """
+        Validate account balance after create/update operations (US-010 Task 5.2).
+
+        Called after account operations to ensure balance integrity.
+        Logs warning if discrepancy detected.
+
+        Args:
+            account_id: Account ID to validate
+
+        Returns:
+            ValidationResult object with is_valid flag and discrepancy details
+
+        Note:
+            This method does not block the operation - it only logs warnings
+            if discrepancies are detected. The balance can be fixed later using
+            the ValidationReportDialog (Tools → Validate Account Balances).
+        """
+        # Import here to avoid circular dependency
+        from finance_app.business.account_balance_validator import AccountBalanceValidator
+
+        validator = AccountBalanceValidator(
+            self.db,
+            self.account_repo,
+            self.journal_repo
+        )
+
+        result = validator.validate_account_balance(account_id)
+
+        if not result.is_valid:
+            self.logger.warning(
+                f"Balance discrepancy detected after operation: "
+                f"{result.account_name} (ID: {account_id}) - "
+                f"Difference: ${result.difference:.2f} "
+                f"(Cached: ${result.cached_balance:.2f}, "
+                f"Calculated: ${result.calculated_balance:.2f}, "
+                f"Severity: {result.severity})"
+            )
+        else:
+            self.logger.debug(
+                f"Balance validation passed for {result.account_name} (ID: {account_id})"
+            )
+
+        return result
 
     # ========================================================================
     # Opening Balance Methods (US-005)

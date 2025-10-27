@@ -1,7 +1,7 @@
 # Personal Finance Manager - User Guide
 
-**Version:** 2.3.0
-**Last Updated:** October 26, 2025
+**Version:** 2.4.0
+**Last Updated:** October 27, 2025
 **Status:** ✅ Complete
 
 ---
@@ -50,7 +50,19 @@
    - [Common Hierarchy Patterns](#common-hierarchy-patterns)
    - [Troubleshooting Hierarchy](#troubleshooting-hierarchy)
    - [Frequently Asked Questions](#hierarchy-faq)
-5. [Advanced Features](#advanced-features)
+5. [Account Balance Validation](#account-balance-validation)
+   - [What is Account Balance Validation?](#what-is-account-balance-validation)
+   - [Why Validate Account Balances?](#why-validate-account-balances)
+   - [When to Validate](#when-to-validate)
+   - [How to Validate All Accounts](#how-to-validate-all-accounts)
+   - [Understanding the Validation Report](#understanding-the-validation-report)
+   - [How to Fix Discrepancies](#how-to-fix-discrepancies)
+   - [How to View Trial Balance](#how-to-view-trial-balance)
+   - [Understanding Trial Balance](#understanding-trial-balance)
+   - [Validation Best Practices](#validation-best-practices)
+   - [Troubleshooting Validation](#troubleshooting-validation)
+   - [Frequently Asked Questions](#validation-faq)
+6. [Advanced Features](#advanced-features)
 
 ---
 
@@ -2608,6 +2620,819 @@ Choose what makes sense for **your** financial situation.
 
 ---
 
+## Account Balance Validation
+
+### What is Account Balance Validation?
+
+**Account Balance Validation** is a data integrity feature that automatically checks whether your account balances in the app match the actual sum of all transactions (journal entries) for each account.
+
+**Real-World Example:**
+
+Imagine your checking account shows a balance of $5,000 in the app, but when you add up all your deposits and withdrawals (transactions), the math says it should be $5,050. That's a **discrepancy**! Balance validation finds these issues automatically.
+
+**Simple Analogy:**
+
+Think of it like balancing your checkbook:
+- **Cached Balance** = What your account record says (the number you wrote down)
+- **Calculated Balance** = What your transactions add up to (the actual math)
+- **Validation** = Checking if those two numbers match
+
+The validation system uses double-entry accounting principles:
+```
+Account Balance = SUM(Debits) - SUM(Credits) for all journal entries
+```
+
+---
+
+### Why Validate Account Balances?
+
+Validating account balances is crucial for several reasons:
+
+#### ✅ **1. Data Integrity**
+- Ensures your balances are mathematically correct
+- Catches rounding errors from Decimal/Float conversions
+- Detects database update failures
+- Maintains trust in your financial reports
+
+#### ✅ **2. Early Problem Detection**
+- Identifies issues before they compound
+- Catches bugs in transaction processing
+- Detects manual database edits
+- Prevents incorrect financial decisions
+
+#### ✅ **3. Compliance & Auditing**
+- Maintains audit trail of all validation checks
+- Documents when balances were fixed
+- Provides accountability for data changes
+- Meets accounting standards
+
+#### ✅ **4. Peace of Mind**
+- Confidence that your financial data is accurate
+- Quick verification after bulk imports
+- Regular health checks for your data
+- Professional-grade accounting integrity
+
+**When Discrepancies Occur:**
+
+Discrepancies are rare but can happen due to:
+- Database trigger failures
+- Manual database edits
+- Software bugs (rare)
+- Rounding errors in floating-point arithmetic
+- Interrupted transactions (power loss, crash)
+
+The validation system automatically finds and fixes these issues!
+
+---
+
+### When to Validate
+
+**Recommended Validation Schedule:**
+
+| Frequency | Use Case | Why |
+|-----------|----------|-----|
+| **Monthly** | Regular maintenance | Catch issues before financial close |
+| **Before Reports** | Financial statements | Ensure accuracy of reports |
+| **After Imports** | Bulk transaction imports | Verify import succeeded |
+| **After Errors** | If you see strange balances | Diagnose and fix issues |
+| **After Updates** | Software version upgrades | Verify data integrity |
+
+**Automatic Validation:**
+
+The app includes **database triggers** that automatically update balances when you:
+- Add a new transaction
+- Edit an existing transaction
+- Delete a transaction
+- Transfer between accounts
+
+These triggers **minimize validation failures** by keeping balances current in real-time!
+
+**Manual Validation:**
+
+Even with automatic triggers, it's good practice to run manual validation:
+- Monthly as part of financial close
+- Before generating important reports
+- After any manual database operations
+- If balances look suspicious
+
+---
+
+### How to Validate All Accounts
+
+**Step 1: Open the Validation Tool**
+
+1. Click **"Tools"** in the main menu
+2. Select **"Validate Account Balances"**
+3. The validation process will start automatically
+
+**Step 2: Wait for Validation**
+
+- The app will check every account in your system
+- For 100 accounts: ~500ms
+- For 1,000 accounts: ~5 seconds
+- For 10,000 accounts: ~50 seconds
+
+A progress indicator may appear for large datasets.
+
+**Step 3: Review the Results**
+
+The **Validation Report Dialog** will show:
+
+| Account | Cached Balance | Calculated Balance | Difference | Severity | Action |
+|---------|---------------|-------------------|------------|----------|--------|
+| Checking | $5,000.00 | $5,000.00 | $0.00 | ✅ OK | - |
+| Savings | $10,000.00 | $10,050.25 | -$50.25 | ⚠️ WARNING | Fix |
+| Credit Card | $3,500.00 | $4,200.00 | -$700.00 | 🚨 CRITICAL | Fix |
+
+**Step 4: Fix Discrepancies (if needed)**
+
+- Click **"Fix All Discrepancies"** to repair all accounts at once
+- Or click individual **"Fix"** buttons for specific accounts
+- The app will automatically update the cached balance to match the calculated balance
+
+**Step 5: Revalidate**
+
+- Click **"Revalidate"** to confirm fixes
+- All accounts should now show ✅ OK status
+
+---
+
+### Understanding the Validation Report
+
+The Validation Report shows detailed information for each account:
+
+#### **Column Descriptions**
+
+**1. Account**
+- The name of the account being validated
+- Example: "Checking Account", "Credit Card", "Cash"
+
+**2. Cached Balance**
+- The balance stored in the `accounts.balance` column
+- This is what the app displays in the account list
+- Updated by database triggers on each transaction
+
+**3. Calculated Balance**
+- The actual balance calculated from journal entries
+- Formula: `SUM(debits) - SUM(credits)`
+- This is the "source of truth"
+
+**4. Difference**
+- `Cached Balance - Calculated Balance`
+- Positive: Cached balance is too high
+- Negative: Cached balance is too low
+- Zero: Perfect match (valid)
+
+**5. Severity**
+- Color-coded indicator of discrepancy importance:
+
+| Severity | Color | Range | Meaning |
+|----------|-------|-------|---------|
+| ✅ **OK** | Green | $0.00 - $0.01 | Valid (within tolerance) |
+| ⚠️ **WARNING** | Yellow | $0.01 - $10.00 | Minor discrepancy |
+| 🔴 **ERROR** | Red | $10.00 - $100.00 | Moderate discrepancy |
+| 🚨 **CRITICAL** | Dark Red | >= $100.00 | Serious discrepancy |
+
+**6. Action**
+- "Fix" button to repair the specific account
+- Disabled for accounts that are already valid
+
+#### **Tolerance for Rounding Errors**
+
+The validation system allows a **1-cent tolerance** ($0.01) to account for floating-point rounding errors. This prevents false positives from Decimal/Float conversions.
+
+Example:
+- Cached: $1,000.004
+- Calculated: $1,000.006
+- Difference: -$0.002 (rounds to -$0.00)
+- Result: ✅ **Valid** (within $0.01 tolerance)
+
+---
+
+### How to Fix Discrepancies
+
+When validation finds discrepancies, you have two options:
+
+#### **Option 1: Fix All Discrepancies (Recommended)**
+
+**Best for:** Multiple discrepancies, monthly maintenance, bulk repairs
+
+**Steps:**
+1. Review the Validation Report
+2. Click **"Fix All Discrepancies"** button at the bottom
+3. Confirmation dialog will show:
+   - Number of accounts to be fixed
+   - Total discrepancy amount
+4. Click **"Yes, Fix All"**
+5. The app will:
+   - Calculate correct balance from journal entries
+   - Update `accounts.balance` for each account
+   - Log the repair to audit trail (`was_repaired=1`)
+6. Revalidate to confirm all accounts are fixed
+
+**Example:**
+```
+Fix All Discrepancies
+
+3 accounts have discrepancies:
+- Checking: -$50.25
+- Savings: $10.50
+- Credit Card: -$700.00
+
+Total absolute difference: $760.75
+
+This will update the cached balance for each account
+to match the calculated balance from journal entries.
+
+[Cancel] [Yes, Fix All]
+```
+
+#### **Option 2: Fix Individual Accounts**
+
+**Best for:** Single discrepancy, investigating specific issues
+
+**Steps:**
+1. Locate the account with a discrepancy in the report
+2. Click the **"Fix"** button in the Action column
+3. Confirmation dialog will show:
+   - Account name
+   - Current cached balance
+   - Correct calculated balance
+   - Difference amount
+4. Click **"Yes, Fix"**
+5. The app updates that specific account
+
+**Example:**
+```
+Fix Account Balance
+
+Account: Checking Account
+Cached Balance: $5,000.00
+Calculated Balance: $5,050.25
+Difference: -$50.25
+
+Update the cached balance to $5,050.25?
+
+[Cancel] [Yes, Fix]
+```
+
+#### **What Happens When You Fix?**
+
+1. **Calculate Correct Balance:**
+   ```sql
+   SELECT SUM(debit_amount) - SUM(credit_amount)
+   FROM journal_entries
+   WHERE account_id = ?
+   ```
+
+2. **Update Cached Balance:**
+   ```sql
+   UPDATE accounts
+   SET balance = [calculated_balance]
+   WHERE id = ?
+   ```
+
+3. **Log to Audit Trail:**
+   ```sql
+   INSERT INTO balance_validation_log
+   (account_id, cached_balance, calculated_balance,
+    difference, was_repaired, validated_at)
+   VALUES (?, ?, ?, ?, 1, NOW())
+   ```
+
+4. **Return Updated Account:**
+   The account object is returned with the corrected balance.
+
+#### **Safety Guarantees**
+
+- ✅ **Read-Only Except Balance:** Only updates `accounts.balance` column
+- ✅ **Never Modifies Transactions:** Journal entries are the source of truth
+- ✅ **Idempotent:** Safe to run multiple times (same result)
+- ✅ **Logged:** Every repair is audited in `balance_validation_log`
+- ✅ **Reversible:** Can manually revert if needed (though not recommended)
+
+---
+
+### How to View Trial Balance
+
+The **Trial Balance** is a report that lists all accounts with their debit and credit balances, verifying that debits equal credits (balanced books).
+
+**Step 1: Open Trial Balance**
+
+1. Click **"Tools"** in the main menu
+2. Select **"Trial Balance Report"**
+3. The report generates automatically
+
+**Step 2: Review the Report**
+
+The Trial Balance Dialog shows:
+
+**Header:**
+```
+Trial Balance Report
+As of: 2025-10-27
+Generated: 2025-10-27 14:30:00
+```
+
+**Account Table:**
+
+| Account | Type | Debit | Credit |
+|---------|------|-------|--------|
+| Cash | Asset | $5,000.00 | - |
+| Checking Account | Asset | $10,000.00 | - |
+| Savings Account | Asset | $8,500.00 | - |
+| Investment Account | Asset | $25,000.00 | - |
+| **Assets Subtotal:** | | **$48,500.00** | - |
+| Credit Card | Liability | - | $3,500.00 |
+| Mortgage Loan | Liability | - | $250,000.00 |
+| **Liabilities Subtotal:** | | - | **$253,500.00** |
+| Opening Balance Equity | Equity | - | $200,000.00 |
+| Retained Earnings | Equity | - | $95,000.00 |
+| **Equity Subtotal:** | | - | **$295,000.00** |
+
+**Totals Row:**
+```
+TOTALS:              $548,500.00    $548,500.00
+
+✅ BALANCED (Debits = Credits)
+```
+
+**Step 3: Verify Balance**
+
+- If **✅ BALANCED:** Your books are correct!
+- If **⚠️ UNBALANCED:** Investigate immediately (serious issue)
+
+**Step 4: Export (Optional)**
+
+- Click **"Export to PDF"** to save the report
+- Click **"Print Report"** to print
+- Click **"Export to CSV"** for spreadsheet analysis
+
+---
+
+### Understanding Trial Balance
+
+#### **What is a Trial Balance?**
+
+A trial balance is a fundamental accounting report that lists all accounts and verifies the double-entry accounting equation:
+
+```
+Total Debits = Total Credits
+```
+
+Or equivalently:
+
+```
+Assets + Expenses = Liabilities + Equity + Income
+```
+
+#### **Debit vs. Credit Columns**
+
+**Debit Column (Left Side):**
+- **Assets:** Checking, Savings, Cash, Investments
+- **Expenses:** Groceries, Rent, Utilities, etc.
+
+*Why?* Assets and Expenses have a **debit normal balance** - they increase with debits.
+
+**Credit Column (Right Side):**
+- **Liabilities:** Credit Cards, Loans, Mortgages
+- **Equity:** Opening Balance Equity, Retained Earnings
+- **Income:** Salary, Business Income, Interest
+
+*Why?* Liabilities, Equity, and Income have a **credit normal balance** - they increase with credits.
+
+#### **How to Read the Report**
+
+**1. Account Grouping**
+
+Accounts are grouped by type for clarity:
+- Assets (largest assets first)
+- Liabilities (largest liabilities first)
+- Equity
+- Income (if any)
+- Expenses (if any)
+
+**2. Subtotals**
+
+Each account type shows a subtotal:
+- **Assets Subtotal:** Total of all asset accounts
+- **Liabilities Subtotal:** Total of all liability accounts
+- **Equity Subtotal:** Total of all equity accounts
+
+**3. Grand Totals**
+
+The bottom row shows:
+- **Total Debits:** Sum of all debit balances
+- **Total Credits:** Sum of all credit balances
+- **Status:** ✅ Balanced or ⚠️ Unbalanced
+
+#### **Balanced vs. Unbalanced**
+
+**✅ Balanced (Good!):**
+```
+TOTALS:    $548,500.00    $548,500.00
+Difference: $0.00
+
+✅ BALANCED (Debits = Credits)
+```
+
+This means your double-entry accounting is correct!
+
+**⚠️ Unbalanced (Problem!):**
+```
+TOTALS:    $548,500.00    $548,350.00
+Difference: $150.00
+
+⚠️ UNBALANCED! Investigate immediately.
+```
+
+This indicates a serious issue:
+- Missing journal entries
+- Incomplete double-entry transactions
+- Data corruption
+- Software bug
+
+**What to do:**
+1. Run "Validate Account Balances" to check for discrepancies
+2. Review recent transactions for errors
+3. Check for failed transaction imports
+4. Contact support if issue persists
+
+#### **As of Date Filter**
+
+The trial balance can show historical balances:
+
+**Current Balance (Default):**
+- As of: Today's date
+- Includes all transactions up to today
+
+**Historical Balance:**
+1. Select a date in the past (e.g., "2025-09-30")
+2. Report shows balances as of that date
+3. Useful for:
+   - End-of-month reports
+   - Comparing historical periods
+   - Auditing past financial state
+
+---
+
+### Validation Best Practices
+
+#### **1. Regular Validation Schedule**
+
+✅ **DO:**
+- Validate monthly as part of financial close
+- Validate before generating reports
+- Validate after bulk imports or migrations
+- Validate after software updates
+
+❌ **DON'T:**
+- Wait until you notice problems
+- Skip validation for months
+- Ignore small discrepancies
+
+#### **2. Review the Audit Trail**
+
+✅ **DO:**
+- Periodically review `balance_validation_log` table
+- Check for frequent discrepancies on specific accounts
+- Investigate patterns of failures
+
+❌ **DON'T:**
+- Ignore repeated discrepancies on same account
+- Fix without understanding root cause
+
+**Query Validation History:**
+```sql
+SELECT * FROM balance_validation_log
+WHERE account_id = ?
+ORDER BY validated_at DESC
+LIMIT 50;
+```
+
+#### **3. Understand Root Causes**
+
+If you see frequent discrepancies:
+
+**Possible Causes:**
+1. **Database Trigger Failures:**
+   - Check if triggers are enabled
+   - Review database logs for errors
+   - Verify trigger syntax is correct
+
+2. **Manual Database Edits:**
+   - Avoid editing database directly
+   - Use the app for all operations
+   - If manual edits needed, update balances afterward
+
+3. **Software Bugs:**
+   - Check for open issues on GitHub
+   - Report bugs with validation logs
+   - Upgrade to latest version
+
+4. **Concurrent Transactions:**
+   - Use database transactions properly
+   - Ensure ACID compliance
+   - Check for race conditions
+
+#### **4. Before/After Major Operations**
+
+✅ **DO:**
+- Validate before bulk imports
+- Validate after bulk imports
+- Export trial balance before major changes
+- Compare trial balances before/after
+
+**Example Workflow:**
+```
+1. Export Trial Balance (before)
+2. Import 500 transactions
+3. Validate All Accounts
+4. Fix any discrepancies
+5. Export Trial Balance (after)
+6. Compare the two reports
+```
+
+#### **5. Trust but Verify**
+
+✅ **DO:**
+- Trust the automatic triggers for day-to-day ops
+- Verify with manual validation monthly
+- Check trial balance before financial close
+
+❌ **DON'T:**
+- Assume everything is always perfect
+- Skip validation because "it should work"
+
+---
+
+### Troubleshooting Validation
+
+#### **Problem 1: Validation Takes Too Long**
+
+**Symptoms:**
+- Validation runs for 5+ minutes
+- App becomes unresponsive
+
+**Possible Causes:**
+- Very large number of accounts (10,000+)
+- Slow database (hard drive I/O)
+- Missing database indexes
+
+**Solutions:**
+
+✅ **1. Run validation during off-peak hours**
+```python
+# Schedule nightly validation via cron job
+0 2 * * * python3 /path/to/app/validate_all.py
+```
+
+✅ **2. Check database indexes**
+```sql
+-- Verify indexes exist
+SELECT name FROM sqlite_master
+WHERE type='index'
+  AND name LIKE '%journal_entries%';
+
+-- Should see:
+-- idx_journal_entries_account_date
+-- idx_journal_entries_account
+```
+
+✅ **3. Optimize database**
+```sql
+-- Rebuild indexes and optimize
+VACUUM;
+ANALYZE;
+```
+
+#### **Problem 2: Frequent Discrepancies on Same Account**
+
+**Symptoms:**
+- Same account fails validation repeatedly
+- Discrepancy reappears after fixing
+
+**Possible Causes:**
+- Database trigger not firing
+- Concurrent transaction issues
+- Manual database edits
+
+**Solutions:**
+
+✅ **1. Verify trigger exists**
+```sql
+SELECT name, sql FROM sqlite_master
+WHERE type='trigger'
+  AND name LIKE '%balance%';
+```
+
+✅ **2. Check trigger is enabled**
+```sql
+-- Re-create trigger if needed
+DROP TRIGGER IF EXISTS journal_entry_balance_update_after_insert;
+-- (Then run migration 009 again)
+```
+
+✅ **3. Review account transaction history**
+- Look for unusual transactions
+- Check for failed operations in logs
+- Verify no manual database edits
+
+#### **Problem 3: Trial Balance Doesn't Balance**
+
+**Symptoms:**
+- Trial balance shows unbalanced
+- Debits ≠ Credits
+- Large difference amount
+
+**Possible Causes:**
+- Incomplete double-entry transactions
+- Missing journal entries
+- Data corruption
+
+**Solutions:**
+
+✅ **1. Validate all accounts first**
+```
+Tools → Validate Account Balances → Fix All
+```
+
+✅ **2. Check for orphaned journal entries**
+```sql
+-- Find journal entries with no account
+SELECT * FROM journal_entries
+WHERE account_id NOT IN (SELECT id FROM accounts);
+```
+
+✅ **3. Verify opening balance equity**
+```sql
+-- Opening Balance Equity should offset assets
+SELECT SUM(balance) FROM accounts
+WHERE account_subtype = 'opening_balance';
+```
+
+✅ **4. Re-import data if needed**
+- Export all transactions
+- Backup database
+- Re-create accounts and transactions
+- Validate afterward
+
+#### **Problem 4: Cannot Fix Specific Account**
+
+**Symptoms:**
+- "Fix" button fails
+- Error message appears
+- Discrepancy persists
+
+**Possible Causes:**
+- Account has no journal entries
+- Account was deleted
+- Database lock
+
+**Solutions:**
+
+✅ **1. Check account exists**
+```sql
+SELECT * FROM accounts WHERE id = ?;
+```
+
+✅ **2. Check journal entries exist**
+```sql
+SELECT COUNT(*) FROM journal_entries
+WHERE account_id = ?;
+```
+
+✅ **3. Manually recalculate**
+```sql
+-- Get calculated balance
+SELECT COALESCE(SUM(debit_amount) - SUM(credit_amount), 0)
+FROM journal_entries
+WHERE account_id = ?;
+
+-- Update manually if needed
+UPDATE accounts
+SET balance = [calculated_balance]
+WHERE id = ?;
+```
+
+✅ **4. Review error logs**
+- Check `logs/finance_app.log`
+- Look for database errors
+- Report bugs with full error message
+
+---
+
+### Frequently Asked Questions {#validation-faq}
+
+#### Q: How often should I validate?
+
+**A:** Monthly is recommended, but also validate:
+- Before financial reports
+- After bulk imports
+- After software updates
+- If balances look wrong
+
+#### Q: What causes discrepancies?
+
+**A:** Common causes:
+1. **Database trigger failures** (rare, but possible)
+2. **Manual database edits** (bypasses triggers)
+3. **Software bugs** (report if found!)
+4. **Rounding errors** (handled by 1-cent tolerance)
+5. **Interrupted transactions** (power loss, crash)
+
+#### Q: Is it safe to fix discrepancies?
+
+**A:** Yes! Fixing is safe because:
+- Only updates `accounts.balance` column
+- Never modifies journal entries (source of truth)
+- Fully logged in audit trail
+- Idempotent (safe to run multiple times)
+
+#### Q: What if trial balance doesn't balance?
+
+**A:** This is serious! It means:
+- Double-entry accounting is broken
+- Some transactions missing journal entries
+- Data corruption occurred
+
+**Fix it:**
+1. Run "Validate Account Balances"
+2. Fix all discrepancies
+3. Regenerate trial balance
+4. If still unbalanced, contact support
+
+#### Q: Can I undo a fix?
+
+**A:** Yes, but not recommended:
+1. Check `balance_validation_log` for old cached balance
+2. Manually update `accounts.balance` if needed
+3. Better approach: investigate root cause and fix properly
+
+#### Q: What is the 1-cent tolerance?
+
+**A:** Validation allows $0.01 difference to account for:
+- Decimal to Float conversion rounding
+- Floating-point arithmetic errors
+- Prevents false positive failures
+
+Example:
+- Cached: $1,000.004
+- Calculated: $1,000.006
+- Difference: -$0.002
+- Result: ✅ Valid (within tolerance)
+
+#### Q: Will validation change my transactions?
+
+**A:** No! Validation only updates `accounts.balance`. Your transactions (journal entries) are never modified. They are the "source of truth".
+
+#### Q: How do I validate before financial close?
+
+**A:** Best practice workflow:
+```
+1. Reconcile all accounts
+2. Validate all account balances
+3. Fix any discrepancies
+4. Generate trial balance
+5. Verify trial balance is balanced
+6. Export trial balance as PDF
+7. Close books for the period
+```
+
+#### Q: What if I have 10,000+ accounts?
+
+**A:** Validation scales linearly:
+- 10,000 accounts ≈ 50 seconds
+- Run as scheduled job (off-peak hours)
+- Use `as_of_date` parameter for historical validation
+
+#### Q: Can I see validation history?
+
+**A:** Yes! Check the audit trail:
+```sql
+SELECT * FROM balance_validation_log
+WHERE account_id = ?
+ORDER BY validated_at DESC;
+```
+
+This shows:
+- When account was validated
+- What discrepancies were found
+- Whether balance was repaired
+- Historical cached/calculated balances
+
+#### Q: What if discrepancies keep coming back?
+
+**A:** Investigate root cause:
+1. Verify database triggers are enabled
+2. Check for manual database edits
+3. Review error logs for transaction failures
+4. Report bug if software issue suspected
+
+Don't just keep fixing - find and fix the underlying problem!
+
+---
+
 ## Advanced Features
 
 ### Split Transaction Templates (Coming Soon)
@@ -2666,6 +3491,7 @@ If you encounter issues not covered in this guide:
 
 **Version History:**
 
+- **2.4.0** (October 27, 2025) - Added Account Balance Validation feature guide (US-010)
 - **2.3.0** (October 26, 2025) - Added Organizing Accounts with Hierarchy feature guide (US-006)
 - **2.2.0** (October 26, 2025) - Added Setting Up Opening Balances feature guide (US-005)
 - **2.1.0** (October 23, 2025) - Added Account Reconciliation feature guide (US-004)

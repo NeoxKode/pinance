@@ -6,7 +6,8 @@ from decimal import Decimal
 
 from PySide6.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QTableWidget,
-    QTableWidgetItem, QPushButton, QLabel, QSplitter, QMessageBox, QDialog, QCheckBox
+    QTableWidgetItem, QPushButton, QLabel, QSplitter, QMessageBox, QDialog, QCheckBox,
+    QHeaderView
 )
 from finance_app.ui.widgets import AccountTreeWidget
 from PySide6.QtCore import Qt
@@ -59,6 +60,38 @@ class MainWindow(QMainWindow):
         """Set up the user interface."""
         self.setWindowTitle("Personal Finance Manager")
         self.setGeometry(100, 100, 1000, 600)
+
+        # ISSUE-007 FIX: Add clear keyboard focus indicators (WCAG accessibility)
+        self.setStyleSheet("""
+            /* Keyboard focus indicators for buttons */
+            QPushButton:focus {
+                border: 2px solid #3B82F6;
+                outline: 2px solid #93C5FD;
+                outline-offset: 2px;
+            }
+
+            /* Keyboard focus indicators for table widgets */
+            QTableWidget:focus {
+                border: 2px solid #3B82F6;
+            }
+
+            /* Keyboard focus indicators for tree widgets */
+            QTreeWidget:focus, QTreeView:focus {
+                border: 2px solid #3B82F6;
+            }
+
+            /* Keyboard focus indicators for checkboxes */
+            QCheckBox:focus {
+                outline: 2px solid #3B82F6;
+                outline-offset: 2px;
+            }
+
+            /* Keyboard focus indicators for menu items */
+            QMenu::item:focus {
+                background-color: #DBEAFE;
+                color: #1E40AF;
+            }
+        """)
 
         # Menu bar
         self._create_menu_bar()
@@ -133,6 +166,23 @@ class MainWindow(QMainWindow):
         view_menu = menubar.addMenu("View")
         reports_action = QAction("Reports", self)
         view_menu.addAction(reports_action)
+
+        # Tools menu (US-010)
+        tools_menu = menubar.addMenu("Tools")
+
+        # Validate All Accounts action
+        validate_action = QAction("Validate Account Balances...", self)
+        validate_action.setShortcut("Ctrl+Shift+V")
+        validate_action.setToolTip("Validate all account balances against journal entries")
+        validate_action.triggered.connect(self.validate_all_accounts)
+        tools_menu.addAction(validate_action)
+
+        # Trial Balance action
+        trial_balance_action = QAction("Trial Balance Report...", self)
+        trial_balance_action.setShortcut("Ctrl+T")
+        trial_balance_action.setToolTip("Generate trial balance report")
+        trial_balance_action.triggered.connect(self.show_trial_balance)
+        tools_menu.addAction(trial_balance_action)
 
         # Help menu
         help_menu = menubar.addMenu("Help")
@@ -212,6 +262,22 @@ class MainWindow(QMainWindow):
             "Date", "Description", "Category", "Amount", "Type", "Status"
         ])
         self.transaction_table.setSelectionBehavior(QTableWidget.SelectRows)
+
+        # BUG-006 FIX: Configure column widths and resize behavior
+        header = self.transaction_table.horizontalHeader()
+        header.setSectionResizeMode(0, QHeaderView.ResizeToContents)  # Date
+        header.setSectionResizeMode(1, QHeaderView.Stretch)          # Description (takes remaining space)
+        header.setSectionResizeMode(2, QHeaderView.ResizeToContents)  # Category
+        header.setSectionResizeMode(3, QHeaderView.Fixed)             # Amount (fixed width)
+        header.setSectionResizeMode(4, QHeaderView.ResizeToContents)  # Type
+        header.setSectionResizeMode(5, QHeaderView.ResizeToContents)  # Status
+
+        # Set minimum width for Amount column to prevent truncation
+        self.transaction_table.setColumnWidth(3, 100)  # Amount column
+
+        # ISSUE-002 FIX: Enable tooltips for table items
+        self.transaction_table.setMouseTracking(True)
+
         layout.addWidget(self.transaction_table)
 
         return panel
@@ -286,6 +352,8 @@ class MainWindow(QMainWindow):
                     font = desc_item.font()
                     font.setItalic(True)
                     desc_item.setFont(font)
+                # ISSUE-002 FIX: Add tooltip showing full description text
+                desc_item.setToolTip(trans.description)
                 self.transaction_table.setItem(i, 1, desc_item)
 
                 # Category
@@ -797,6 +865,85 @@ class MainWindow(QMainWindow):
 
         except Exception as e:
             logger.error(f"Failed to refresh UI after reconciliation: {e}")
+
+    def validate_all_accounts(self) -> None:
+        """Run balance validation on all accounts (US-010)."""
+        from finance_app.business.account_balance_validator import AccountBalanceValidator
+        from finance_app.data.repositories.account_repository import AccountRepository
+        from finance_app.data.repositories.journal_entry_repository import JournalEntryRepository
+        from finance_app.ui.dialogs.validation_report_dialog import ValidationReportDialog
+        from PySide6.QtWidgets import QProgressDialog
+
+        try:
+            # Create repositories
+            account_repo = AccountRepository(self.db)
+            journal_repo = JournalEntryRepository(self.db)
+
+            # Create validator
+            validator = AccountBalanceValidator(
+                self.db,
+                account_repo,
+                journal_repo
+            )
+
+            # Show progress dialog
+            progress = QProgressDialog("Validating account balances...", None, 0, 0, self)
+            progress.setWindowModality(Qt.WindowModal)
+            progress.show()
+
+            # Run validation
+            results = validator.validate_all_accounts()
+
+            progress.close()
+
+            # Show results dialog
+            dialog = ValidationReportDialog(results, validator, self)
+            dialog.accounts_fixed.connect(self.refresh_all)
+            dialog.exec()
+
+        except Exception as e:
+            logger.error(f"Failed to validate accounts: {e}")
+            QMessageBox.critical(self, "Error", f"Failed to validate accounts: {e}")
+
+    def show_trial_balance(self) -> None:
+        """Show trial balance report (US-010)."""
+        from finance_app.business.account_balance_validator import AccountBalanceValidator
+        from finance_app.data.repositories.account_repository import AccountRepository
+        from finance_app.data.repositories.journal_entry_repository import JournalEntryRepository
+        from finance_app.ui.dialogs.trial_balance_dialog import TrialBalanceDialog
+
+        try:
+            # Create repositories
+            account_repo = AccountRepository(self.db)
+            journal_repo = JournalEntryRepository(self.db)
+
+            # Create validator
+            validator = AccountBalanceValidator(
+                self.db,
+                account_repo,
+                journal_repo
+            )
+
+            # Generate trial balance
+            trial_balance = validator.get_trial_balance()
+
+            # Show dialog
+            dialog = TrialBalanceDialog(trial_balance, self)
+            dialog.exec()
+
+        except Exception as e:
+            logger.error(f"Failed to generate trial balance: {e}")
+            QMessageBox.critical(self, "Error", f"Failed to generate trial balance: {e}")
+
+    def refresh_all(self) -> None:
+        """Refresh all data displays after validation fixes (US-010)."""
+        try:
+            self._load_accounts()
+            self._load_transactions()
+            self.statusBar().showMessage("Data refreshed after balance repair", 3000)
+            logger.info("UI refreshed after balance validation fixes")
+        except Exception as e:
+            logger.error(f"Failed to refresh UI: {e}")
 
     def show_about(self) -> None:
         """Show about dialog."""

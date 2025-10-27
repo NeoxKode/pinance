@@ -518,6 +518,97 @@ def _apply_account_hierarchy_migration(conn: sqlite3.Connection) -> None:
         logger.debug("Account hierarchy migration already applied, skipping")
 
 
+def _apply_balance_validation_migration(conn: sqlite3.Connection) -> None:
+    """
+    Apply balance validation migration (009_balance_validation.sql).
+
+    This creates database triggers for automatic balance updates and
+    validation logging infrastructure.
+    Story: US-010 - Account Balance Validation & Integrity
+
+    Args:
+        conn: Database connection
+    """
+    cursor = conn.cursor()
+
+    # Check if migration is needed (look for balance_validation_log table)
+    cursor.execute("""
+        SELECT name FROM sqlite_master
+        WHERE type='table' AND name='balance_validation_log'
+    """)
+
+    if cursor.fetchone() is None:
+        logger.info("Applying balance validation migration (009)...")
+
+        # Read and execute migration file
+        migration_path = Path(__file__).parent / "migrations" / "009_balance_validation.sql"
+
+        if not migration_path.exists():
+            logger.warning(f"Migration file not found: {migration_path}")
+            return
+
+        with open(migration_path, 'r') as f:
+            migration_sql = f.read()
+
+        # Execute migration
+        cursor.executescript(migration_sql)
+
+        conn.commit()
+        logger.info("Balance validation migration (009) completed")
+
+        # Verify balance_validation_log table created
+        cursor.execute("""
+            SELECT name FROM sqlite_master
+            WHERE type='table' AND name='balance_validation_log'
+        """)
+        if cursor.fetchone():
+            logger.info("Migration verification: ✓ balance_validation_log table created")
+        else:
+            logger.error("Migration verification failed: balance_validation_log table not found")
+
+        # Verify triggers created
+        cursor.execute("""
+            SELECT name FROM sqlite_master
+            WHERE type='trigger' AND name LIKE 'update_account_balance%'
+        """)
+        triggers = [row[0] for row in cursor.fetchall()]
+
+        if len(triggers) == 3:
+            logger.info(f"Migration verification: ✓ All 3 balance update triggers created")
+            for trigger_name in triggers:
+                logger.info(f"  - {trigger_name}")
+        else:
+            logger.warning(f"Migration verification: Found {len(triggers)}/3 triggers: {triggers}")
+
+        # Verify indices created
+        cursor.execute("""
+            SELECT name FROM sqlite_master
+            WHERE type='index' AND tbl_name='balance_validation_log'
+        """)
+        indices = [row[0] for row in cursor.fetchall()]
+
+        if len(indices) >= 2:
+            logger.info(f"Migration verification: ✓ Balance validation indices created")
+        else:
+            logger.warning(f"Migration verification: Found {len(indices)}/2 indices: {indices}")
+
+        # Verify trigger_status view created
+        cursor.execute("""
+            SELECT name FROM sqlite_master
+            WHERE type='view' AND name='trigger_status'
+        """)
+        if cursor.fetchone():
+            logger.info("Migration verification: ✓ trigger_status view created")
+        else:
+            logger.warning("Migration verification: trigger_status view not found")
+
+        # Log summary
+        logger.info("Balance validation migration (009) verification complete")
+        logger.info("✓ Ready for account balance validation (US-010)")
+    else:
+        logger.debug("Balance validation migration already applied, skipping")
+
+
 class Database:
     """
     Database manager with connection pooling and lifecycle management.
@@ -684,6 +775,9 @@ class Database:
                 # Apply account hierarchy migration for new databases
                 _apply_account_hierarchy_migration(conn)
 
+                # Apply balance validation migration for new databases
+                _apply_balance_validation_migration(conn)
+
                 # Add sample data if empty
                 self._add_sample_data(conn)
 
@@ -702,6 +796,7 @@ class Database:
                 _apply_reconciliation_migration(conn)
                 _apply_opening_balance_equity_migration(conn)
                 _apply_account_hierarchy_migration(conn)
+                _apply_balance_validation_migration(conn)
                 logger.info("All migrations applied successfully")
         except Exception as e:
             logger.error(f"Failed to apply migrations: {e}")

@@ -561,6 +561,47 @@ class JournalEntryRepository:
             logger.error(f"Failed to create balanced group: {e}")
             raise DatabaseError(f"Failed to create balanced group: {e}") from e
 
+    def get_account_balance(self, account_id: int) -> Decimal:
+        """
+        Get calculated balance for an account from journal entries.
+
+        Calculates balance by summing all journal entries:
+        Balance = SUM(debit_amount - credit_amount)
+
+        This is used for balance validation (US-010) to verify that
+        cached account balances match the journal entry totals.
+
+        Args:
+            account_id: Account ID to calculate balance for
+
+        Returns:
+            Calculated balance as Decimal
+
+        Example:
+            >>> balance = journal_repo.get_account_balance(123)
+            >>> print(f"Account balance: ${balance:.2f}")
+            Account balance: $5432.10
+
+        Story: US-010 - Account Balance Validation & Integrity
+        """
+        try:
+            with self.db.get_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute("""
+                    SELECT SUM(debit_amount - credit_amount) as balance
+                    FROM journal_entries
+                    WHERE account_id = ?
+                """, (account_id,))
+
+                row = cursor.fetchone()
+                balance = row[0] if row and row[0] is not None else 0.0
+
+                return Decimal(str(balance))
+
+        except sqlite3.Error as e:
+            logger.error(f"Failed to calculate balance for account {account_id}: {e}")
+            raise DatabaseError(f"Failed to calculate balance: {e}") from e
+
     def _row_to_entry(self, row) -> JournalEntry:
         """
         Convert database row to JournalEntry object.
