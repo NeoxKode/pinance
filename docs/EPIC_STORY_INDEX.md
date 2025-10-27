@@ -10,14 +10,14 @@
 | Metric | Count |
 |--------|-------|
 | **Total Epics** | 2 |
-| **Total Stories** | 8 |
-| **Stories in Backlog** | 2 |
+| **Total Stories** | 13 |
+| **Stories in Backlog** | 5 |
 | **Stories in Progress** | 0 |
-| **Stories Completed** | 6 |
-| **Total Story Points** | 40 |
-| **Points Completed** | 32 |
-| **Current Sprint** | Sprint 6 (✅ Complete) |
-| **Next Sprint** | Sprint 7 (Planning) |
+| **Stories Completed** | 8 |
+| **Total Story Points** | 76 |
+| **Points Completed** | 50 |
+| **Current Sprint** | Sprint 8 (✅ Complete) |
+| **Next Sprint** | Sprint 9 (Planning) |
 
 ---
 
@@ -27,7 +27,7 @@
 
 | ID | Epic | Priority | Status | Stories | Points | Target Release |
 |----|------|----------|--------|---------|--------|----------------|
-| [EPIC-001](epics/EPIC-001-account-management.md) | Account Management & Double-Entry Foundation | P0 | 🟢 In Progress | 6/8 | 32/58 | v2.1.0 |
+| [EPIC-001](epics/EPIC-001-account-management.md) | Account Management & Double-Entry Foundation | P0 | 🟢 In Progress | 8/12 | 50/73 | v2.1.0 |
 | [EPIC-002](epics/EPIC-002-search-filter-transactions.md) | Search and Filter Transactions | High | Ready | 0/6 | 0/21 | v2.1.0 |
 
 ### Planned Epics (Not Yet Created)
@@ -45,11 +45,14 @@
 
 ## Stories by Status
 
-### 📋 Backlog (2)
+### 📋 Backlog (5)
 
 | ID | Story | Epic | Priority | Points | Assignee | Sprint |
 |----|-------|------|----------|--------|----------|--------|
-| [US-005](stories/backlog/US-005-opening-balance-equity.md) | Opening Balance Equity | EPIC-001 | P0 | 5 | Unassigned | **Sprint 7** |
+| [US-010](stories/backlog/US-010-account-balance-validation.md) | Account Balance Validation & Integrity | EPIC-001 | P0 | 8 | Unassigned | **Sprint 9** |
+| [US-009](stories/backlog/US-009-account-color-coding.md) | Account Color Coding & Visual Indicators | EPIC-001 | P1 | 5 | Unassigned | **Sprint 10** |
+| [US-007](stories/backlog/US-007-account-metadata.md) | Account Metadata & Organization | EPIC-001 | P2 | 5 | Unassigned | **Sprint 11** |
+| [US-008](stories/backlog/US-008-multi-currency-setup.md) | Multi-Currency Account Setup | EPIC-001 | P3 | 5 | Unassigned | **Sprint 12** |
 | [STORY-001](stories/backlog/STORY-001-basic-text-search.md) | Basic Text Search | EPIC-002 | High | 3 | Unassigned | TBD |
 
 ### 🚧 In Progress (0)
@@ -58,7 +61,7 @@
 |----|-------|------|----------|--------|----------|---------|
 | - | - | - | - | - | - | - |
 
-### ✅ Completed (6)
+### ✅ Completed (8)
 
 | ID | Story | Epic | Points | Completed | Developer | Grade |
 |----|-------|------|--------|-----------|-----------|-------|
@@ -68,12 +71,14 @@
 | [US-002C](stories/completed/US-002C-split-transactions.md) | Split Transactions | EPIC-001 | 8 | 2025-10-23 | Full Stack Team | A (96/100) |
 | [US-003](stories/completed/US-003-normal-balance-calculation.md) | Normal Balance Calculation | EPIC-001 | 3 | 2025-10-23 | Full Stack Team | A (100%) |
 | [US-004](stories/completed/US-004-account-reconciliation.md) | Account Reconciliation | EPIC-001 | 8 | 2025-10-25 | Full Stack Team | A (Excellent) |
+| [US-005](stories/completed/US-005-opening-balance-equity.md) | Opening Balance Equity | EPIC-001 | 5 | 2025-10-26 | Full Stack Team | A |
+| [US-006](stories/completed/US-006-account-hierarchy.md) | Account Hierarchy | EPIC-001 | 5 | 2025-10-26 | Full Stack Team | A |
 
 ---
 
 ## Stories by Epic
 
-### EPIC-001: Account Management & Double-Entry Foundation (6/8 stories completed)
+### EPIC-001: Account Management & Double-Entry Foundation (8/12 stories completed)
 
 | ID | Story | Status | Points | Assignee | Sprint |
 |----|-------|--------|--------|----------|--------|
@@ -83,13 +88,17 @@
 | [US-002C](stories/completed/US-002C-split-transactions.md) | Split Transactions | ✅ Sprint 4-5 | 8 | Full Stack Team | Sprint 4-5 |
 | [US-003](stories/completed/US-003-normal-balance-calculation.md) | Normal Balance Calculation | ✅ Sprint 5 | 3 | Full Stack Team | Sprint 5 |
 | [US-004](stories/completed/US-004-account-reconciliation.md) | Account Reconciliation | ✅ Sprint 6 | 8 | Full Stack Team | Sprint 6 |
-| [US-005](stories/backlog/US-005-opening-balance-equity.md) | Opening Balance Equity | 📋 Ready | 5 | Unassigned | **Sprint 7** |
-| US-006 | Account Hierarchy | Not Created | 5 | - | Sprint 7 |
+| [US-005](stories/completed/US-005-opening-balance-equity.md) | Opening Balance Equity | ✅ Sprint 7 | 5 | Full Stack Team | Sprint 7 |
+| [US-006](stories/completed/US-006-account-hierarchy.md) | Account Hierarchy | ✅ Sprint 8 | 5 | Full Stack Team | Sprint 8 |
+| [US-010](stories/backlog/US-010-account-balance-validation.md) | Account Balance Validation & Integrity | 📋 Ready | 8 | Unassigned | **Sprint 9** |
+| [US-009](stories/backlog/US-009-account-color-coding.md) | Account Color Coding & Visual Indicators | 📋 Ready | 5 | Unassigned | **Sprint 10** |
+| [US-007](stories/backlog/US-007-account-metadata.md) | Account Metadata & Organization | 📋 Ready | 5 | Unassigned | **Sprint 11** |
+| [US-008](stories/backlog/US-008-multi-currency-setup.md) | Multi-Currency Account Setup | 📋 Ready | 5 | Unassigned | **Sprint 12** |
 
-**Progress:** 55% (32/58 points completed)
-**Sprint 6 Status:** ✅ Complete - US-004 delivered (8 pts, Grade A, 91% AC met)
-**Sprint 7 Target:** US-005 + US-006 (10 pts combined)
-**Velocity:** 6.4 pts/sprint (avg of 6 sprints)
+**Progress:** 68% (50/73 points completed)
+**Sprint 8 Status:** ✅ Complete - US-006 delivered (5 pts, Grade A)
+**Sprint 9-12 Target:** US-010, US-009, US-007, US-008 (23 pts combined, 4 sprints)
+**Velocity:** 6.25 pts/sprint (avg of 8 sprints)
 
 ### EPIC-002: Search and Filter Transactions (0/6 stories)
 
