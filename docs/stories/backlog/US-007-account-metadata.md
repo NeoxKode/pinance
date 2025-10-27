@@ -3,7 +3,7 @@
 **Story ID:** US-007
 **Epic:** [EPIC-001: Account Management & Double-Entry Foundation](../../epics/EPIC-001-account-management.md)
 **Created:** 2025-10-27
-**Updated:** 2025-10-27 (Tech Lead Review - Migration coordination with US-009)
+**Updated:** 2025-10-27 (Post Epic Alignment Review - Pattern consistency fixes + documentation enhancements)
 **Status:** Backlog (Ready for Sprint 11)
 **Priority:** P2 (Nice to Have - UX Enhancement)
 **Story Points:** 5 (13 hours estimated)
@@ -426,6 +426,136 @@ ALTER TABLE accounts DROP COLUMN notes;
 
 ---
 
+### Visual Diagrams
+
+#### Diagram 1: Migration Dependency Chain
+
+```
+Migration Sequence (CRITICAL ORDER):
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Migration 001-006 (US-001 to US-006)
+         ✅ COMPLETED
+         │
+         ▼
+Migration 007 (US-006) - Account Hierarchy
+         ✅ COMPLETED
+         │
+         ├─ parent_account_id
+         ├─ is_parent
+         ├─ hierarchy_level
+         └─ hierarchy_path
+         │
+         ▼
+Migration 010 (US-009) - Color Coding ⚠️ MUST RUN FIRST
+         📋 Sprint 10 (Planned)
+         │
+         ├─ color_hex
+         ├─ icon
+         ├─ display_order        ← US-007 depends on this
+         └─ is_favorite          ← US-007 depends on this
+         │
+         ▼
+Migration 011 (US-007) - Account Metadata ← THIS STORY
+         📋 Sprint 11 (Blocked until Migration 010 completes)
+         │
+         ├─ account_number
+         ├─ institution_name
+         └─ notes
+
+⚠️ CRITICAL: If Migration 010 is skipped or delayed:
+   ❌ Migration 011 will reference non-existent columns
+   ❌ AC4, AC5 tests will fail
+   ❌ display_order and is_favorite fields missing
+```
+
+---
+
+#### Diagram 2: Account Hierarchy + Display Order Interaction
+
+```
+Example Hierarchy with Display Order and Favorites:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+ROOT LEVEL (parent_id = NULL)
+├─ [0] Assets                     display_order=0
+│  │
+│  CHILDREN OF "Assets" (parent_id = Assets.id)
+│  ├─ [0] ⭐ Checking (FAVORITE)  display_order=0  ← Favorite first
+│  ├─ [1] Savings                 display_order=1
+│  └─ [2] Cash                    display_order=2
+│
+├─ [1] Liabilities                display_order=1
+│  │
+│  CHILDREN OF "Liabilities"
+│  ├─ [0] ⭐ Visa (FAVORITE)      display_order=0  ← Favorite first
+│  ├─ [1] Mastercard              display_order=1
+│  └─ [2] Mortgage                display_order=2
+│
+└─ [2] Equity                     display_order=2
+
+KEY INSIGHTS:
+• display_order is scoped per hierarchy level
+• Each parent's children have their own 0, 1, 2... ordering
+• Favorites stay within hierarchy (NOT moved to separate section)
+• Favorites appear before non-favorites within each level
+• Drag-drop only reorders siblings (same parent)
+```
+
+---
+
+#### Diagram 3: Search Performance Optimization
+
+```
+Search Query Execution Flow:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+User enters: "Chase"
+         │
+         ▼
+┌─────────────────────────────────────────┐
+│  search_accounts("Chase")               │
+└─────────────────────────────────────────┘
+         │
+         ▼
+┌─────────────────────────────────────────────────────────┐
+│  SQL Query:                                             │
+│  SELECT ... FROM accounts                               │
+│  WHERE                                                  │
+│    name LIKE '%Chase%'                ✅ Indexed       │
+│    OR account_number LIKE '%Chase%'   ✅ Indexed       │
+│    OR institution_name LIKE '%Chase%' ✅ Indexed       │
+│    -- notes EXCLUDED (performance)    ❌ NOT searched  │
+│  ORDER BY is_favorite DESC, display_order, name         │
+└─────────────────────────────────────────────────────────┘
+         │
+         ▼
+┌───────────────────────────────────────┐
+│  Index Scan:                          │
+│  • idx_accounts_institution           │
+│  • idx_accounts_number                │
+│  • Built-in index on name             │
+│                                       │
+│  Performance: <50ms for 1000+ accts   │
+└───────────────────────────────────────┘
+         │
+         ▼
+┌─────────────────────────────────────────┐
+│  Results (sorted by favorites first):   │
+│  1. ⭐ Chase Checking (favorite)        │
+│  2. Chase Savings                       │
+│  3. Chase Credit Card                   │
+└─────────────────────────────────────────┘
+
+WHY NOTES ARE EXCLUDED:
+• Notes field is TEXT (up to 1000 chars)
+• LIKE on long text fields = full table scan
+• With 1000 accounts × 1000 chars = 1M chars scanned
+• Future: Add FTS5 full-text search index (v2.2+)
+```
+
+---
+
 ### Model Updates
 
 **File:** `finance_app/data/models.py`
@@ -635,7 +765,14 @@ class AccountRepository:
             List of accounts sorted according to criteria
         """
         query = """
-            SELECT * FROM accounts
+            SELECT id, name, account_type, account_subtype, balance,
+                   normal_balance, currency, parent_account_id,
+                   legacy_type, last_reconciled_date, opening_balance_date,
+                   is_parent, hierarchy_level, hierarchy_path,
+                   account_number, institution_name, notes,
+                   is_favorite, display_order, color_hex, icon,
+                   created_at, updated_at
+            FROM accounts
             ORDER BY
                 CASE WHEN ? = 1 THEN is_favorite END DESC,
                 CASE WHEN ? = 'display_order' THEN display_order END ASC,
@@ -657,7 +794,18 @@ class AccountRepository:
 
     def get_favorites(self) -> List[Account]:
         """Get all favorite accounts."""
-        query = "SELECT * FROM accounts WHERE is_favorite = 1 ORDER BY display_order, name"
+        query = """
+            SELECT id, name, account_type, account_subtype, balance,
+                   normal_balance, currency, parent_account_id,
+                   legacy_type, last_reconciled_date, opening_balance_date,
+                   is_parent, hierarchy_level, hierarchy_path,
+                   account_number, institution_name, notes,
+                   is_favorite, display_order, color_hex, icon,
+                   created_at, updated_at
+            FROM accounts
+            WHERE is_favorite = 1
+            ORDER BY display_order, name
+        """
         rows = self.db.execute_query(query)
         return [self._row_to_account(row) for row in rows]
 
@@ -676,7 +824,14 @@ class AccountRepository:
             List of matching accounts
         """
         query = """
-            SELECT * FROM accounts
+            SELECT id, name, account_type, account_subtype, balance,
+                   normal_balance, currency, parent_account_id,
+                   legacy_type, last_reconciled_date, opening_balance_date,
+                   is_parent, hierarchy_level, hierarchy_path,
+                   account_number, institution_name, notes,
+                   is_favorite, display_order, color_hex, icon,
+                   created_at, updated_at
+            FROM accounts
             WHERE
                 name LIKE ? OR
                 account_number LIKE ? OR
@@ -716,7 +871,14 @@ class AccountRepository:
             Dictionary mapping institution name to list of accounts
         """
         query = """
-            SELECT * FROM accounts
+            SELECT id, name, account_type, account_subtype, balance,
+                   normal_balance, currency, parent_account_id,
+                   legacy_type, last_reconciled_date, opening_balance_date,
+                   is_parent, hierarchy_level, hierarchy_path,
+                   account_number, institution_name, notes,
+                   is_favorite, display_order, color_hex, icon,
+                   created_at, updated_at
+            FROM accounts
             WHERE institution_name IS NOT NULL
             ORDER BY institution_name, display_order, name
         """
@@ -1323,6 +1485,19 @@ See US-006 `AccountTreeWidget.dropEvent()` for drag-drop pattern
 - [x] ✅ Notes sanitization added (XSS prevention)
 - [ ] Batch update optimization (OPTIONAL stretch goal)
 
+### Epic Alignment Review Fixes (2025-10-27 - Post-Review)
+- [x] ✅ SELECT * changed to explicit column selection (P1 - Critical)
+  - Fixed: get_all_sorted(), get_favorites(), search_accounts(), group_by_institution()
+  - Pattern now matches: finance_app/data/repositories/account_repository.py
+- [x] ✅ Visual diagrams added (P2 - Documentation Enhancement)
+  - Diagram 1: Migration dependency chain (010 → 011)
+  - Diagram 2: Account hierarchy + display_order interaction
+  - Diagram 3: Search performance optimization flowchart
+- [x] ✅ Edge Cases & Troubleshooting section added (P2 - Clarification)
+  - 8 edge case scenarios with code examples
+  - Troubleshooting table with 6 common issues
+  - Security considerations (XSS, data integrity)
+
 ---
 
 ## 🧪 Test Scenarios
@@ -1539,6 +1714,258 @@ def test_group_by_institution(account_repo, account_service):
     # Accounts without institution not included
     assert no_institution not in groups.get("", [])
 ```
+
+---
+
+## 🔧 Edge Cases & Troubleshooting
+
+This section addresses common edge cases and potential issues that developers and users may encounter.
+
+### Edge Case 1: Changing Institution Name After Reconciliation
+
+**Scenario:** User changes `institution_name` from "Chase Bank" to "JPMorgan Chase" after reconciling transactions.
+
+**Behavior:**
+- ✅ **ALLOWED** - Institution name is metadata, not tied to financial data
+- All existing transactions remain linked to the account
+- Reconciliation history is NOT affected
+- Historical reports still group correctly (by account, not institution)
+
+**Impact:** Low - Institution grouping in reports may show new name, but data integrity preserved
+
+**Testing:**
+```python
+def test_change_institution_after_reconciliation():
+    # Create account with institution
+    account = create_account(institution_name="Chase Bank")
+
+    # Reconcile transactions
+    reconcile_account(account.id, statement_date="2025-01-31")
+
+    # Change institution name
+    account.institution_name = "JPMorgan Chase"
+    account_service.update_account(account)
+
+    # Verify reconciliation unaffected
+    reconciliation = get_latest_reconciliation(account.id)
+    assert reconciliation.status == "complete"
+```
+
+---
+
+### Edge Case 2: Updating Account Number After Transactions Exist
+
+**Scenario:** User realizes they entered wrong account number (e.g., "1234" instead of "1234-5678-9012") after adding 100 transactions.
+
+**Behavior:**
+- ✅ **ALLOWED** - Account number is metadata, NOT a foreign key
+- All existing transactions remain linked (by account.id, not account_number)
+- Search by old account number will no longer find the account
+- Reconciliation dialog shows new account number immediately
+
+**Impact:** Low - Data integrity preserved, search updated
+
+**Recommendation:** Add confirmation dialog in UI: "Change account number? This affects reconciliation matching."
+
+**Testing:**
+```python
+def test_update_account_number_with_transactions():
+    account = create_account(account_number="1234")
+
+    # Add transactions
+    for i in range(100):
+        create_transaction(account.id, amount=Decimal("10.00"))
+
+    # Update account number
+    account.account_number = "1234-5678-9012"
+    updated = account_service.update_account(account)
+
+    # Verify transactions still linked
+    transactions = transaction_repo.get_by_account(account.id)
+    assert len(transactions) == 100
+
+    # Verify new search works
+    results = account_repo.search_accounts("1234-5678")
+    assert account in results
+```
+
+---
+
+### Edge Case 3: Institution Merger / Name Change
+
+**Scenario:** Bank merges - "Washington Mutual" becomes "Chase Bank". User has 3 accounts at "Washington Mutual".
+
+**Options:**
+
+**Option A: Bulk Update (Recommended)**
+```python
+# Get all WaMu accounts
+wamu_accounts = account_repo.search_accounts("Washington Mutual")
+
+# Update institution name for all
+for account in wamu_accounts:
+    account.institution_name = "Chase Bank"
+    account_service.update_account(account)
+```
+
+**Option B: Keep Historical Name**
+- Leave institution_name as "Washington Mutual"
+- Add note: "Now part of Chase Bank (merged 2008)"
+- Advantage: Preserves historical accuracy
+
+**Impact:** Medium - Affects institution grouping in reports
+
+**UI Enhancement (Future):** Add "Bulk Update Institution" dialog
+
+---
+
+### Edge Case 4: Duplicate Account Numbers at Different Institutions
+
+**Scenario:** User has checking account #1234 at Chase AND checking account #1234 at Bank of America.
+
+**Behavior:**
+- ✅ **ALLOWED** - No unique constraint on `account_number`
+- `account_number` + `institution_name` combination identifies account
+- Search for "1234" will return BOTH accounts
+- User disambiguates by account name or institution
+
+**Impact:** Low - Users can distinguish by institution
+
+**Validation (NOT Enforced):**
+```python
+# OPTIONAL: Warn user if duplicate account_number + institution exists
+def check_duplicate_account_number(account_number, institution_name):
+    existing = account_repo.get_by_account_number_and_institution(
+        account_number, institution_name
+    )
+    if existing:
+        # Show warning, but ALLOW creation
+        return "Warning: Account number already exists at this institution"
+```
+
+**UI Enhancement (Future):** Show institution in search results to disambiguate
+
+---
+
+### Edge Case 5: Notes Exceed 1000 Character Limit
+
+**Scenario:** User pastes long text (2000 chars) into notes field.
+
+**Behavior:**
+- ❌ **REJECTED** - ValidationError raised
+- UI shows error: "Notes cannot exceed 1000 characters (currently 2000)"
+- User must trim text or save in external document
+
+**Workaround (v2.1):**
+- Store full text in external file
+- Add link in notes: "See full notes at: file:///path/to/notes.txt"
+
+**Future Enhancement (v2.2):**
+- Add "Attachments" feature (US-014?)
+- Support file uploads (PDFs, images, etc.)
+
+**Testing:**
+```python
+def test_notes_exceed_limit():
+    with pytest.raises(ValidationError, match="exceed 1000 characters"):
+        account_service.create_account(
+            name="Test",
+            notes="A" * 1001  # 1001 chars
+        )
+```
+
+---
+
+### Edge Case 6: Special Characters in Account Number
+
+**Scenario:** User enters account number with special chars: "ACCT-123/456 (USD)"
+
+**Behavior:**
+- ✅ **ALLOWED** - No character restrictions (only length 3-50)
+- Special chars: `-`, `.`, `/`, `(`, `)`, spaces, alphanumeric
+- Search works with special chars
+- Display exactly as entered
+
+**Impact:** None - Flexibility for international account formats
+
+**Example:**
+```python
+valid_account_numbers = [
+    "1234-5678-9012",
+    "ACCT.123.456",
+    "IBAN: DE89 3704 0044 0532 0130 00",
+    "SWIFT: CHASUS33",
+    "A/C 123/456 (USD)",
+]
+
+for number in valid_account_numbers:
+    account = account_service.create_account(
+        name="Test",
+        account_number=number
+    )
+    assert account.account_number == number
+```
+
+---
+
+### Edge Case 7: HTML/Script Injection in Notes (XSS Attack)
+
+**Scenario:** Malicious user enters `<script>alert('XSS')</script>` in notes field.
+
+**Behavior:**
+- ✅ **SANITIZED** - HTML entities escaped by `AccountValidator.validate_notes()`
+- Stored as: `&lt;script&gt;alert('XSS')&lt;/script&gt;`
+- Displayed as plain text, NOT executed
+- User sees: `<script>alert('XSS')</script>` (safe)
+
+**Security:**
+```python
+import html
+
+def validate_notes(notes: str) -> str:
+    # Escape HTML entities
+    notes = html.escape(notes)
+    return notes
+
+# Test
+malicious_input = "<script>alert('XSS')</script>"
+safe_output = validate_notes(malicious_input)
+assert safe_output == "&lt;script&gt;alert('XSS')&lt;/script&gt;"
+```
+
+**Impact:** None - XSS attack prevented
+
+---
+
+### Edge Case 8: Favorite Status Lost After Database Migration
+
+**Scenario:** User upgrades from US-007 (no favorites) to US-009 (with favorites). Is `is_favorite` field lost?
+
+**Behavior:**
+- ✅ **PRESERVED** - Migration 010 (US-009) adds `is_favorite` with DEFAULT 0
+- Migration 011 (US-007) assumes field exists
+- Existing accounts have `is_favorite = 0` (not favorite)
+- User can manually mark favorites after migration
+
+**Impact:** None - Default value ensures no data loss
+
+**Migration Order:**
+1. Migration 010 runs: Adds `is_favorite` column, defaults all to 0
+2. Migration 011 runs: Uses existing `is_favorite` column
+3. User marks favorites via UI
+
+---
+
+### Troubleshooting Guide
+
+| Problem | Symptom | Solution |
+|---------|---------|----------|
+| **Search not finding account by number** | User searches "1234", account not returned | Verify `account_number` field populated. Check for typos. Account number might have spaces/dashes. |
+| **Institution autocomplete not working** | Dropdown empty when typing institution | Ensure at least one account has `institution_name` populated. Check database query returns results. |
+| **Notes not saving** | Notes field clears after save | Check for validation error (1000 char limit). Verify database column exists. Check for SQL error in logs. |
+| **Favorites not sorting to top** | Favorites appear randomly in list | Verify `is_favorite = 1` in database. Check `get_all_sorted()` ORDER BY clause includes `is_favorite DESC`. |
+| **Drag-and-drop not persisting order** | Accounts revert to original order after reload | Check `update_display_order()` commits to database. Verify `display_order` column updated. Check for concurrent updates. |
+| **Migration 011 fails** | Error: "column display_order does not exist" | ⚠️ CRITICAL: Migration 010 (US-009) must run FIRST. Check `schema_version`. Run Migration 010 before Migration 011. |
 
 ---
 
