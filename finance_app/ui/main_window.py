@@ -761,19 +761,40 @@ class MainWindow(QMainWindow):
 
             account_name = account.name if account else "Unknown"
 
-            reply = QMessageBox.question(
-                self, "Confirm Delete",
-                f"Are you sure you want to delete account '{account_name}'?\n\n"
-                "This will also delete all associated transactions!",
-                QMessageBox.Yes | QMessageBox.No,
-                QMessageBox.No
-            )
+            # BUG-FIX-010: Check transaction count and show detailed warning
+            transaction_count = self.account_service.get_transaction_count(account_id)
+
+            # Build warning message based on transaction count
+            if transaction_count > 0:
+                message = (
+                    f"Are you SURE you want to delete account '{account_name}'?\n\n"
+                    f"⚠️ This account has {transaction_count} transaction(s).\n\n"
+                    f"Deleting this account will PERMANENTLY DELETE:\n"
+                    f"  • {transaction_count} transaction(s)\n"
+                    f"  • All associated journal entries\n"
+                    f"  • All reconciliation history\n\n"
+                    f"This action CANNOT be undone!"
+                )
+                icon = QMessageBox.Warning
+            else:
+                message = f"Are you sure you want to delete account '{account_name}'?\n\nThis account has no transactions."
+                icon = QMessageBox.Question
+
+            msg_box = QMessageBox(icon, "Confirm Delete", message, parent=self)
+            msg_box.setStandardButtons(QMessageBox.Yes | QMessageBox.No)
+            msg_box.setDefaultButton(QMessageBox.No)
+            reply = msg_box.exec()
 
             if reply == QMessageBox.Yes:
                 self.account_service.delete_account(account_id)
                 self.load_data()
-                self.statusBar().showMessage(f"Account '{account_name}' deleted")
-                logger.info(f"Account deleted via UI: {account_id}")
+                if transaction_count > 0:
+                    self.statusBar().showMessage(
+                        f"Account '{account_name}' deleted (with {transaction_count} transactions)"
+                    )
+                else:
+                    self.statusBar().showMessage(f"Account '{account_name}' deleted")
+                logger.info(f"Account deleted via UI: {account_id} ({transaction_count} transactions)")
 
         except FinanceAppError as e:
             logger.error(f"Failed to delete account: {e}")

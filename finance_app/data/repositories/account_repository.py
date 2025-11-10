@@ -287,7 +287,11 @@ class AccountRepository:
 
     def delete(self, account_id: int) -> bool:
         """
-        Delete an account.
+        Delete an account and all related data.
+
+        BUG-FIX-010: Manually delete related records to avoid FOREIGN KEY constraint errors.
+        The transactions and transaction_splits tables don't have ON DELETE CASCADE,
+        so we must explicitly delete them first.
 
         Args:
             account_id: Account ID
@@ -301,14 +305,69 @@ class AccountRepository:
         try:
             with self.db.get_connection() as conn:
                 cursor = conn.cursor()
+
+                # BUG-FIX-010: Delete related records first to avoid FK constraint errors
+
+                # Step 1: Delete related transactions (will cascade to transaction_splits via FK)
+                cursor.execute("DELETE FROM transactions WHERE account_id = ?", (account_id,))
+                deleted_txns = cursor.rowcount
+
+                # Step 2: Delete journal entries (has CASCADE, but be explicit for clarity)
+                cursor.execute("DELETE FROM journal_entries WHERE account_id = ?", (account_id,))
+                deleted_entries = cursor.rowcount
+
+                # Step 3: Delete reconciliations (has CASCADE, but be explicit for clarity)
+                cursor.execute("DELETE FROM reconciliations WHERE account_id = ?", (account_id,))
+                deleted_recons = cursor.rowcount
+
+                # Step 4: Delete validation logs (has SET NULL, but delete for cleanliness)
+                cursor.execute("DELETE FROM balance_validation_log WHERE account_id = ?", (account_id,))
+                deleted_logs = cursor.rowcount
+
+                # Step 5: Now safe to delete the account itself
                 cursor.execute("DELETE FROM accounts WHERE id = ?", (account_id,))
                 deleted = cursor.rowcount > 0
+
                 if deleted:
-                    logger.info(f"Deleted account ID: {account_id}")
+                    logger.info(
+                        f"Deleted account ID {account_id}: "
+                        f"{deleted_txns} transactions, "
+                        f"{deleted_entries} journal entries, "
+                        f"{deleted_recons} reconciliations, "
+                        f"{deleted_logs} validation logs"
+                    )
+                else:
+                    logger.warning(f"Account ID {account_id} not found for deletion")
+
                 return deleted
+
         except sqlite3.Error as e:
             logger.error(f"Failed to delete account {account_id}: {e}")
             raise DatabaseError(f"Failed to delete account: {e}") from e
+
+    def get_transaction_count(self, account_id: int) -> int:
+        """
+        Get count of transactions for an account.
+
+        BUG-FIX-010: Used to warn user about data that will be deleted.
+
+        Args:
+            account_id: Account ID
+
+        Returns:
+            Number of transactions for this account
+
+        Raises:
+            DatabaseError: If query fails
+        """
+        try:
+            with self.db.get_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute("SELECT COUNT(*) FROM transactions WHERE account_id = ?", (account_id,))
+                return cursor.fetchone()[0]
+        except sqlite3.Error as e:
+            logger.error(f"Failed to count transactions for account {account_id}: {e}")
+            raise DatabaseError(f"Failed to count transactions: {e}") from e
 
     def get_total_balance(self) -> Decimal:
         """

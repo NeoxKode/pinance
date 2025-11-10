@@ -301,6 +301,23 @@ class AccountService:
         logger.info(f"Account deleted: ID {account_id}")
         return deleted
 
+    def get_transaction_count(self, account_id: int) -> int:
+        """
+        Get count of transactions for an account.
+
+        BUG-FIX-010: Used by UI to warn user before deletion.
+
+        Args:
+            account_id: Account ID
+
+        Returns:
+            Number of transactions
+
+        Raises:
+            FinanceAppError: If query fails
+        """
+        return self.account_repo.get_transaction_count(account_id)
+
     def get_account(self, account_id: int) -> Optional[Account]:
         """
         Get account by ID.
