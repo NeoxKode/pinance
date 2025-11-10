@@ -114,6 +114,14 @@ class AccountService:
                     f"parent account type ({parent_account.account_type.value})"
                 )
 
+            # US-008: Validate currency compatibility (child must have same currency as parent)
+            if parent_account.currency != validated_currency:
+                raise ValidationError(
+                    f"Child account currency ({validated_currency}) must match "
+                    f"parent account currency ({parent_account.currency}). "
+                    f"Parent account '{parent_account.name}' uses {parent_account.currency}."
+                )
+
             # Validate maximum depth (5 levels = 0-4)
             if parent_account.hierarchy_level >= 4:
                 raise ValidationError(
@@ -225,7 +233,44 @@ class AccountService:
                 account.normal_balance = self.validator.get_normal_balance(validated_type)
 
         if currency is not None:
-            account.currency = self.validator.validate_currency(currency)
+            validated_currency = self.validator.validate_currency(currency)
+
+            # US-008: Prevent currency changes if account has transactions
+            if account.currency != validated_currency:
+                transaction_count = self.get_transaction_count(account_id)
+                if transaction_count > 0:
+                    raise ValidationError(
+                        f"Cannot change currency for account '{account.name}': "
+                        f"account has {transaction_count} transaction(s). "
+                        f"Currency changes are only allowed for accounts with no transactions."
+                    )
+
+                # US-008: Validate currency matches parent if account has parent
+                if account.parent_account_id is not None:
+                    parent = self.account_repo.get_by_id(account.parent_account_id)
+                    if parent and parent.currency != validated_currency:
+                        raise ValidationError(
+                            f"Cannot change currency: child account must match parent currency. "
+                            f"Parent account '{parent.name}' uses {parent.currency}."
+                        )
+
+                # US-008: Validate currency matches children if account is parent
+                if account.is_parent:
+                    children = self.account_repo.get_child_accounts(account_id)
+                    if children:
+                        mismatched_children = [
+                            child for child in children
+                            if child.currency != validated_currency
+                        ]
+                        if mismatched_children:
+                            child_names = ', '.join([c.name for c in mismatched_children])
+                            raise ValidationError(
+                                f"Cannot change currency: parent account has child accounts with different currencies. "
+                                f"Mismatched children: {child_names}. "
+                                f"Change child account currencies first."
+                            )
+
+            account.currency = validated_currency
 
         # Save updates
         updated_account = self.account_repo.update(account)
@@ -304,6 +349,38 @@ class AccountService:
             raise NotFoundError(f"Account with ID {account_id} not found")
 
         return account.balance
+
+    def get_transaction_count(self, account_id: int) -> int:
+        """
+        Get the number of transactions for a specific account.
+
+        US-008: Used to determine if currency can be changed (can't change if account has transactions).
+
+        Args:
+            account_id: Account ID
+
+        Returns:
+            Number of transactions for this account
+
+        Raises:
+            NotFoundError: If account doesn't exist
+
+        Example:
+            >>> count = service.get_transaction_count(account_id=1)
+            >>> if count == 0:
+            ...     # Safe to change currency
+            ...     pass
+        """
+        account = self.account_repo.get_by_id(account_id)
+        if not account:
+            raise NotFoundError(f"Account with ID {account_id} not found")
+
+        # Get all transactions for this account
+        transactions = self.transaction_repo.get_all(account_id=account_id)
+        count = len(transactions)
+
+        logger.debug(f"Account {account_id} ({account.name}) has {count} transactions")
+        return count
 
     # ========================================================================
     # Balance Validation (US-010)

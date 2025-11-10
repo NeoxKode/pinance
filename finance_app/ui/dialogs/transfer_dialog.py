@@ -18,6 +18,7 @@ from PySide6.QtGui import QDoubleValidator
 
 from finance_app.data.models import Account
 from finance_app.data.database import Database
+from finance_app.business.validators import AccountValidator  # US-008: Currency validation
 from finance_app.utils.logger import setup_logger
 
 logger = setup_logger(__name__)
@@ -71,33 +72,22 @@ class TransferDialog(QDialog):
         # From Account (Source)
         self.from_account_combo = QComboBox()
         self.from_account_combo.setObjectName("accountCombo")
-        for account in self.accounts:
-            # Format: "Checking ($1,000.00)"
-            balance_str = f"${account.balance:,.2f}"
-            subtype = account.account_subtype.value if hasattr(account.account_subtype, 'value') else account.account_subtype
-            subtype_display = subtype.replace('_', ' ').title()
-            display_text = f"{account.name} ({subtype_display}) - {balance_str}"
-            self.from_account_combo.addItem(display_text, account.id)
-
-        self.from_account_combo.currentIndexChanged.connect(self._on_account_changed)
+        self._populate_from_accounts()
+        self.from_account_combo.currentIndexChanged.connect(self._on_from_account_changed)
         form.addRow("From Account:*", self.from_account_combo)
 
-        # To Account (Destination)
+        # To Account (Destination) - will be filtered by source currency
         self.to_account_combo = QComboBox()
         self.to_account_combo.setObjectName("accountCombo")
-        for account in self.accounts:
-            balance_str = f"${account.balance:,.2f}"
-            subtype = account.account_subtype.value if hasattr(account.account_subtype, 'value') else account.account_subtype
-            subtype_display = subtype.replace('_', ' ').title()
-            display_text = f"{account.name} ({subtype_display}) - {balance_str}"
-            self.to_account_combo.addItem(display_text, account.id)
-
-        # Set different default to avoid same-account selection
-        if len(self.accounts) > 1:
-            self.to_account_combo.setCurrentIndex(1)
-
         self.to_account_combo.currentIndexChanged.connect(self._on_account_changed)
         form.addRow("To Account:*", self.to_account_combo)
+
+        # US-008: Currency info label
+        self.currency_info_label = QLabel()
+        self.currency_info_label.setObjectName("currencyInfoLabel")
+        self.currency_info_label.setWordWrap(True)
+        self.currency_info_label.hide()  # Hidden until account selected
+        form.addRow("", self.currency_info_label)
 
         # Amount input with validation
         amount_layout = QHBoxLayout()
@@ -233,6 +223,13 @@ class TransferDialog(QDialog):
                 color: #ff6b6b;
             }
 
+            QLabel#currencyInfoLabel {
+                color: #88bbff;
+                font-size: 11px;
+                padding: 4px;
+                font-style: italic;
+            }
+
             QLineEdit, QComboBox, QDateEdit, QTextEdit {
                 padding: 6px;
                 background-color: #3c3c3c;
@@ -327,6 +324,101 @@ class TransferDialog(QDialog):
             }
         """)
 
+    def _populate_from_accounts(self) -> None:
+        """
+        Populate from account dropdown with all accounts.
+        US-008: Show currency in display format.
+        """
+        self.from_account_combo.clear()
+        for account in self.accounts:
+            # US-008: Format with currency symbol
+            symbol = AccountValidator.get_currency_symbol(account.currency)
+            balance_str = AccountValidator.format_amount(account.balance, account.currency)
+
+            subtype = account.account_subtype.value if hasattr(account.account_subtype, 'value') else account.account_subtype
+            subtype_display = subtype.replace('_', ' ').title()
+            display_text = f"{account.name} ({account.currency}) - {balance_str}"
+            self.from_account_combo.addItem(display_text, account.id)
+
+        # Trigger initial population of to_account_combo
+        if self.accounts:
+            self._populate_to_accounts()
+
+    def _populate_to_accounts(self) -> None:
+        """
+        Populate to account dropdown filtered by from account currency.
+        US-008: Only show accounts with matching currency.
+        """
+        self.to_account_combo.clear()
+
+        from_account_id = self.from_account_combo.currentData()
+        if not from_account_id:
+            return
+
+        # Get from account
+        from_account = next((a for a in self.accounts if a.id == from_account_id), None)
+        if not from_account:
+            return
+
+        from_currency = from_account.currency
+
+        # Filter accounts by matching currency (excluding from account)
+        compatible_accounts = [
+            acc for acc in self.accounts
+            if acc.currency == from_currency and acc.id != from_account_id
+        ]
+
+        # Populate dropdown
+        for account in compatible_accounts:
+            symbol = AccountValidator.get_currency_symbol(account.currency)
+            balance_str = AccountValidator.format_amount(account.balance, account.currency)
+
+            subtype = account.account_subtype.value if hasattr(account.account_subtype, 'value') else account.account_subtype
+            subtype_display = subtype.replace('_', ' ').title()
+            display_text = f"{account.name} ({account.currency}) - {balance_str}"
+            self.to_account_combo.addItem(display_text, account.id)
+
+        # Update currency info label
+        self._update_currency_info(from_currency, len(compatible_accounts))
+
+    def _update_currency_info(self, currency: str, count: int) -> None:
+        """
+        Update currency compatibility info label.
+        US-008: Show how many compatible accounts are available.
+
+        Args:
+            currency: Currency code
+            count: Number of compatible accounts
+        """
+        if count == 0:
+            self.currency_info_label.setText(
+                f"ℹ️ No other accounts with {currency} currency available for transfer"
+            )
+            self.currency_info_label.setStyleSheet("color: #ffaa66;")  # Warning color
+        elif count == 1:
+            self.currency_info_label.setText(
+                f"ℹ️ Showing 1 account with {currency} currency"
+            )
+            self.currency_info_label.setStyleSheet("color: #88bbff;")  # Info color
+        else:
+            self.currency_info_label.setText(
+                f"ℹ️ Showing {count} accounts with {currency} currency"
+            )
+            self.currency_info_label.setStyleSheet("color: #88bbff;")  # Info color
+
+        self.currency_info_label.show()
+
+    def _on_from_account_changed(self, index: int) -> None:
+        """
+        Handle from account selection change.
+        US-008: Re-populate to account list with currency filtering.
+
+        Args:
+            index: Selected index
+        """
+        self._populate_to_accounts()
+        self._validate_and_update_preview()
+
     def _on_account_changed(self) -> None:
         """Handle account selection change."""
         self._validate_and_update_preview()
@@ -391,6 +483,7 @@ class TransferDialog(QDialog):
     def _update_preview(self, from_id: int, to_id: int, amount: Decimal) -> None:
         """
         Update transfer preview with account balances.
+        US-008: Use currency-aware formatting.
 
         Args:
             from_id: Source account ID
@@ -407,11 +500,19 @@ class TransferDialog(QDialog):
         from_new_balance = from_account.balance - amount
         to_new_balance = to_account.balance + amount
 
-        # Format preview text - compact HomeBank style
+        # US-008: Format with currency symbols
+        currency = from_account.currency
+        amount_str = AccountValidator.format_amount(amount, currency)
+        from_balance_str = AccountValidator.format_amount(from_account.balance, currency)
+        from_new_str = AccountValidator.format_amount(from_new_balance, currency)
+        to_balance_str = AccountValidator.format_amount(to_account.balance, currency)
+        to_new_str = AccountValidator.format_amount(to_new_balance, currency)
+
+        # Format preview text - compact HomeBank style with currency
         preview_text = (
-            f"Transfer ${amount:,.2f}\n"
-            f"From: {from_account.name} (${from_account.balance:,.2f} → ${from_new_balance:,.2f})\n"
-            f"To: {to_account.name} (${to_account.balance:,.2f} → ${to_new_balance:,.2f})"
+            f"Transfer {amount_str}\n"
+            f"From: {from_account.name} ({from_balance_str} → {from_new_str})\n"
+            f"To: {to_account.name} ({to_balance_str} → {to_new_str})"
         )
 
         self.preview_text.setText(preview_text)
@@ -462,10 +563,18 @@ class TransferDialog(QDialog):
             QMessageBox.critical(self, "Error", "Selected account not found")
             return
 
+        # US-008: Format with currency symbols
+        currency = from_account.currency
+        amount_str = AccountValidator.format_amount(amount, currency)
+        from_balance_str = AccountValidator.format_amount(from_account.balance, currency)
+        from_new_str = AccountValidator.format_amount(from_account.balance - amount, currency)
+        to_balance_str = AccountValidator.format_amount(to_account.balance, currency)
+        to_new_str = AccountValidator.format_amount(to_account.balance + amount, currency)
+
         confirm_msg = (
-            f"Transfer ${amount:,.2f} from {from_account.name} to {to_account.name}?\n\n"
-            f"{from_account.name}: ${from_account.balance:,.2f} → ${from_account.balance - amount:,.2f}\n"
-            f"{to_account.name}: ${to_account.balance:,.2f} → ${to_account.balance + amount:,.2f}"
+            f"Transfer {amount_str} from {from_account.name} to {to_account.name}?\n\n"
+            f"{from_account.name}: {from_balance_str} → {from_new_str}\n"
+            f"{to_account.name}: {to_balance_str} → {to_new_str}"
         )
 
         reply = QMessageBox.question(

@@ -369,6 +369,15 @@ class DoubleEntryService:
         if to_account is None:
             raise NotFoundError(f"Destination account {to_account_id} not found")
 
+        # US-008: Validate same currency for transfers
+        if from_account.currency != to_account.currency:
+            raise ValidationError(
+                f"Cannot transfer between accounts with different currencies: "
+                f"{from_account.currency} ({from_account.name}) → "
+                f"{to_account.currency} ({to_account.name}). "
+                f"Use manual transactions until currency exchange feature is implemented (EPIC-006)."
+            )
+
         logger.info(
             f"Creating transfer: {from_account.name} → {to_account.name}, "
             f"amount={amount}, date={date}"

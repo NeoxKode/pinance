@@ -14,6 +14,7 @@ from PySide6.QtCore import Qt, Signal, QSize
 from PySide6.QtGui import QDropEvent, QDragMoveEvent, QIcon, QAction, QColor, QBrush, QPixmap, QPainter
 
 from finance_app.business.account_service import AccountService
+from finance_app.business.validators import AccountValidator  # US-008: Currency formatting
 from finance_app.data.models import Account
 from finance_app.utils.exceptions import ValidationError
 from finance_app.utils.logger import setup_logger
@@ -59,18 +60,21 @@ class AccountTreeWidget(QTreeWidget):
     def setup_ui(self):
         """Configure tree widget appearance and behavior."""
         # Column configuration - US-009: Added Type column for visual context
-        self.setHeaderLabels(["Account", "Type", "Balance", "Actions"])
-        self.setColumnWidth(0, 280)  # Account name with color indicator
+        # US-008: Added Currency column
+        self.setHeaderLabels(["Account", "Type", "Currency", "Balance", "Actions"])
+        self.setColumnWidth(0, 260)  # Account name with color indicator
         self.setColumnWidth(1, 100)  # Account type
-        self.setColumnWidth(2, 120)  # Balance
-        self.setColumnWidth(3, 60)   # Actions (favorite star)
+        self.setColumnWidth(2, 60)   # Currency (US-008)
+        self.setColumnWidth(3, 120)  # Balance
+        self.setColumnWidth(4, 60)   # Actions (favorite star)
 
         # Make columns user-resizable but maintain minimum sizes
         self.header().setStretchLastSection(False)
         self.header().setSectionResizeMode(0, QHeaderView.Interactive)  # Account
         self.header().setSectionResizeMode(1, QHeaderView.ResizeToContents)  # Type
-        self.header().setSectionResizeMode(2, QHeaderView.ResizeToContents)  # Balance
-        self.header().setSectionResizeMode(3, QHeaderView.Fixed)  # Actions (fixed width)
+        self.header().setSectionResizeMode(2, QHeaderView.ResizeToContents)  # Currency (US-008)
+        self.header().setSectionResizeMode(3, QHeaderView.ResizeToContents)  # Balance
+        self.header().setSectionResizeMode(4, QHeaderView.Fixed)  # Actions (fixed width)
 
         # Tree behavior
         self.setIndentation(20)  # Indentation for child items
@@ -357,15 +361,23 @@ class AccountTreeWidget(QTreeWidget):
         item.setText(1, account_type_display)
         item.setForeground(1, QColor("#666666"))  # Gray text for type
 
-        # Format balance in column 2
+        # US-008: Display currency in column 2
+        item.setText(2, account.currency)
+        item.setTextAlignment(2, Qt.AlignCenter)
+        item.setForeground(2, QColor("#666666"))  # Gray text for currency
+
+        # Format balance in column 3 - US-008: Currency-aware formatting
         if account.is_parent:
             # Calculate parent balance from children
             try:
                 parent_balance = self.account_service.get_parent_account_balance_sql(account.id)
-                balance_text = f"${parent_balance:,.2f}"
+                # US-008: Format with currency symbol
+                balance_text = AccountValidator.format_amount(parent_balance, account.currency)
             except Exception as e:
                 logger.warning(f"Failed to calculate parent balance for {account.name}: {e}")
-                balance_text = "$0.00"
+                # US-008: Use currency symbol for zero balance
+                symbol = AccountValidator.get_currency_symbol(account.currency)
+                balance_text = f"{symbol}0.00"
                 parent_balance = Decimal('0')
 
             # Bold font for parent accounts
@@ -373,35 +385,37 @@ class AccountTreeWidget(QTreeWidget):
             font.setBold(True)
             item.setFont(0, font)
             item.setFont(1, font)
-            item.setFont(2, font)
+            item.setFont(2, font)  # Currency
+            item.setFont(3, font)  # Balance
 
             # Gray color for parent balance
-            item.setForeground(2, QColor("#666666"))
+            item.setForeground(3, QColor("#666666"))
         else:
             # Leaf account - use actual balance
-            balance_text = f"${account.balance:,.2f}"
+            # US-008: Format with currency symbol
+            balance_text = AccountValidator.format_amount(account.balance, account.currency)
             parent_balance = None
 
         # US-009: Color code balance using backend color logic
         balance_color = self._get_balance_color(account, parent_balance)
         if balance_color:
-            item.setForeground(2, balance_color)
+            item.setForeground(3, balance_color)
 
-        item.setText(2, balance_text)
-        item.setTextAlignment(2, Qt.AlignRight | Qt.AlignVCenter)
+        item.setText(3, balance_text)
+        item.setTextAlignment(3, Qt.AlignRight | Qt.AlignVCenter)
 
-        # US-007/US-009: Add clickable favorite star in column 3
+        # US-007/US-009: Add clickable favorite star in column 4 (Actions)
         if hasattr(account, 'is_favorite') and account.is_favorite:
-            item.setText(3, "⭐")
-            item.setToolTip(3, "Favorite Account (click to unfavorite)")
+            item.setText(4, "⭐")
+            item.setToolTip(4, "Favorite Account (click to unfavorite)")
         else:
-            item.setText(3, "☆")
-            item.setToolTip(3, "Click to mark as favorite")
+            item.setText(4, "☆")
+            item.setToolTip(4, "Click to mark as favorite")
 
-        item.setTextAlignment(3, Qt.AlignCenter)
+        item.setTextAlignment(4, Qt.AlignCenter)
 
         # Make star column more visually clickable
-        item.setForeground(3, QColor("#FFB800"))  # Golden color for both states
+        item.setForeground(4, QColor("#FFB800"))  # Golden color for both states
 
         # Add helpful tooltip
         tooltip = self._create_account_tooltip(account, parent_balance if account.is_parent else None)
@@ -575,8 +589,8 @@ class AccountTreeWidget(QTreeWidget):
             item: The clicked tree item
             column: The column that was clicked
         """
-        # Column 3 is the Actions column with favorite star
-        if column == 3:
+        # Column 4 is the Actions column with favorite star (US-008: shifted due to Currency column)
+        if column == 4:
             account_id = item.data(0, Qt.UserRole)
             if account_id:
                 # Toggle favorite status

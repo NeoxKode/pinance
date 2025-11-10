@@ -19,6 +19,7 @@ from finance_app.data.repositories.transaction_split_repository import Transacti
 from finance_app.data.repositories.transaction_repository import TransactionRepository
 from finance_app.data.repositories.transaction_group_repository import TransactionGroupRepository
 from finance_app.data.repositories.category_repository import CategoryRepository
+from finance_app.data.repositories.account_repository import AccountRepository
 from finance_app.business.double_entry_service import DoubleEntryService
 from finance_app.utils.logger import setup_logger
 from finance_app.utils.exceptions import ValidationError, NotFoundError, DatabaseError
@@ -49,6 +50,7 @@ class SplitTransactionService:
         self.transaction_repo = TransactionRepository(database)
         self.group_repo = TransactionGroupRepository(database)
         self.category_repo = CategoryRepository(database)
+        self.account_repo = AccountRepository(database)
         self.double_entry_service = DoubleEntryService(database)
 
     def create_split_transaction(
@@ -118,6 +120,39 @@ class SplitTransactionService:
                 f"Transaction: {transaction_amount}, Splits: {total_splits}, "
                 f"Difference: {abs(total_splits - transaction_amount)}"
             )
+
+        # US-008: Validate all accounts use same currency
+        transaction_account = self.account_repo.get_by_id(transaction.account_id)
+        if not transaction_account:
+            raise NotFoundError(f"Transaction account {transaction.account_id} not found")
+
+        transaction_currency = transaction_account.currency
+
+        for i, split in enumerate(splits):
+            category = self.category_repo.get_by_id(split.category_id)
+            if not category:
+                raise NotFoundError(f"Category {split.category_id} not found for split {i+1}")
+
+            if not category.account_id:
+                raise ValidationError(
+                    f"Category '{category.name}' (ID={category.id}) does not have "
+                    f"a linked account. Run category-account migration first."
+                )
+
+            split_account = self.account_repo.get_by_id(category.account_id)
+            if not split_account:
+                raise NotFoundError(
+                    f"Account {category.account_id} linked to category '{category.name}' not found"
+                )
+
+            if split_account.currency != transaction_currency:
+                raise ValidationError(
+                    f"Cannot create split transaction with different currencies. "
+                    f"Transaction account '{transaction_account.name}' uses {transaction_currency}, "
+                    f"but split {i+1} category '{category.name}' is linked to account "
+                    f"'{split_account.name}' which uses {split_account.currency}. "
+                    f"All accounts in a split transaction must use the same currency."
+                )
 
         logger.info(
             f"Creating split transaction for txn {transaction_id} "

@@ -1075,6 +1075,54 @@ class AccountRepository:
             logger.error(f"Failed to get sorted accounts: {e}")
             raise DatabaseError(f"Failed to get sorted accounts: {e}") from e
 
+    # ========================================================================
+    # US-008: Multi-Currency Support Methods
+    # ========================================================================
+
+    def get_accounts_by_currency(self, currency: str) -> List[Account]:
+        """
+        Get all accounts with a specific currency.
+
+        US-008: Multi-Currency Account Setup (Sprint 12).
+        Uses idx_accounts_currency index for performance (<50ms for 1000+ accounts).
+
+        Args:
+            currency: ISO 4217 currency code (e.g., 'USD', 'EUR', 'GBP')
+
+        Returns:
+            List of accounts with the specified currency, sorted by type and name
+
+        Raises:
+            DatabaseError: If query fails
+
+        Example:
+            >>> accounts = repo.get_accounts_by_currency('USD')
+            >>> [acc.name for acc in accounts]
+            ['Checking', 'Savings', 'Credit Card']
+        """
+        try:
+            with self.db.get_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute("""
+                    SELECT id, name, account_type, account_subtype, balance,
+                           normal_balance, currency, parent_account_id, legacy_type,
+                           is_parent, hierarchy_level, hierarchy_path,
+                           last_reconciled_date, opening_balance_date,
+                           color_hex, display_order, is_favorite,
+                           icon, notes, tags, account_number, institution_name
+                    FROM accounts
+                    WHERE currency = ?
+                    ORDER BY account_type ASC, name ASC
+                """, (currency.upper(),))
+
+                accounts = [self._row_to_account(row) for row in cursor.fetchall()]
+                logger.debug(f"Retrieved {len(accounts)} accounts with currency {currency}")
+                return accounts
+
+        except sqlite3.Error as e:
+            logger.error(f"Failed to get accounts by currency {currency}: {e}")
+            raise DatabaseError(f"Failed to get accounts by currency: {e}") from e
+
     @staticmethod
     def _row_to_account(row: sqlite3.Row) -> Account:
         """

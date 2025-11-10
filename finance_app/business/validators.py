@@ -13,18 +13,27 @@ class TransactionValidator:
     """Validator for transaction data."""
 
     @staticmethod
-    def validate_amount(amount_str: str) -> Decimal:
+    def validate_amount(amount_str: str, currency: str = 'USD') -> Decimal:
         """
-        Validate and convert amount string to Decimal.
+        Validate and convert amount string to Decimal with currency-aware precision.
+
+        US-008: Multi-Currency Support - Now validates decimal places based on currency.
 
         Args:
             amount_str: Amount as string
+            currency: ISO 4217 currency code (default: USD)
 
         Returns:
             Amount as Decimal
 
         Raises:
-            ValidationError: If amount is invalid
+            ValidationError: If amount is invalid or exceeds currency precision
+
+        Examples:
+            >>> TransactionValidator.validate_amount('1234.56', 'USD')
+            Decimal('1234.56')
+            >>> TransactionValidator.validate_amount('1234.56', 'JPY')
+            ValidationError: JPY cannot have more than 0 decimal places
         """
         try:
             amount = Decimal(amount_str.strip())
@@ -37,9 +46,15 @@ class TransactionValidator:
         if abs(amount) > Decimal("999999999.99"):
             raise ValidationError("Amount exceeds maximum allowed value")
 
-        # Ensure 2 decimal places max
-        if amount.as_tuple().exponent < -2:
-            raise ValidationError("Amount cannot have more than 2 decimal places")
+        # US-008: Currency-aware decimal validation
+        # Get decimal precision for the currency (0 for JPY/KRW, 2 for USD/EUR, etc.)
+        decimals = AccountValidator.get_decimal_places(currency)
+
+        if amount.as_tuple().exponent < -decimals:
+            raise ValidationError(
+                f"{currency} cannot have more than {decimals} decimal place{'s' if decimals != 1 else ''}. "
+                f"Got: {amount_str}"
+            )
 
         return amount
 
@@ -169,6 +184,53 @@ class AccountValidator:
         AccountType.LIABILITY: NormalBalance.CREDIT,
         AccountType.EQUITY: NormalBalance.CREDIT,
         AccountType.INCOME: NormalBalance.CREDIT,
+    }
+
+    # US-008: Multi-Currency Support (Sprint 12)
+    # Supported ISO 4217 currency codes with metadata
+    SUPPORTED_CURRENCIES = {
+        'AED': {'name': 'UAE Dirham', 'symbol': 'د.إ', 'decimals': 2},
+        'ARS': {'name': 'Argentine Peso', 'symbol': '$', 'decimals': 2},
+        'AUD': {'name': 'Australian Dollar', 'symbol': '$', 'decimals': 2},
+        'BDT': {'name': 'Bangladeshi Taka', 'symbol': '৳', 'decimals': 2},
+        'BRL': {'name': 'Brazilian Real', 'symbol': 'R$', 'decimals': 2},
+        'CAD': {'name': 'Canadian Dollar', 'symbol': '$', 'decimals': 2},
+        'CHF': {'name': 'Swiss Franc', 'symbol': 'Fr', 'decimals': 2},
+        'CLP': {'name': 'Chilean Peso', 'symbol': '$', 'decimals': 0},
+        'CNY': {'name': 'Chinese Yuan', 'symbol': '¥', 'decimals': 2},
+        'COP': {'name': 'Colombian Peso', 'symbol': '$', 'decimals': 2},
+        'CZK': {'name': 'Czech Koruna', 'symbol': 'Kč', 'decimals': 2},
+        'DKK': {'name': 'Danish Krone', 'symbol': 'kr', 'decimals': 2},
+        'EGP': {'name': 'Egyptian Pound', 'symbol': '£', 'decimals': 2},
+        'EUR': {'name': 'Euro', 'symbol': '€', 'decimals': 2},
+        'GBP': {'name': 'British Pound', 'symbol': '£', 'decimals': 2},
+        'HKD': {'name': 'Hong Kong Dollar', 'symbol': '$', 'decimals': 2},
+        'HUF': {'name': 'Hungarian Forint', 'symbol': 'Ft', 'decimals': 2},
+        'IDR': {'name': 'Indonesian Rupiah', 'symbol': 'Rp', 'decimals': 2},
+        'ILS': {'name': 'Israeli Shekel', 'symbol': '₪', 'decimals': 2},
+        'INR': {'name': 'Indian Rupee', 'symbol': '₹', 'decimals': 2},
+        'JPY': {'name': 'Japanese Yen', 'symbol': '¥', 'decimals': 0},
+        'KRW': {'name': 'South Korean Won', 'symbol': '₩', 'decimals': 0},
+        'MXN': {'name': 'Mexican Peso', 'symbol': '$', 'decimals': 2},
+        'MYR': {'name': 'Malaysian Ringgit', 'symbol': 'RM', 'decimals': 2},
+        'NGN': {'name': 'Nigerian Naira', 'symbol': '₦', 'decimals': 2},
+        'NOK': {'name': 'Norwegian Krone', 'symbol': 'kr', 'decimals': 2},
+        'NZD': {'name': 'New Zealand Dollar', 'symbol': '$', 'decimals': 2},
+        'PHP': {'name': 'Philippine Peso', 'symbol': '₱', 'decimals': 2},
+        'PKR': {'name': 'Pakistani Rupee', 'symbol': '₨', 'decimals': 2},
+        'PLN': {'name': 'Polish Zloty', 'symbol': 'zł', 'decimals': 2},
+        'RON': {'name': 'Romanian Leu', 'symbol': 'lei', 'decimals': 2},
+        'RUB': {'name': 'Russian Ruble', 'symbol': '₽', 'decimals': 2},
+        'SAR': {'name': 'Saudi Riyal', 'symbol': '﷼', 'decimals': 2},
+        'SEK': {'name': 'Swedish Krona', 'symbol': 'kr', 'decimals': 2},
+        'SGD': {'name': 'Singapore Dollar', 'symbol': '$', 'decimals': 2},
+        'THB': {'name': 'Thai Baht', 'symbol': '฿', 'decimals': 2},
+        'TRY': {'name': 'Turkish Lira', 'symbol': '₺', 'decimals': 2},
+        'TWD': {'name': 'Taiwan Dollar', 'symbol': 'NT$', 'decimals': 2},
+        'UAH': {'name': 'Ukrainian Hryvnia', 'symbol': '₴', 'decimals': 2},
+        'USD': {'name': 'US Dollar', 'symbol': '$', 'decimals': 2},
+        'VND': {'name': 'Vietnamese Dong', 'symbol': '₫', 'decimals': 0},
+        'ZAR': {'name': 'South African Rand', 'symbol': 'R', 'decimals': 2},
     }
 
     @staticmethod
@@ -315,29 +377,149 @@ class AccountValidator:
 
         return balance
 
-    @staticmethod
-    def validate_currency(currency: str) -> str:
+    @classmethod
+    def validate_currency(cls, currency: str) -> str:
         """
-        Validate currency code.
+        Validate currency code against ISO 4217 supported currencies.
+
+        US-008: Multi-Currency Support
 
         Args:
-            currency: Currency code (3 letters)
+            currency: Currency code (e.g., 'USD', 'EUR', 'JPY')
 
         Returns:
-            Validated currency code
+            Normalized currency code (uppercase, stripped)
 
         Raises:
-            ValidationError: If currency is invalid
+            ValidationError: If currency invalid or unsupported
+
+        Examples:
+            >>> AccountValidator.validate_currency('usd')
+            'USD'
+            >>> AccountValidator.validate_currency('XXX')
+            ValidationError: Currency 'XXX' not supported
         """
-        cleaned = currency.upper().strip()
+        if not currency:
+            raise ValidationError("Currency code is required")
 
-        if len(cleaned) != 3:
-            raise ValidationError("Currency code must be 3 characters (e.g., USD, EUR, GBP)")
+        currency = currency.upper().strip()
 
-        if not cleaned.isalpha():
-            raise ValidationError("Currency code must contain only letters")
+        if len(currency) != 3:
+            raise ValidationError(
+                f"Currency code must be 3 letters (ISO 4217). Got: '{currency}'"
+            )
 
-        return cleaned
+        if not currency.isalpha():
+            raise ValidationError(
+                f"Currency code must contain only letters. Got: '{currency}'"
+            )
+
+        if currency not in cls.SUPPORTED_CURRENCIES:
+            supported = ', '.join(sorted(cls.SUPPORTED_CURRENCIES.keys()))
+            raise ValidationError(
+                f"Currency '{currency}' not supported. "
+                f"Supported currencies: {supported}"
+            )
+
+        return currency
+
+    @classmethod
+    def get_currency_symbol(cls, currency: str) -> str:
+        """
+        Get currency symbol for display.
+
+        US-008: Multi-Currency Support
+
+        Args:
+            currency: ISO 4217 currency code
+
+        Returns:
+            Currency symbol (e.g., '$', '€', '¥')
+
+        Examples:
+            >>> AccountValidator.get_currency_symbol('USD')
+            '$'
+            >>> AccountValidator.get_currency_symbol('EUR')
+            '€'
+        """
+        return cls.SUPPORTED_CURRENCIES.get(currency, {}).get(
+            'symbol', currency
+        )
+
+    @classmethod
+    def get_decimal_places(cls, currency: str) -> int:
+        """
+        Get number of decimal places for currency.
+
+        US-008: Multi-Currency Support
+
+        Args:
+            currency: ISO 4217 currency code
+
+        Returns:
+            Number of decimal places (0 for JPY/KRW/CLP/VND, 2 for most others)
+
+        Examples:
+            >>> AccountValidator.get_decimal_places('USD')
+            2
+            >>> AccountValidator.get_decimal_places('JPY')
+            0
+        """
+        return cls.SUPPORTED_CURRENCIES.get(currency, {}).get(
+            'decimals', 2
+        )
+
+    @classmethod
+    def format_amount(cls, amount: Decimal, currency: str) -> str:
+        """
+        Format amount with currency symbol and correct decimal places.
+
+        US-008: Multi-Currency Support
+
+        Args:
+            amount: Amount to format
+            currency: ISO 4217 currency code
+
+        Returns:
+            Formatted string (e.g., '$1,234.56', '¥1,235')
+
+        Examples:
+            >>> AccountValidator.format_amount(Decimal('1234.56'), 'USD')
+            '$1,234.56'
+            >>> AccountValidator.format_amount(Decimal('1234.56'), 'JPY')
+            '¥1,235'
+        """
+        symbol = cls.get_currency_symbol(currency)
+        decimals = cls.get_decimal_places(currency)
+
+        if decimals == 0:
+            # Round to integer for zero-decimal currencies
+            return f"{symbol}{amount:,.0f}"
+        else:
+            return f"{symbol}{amount:,.{decimals}f}"
+
+    @classmethod
+    def get_currency_info(cls, currency: str) -> dict:
+        """
+        Get complete currency information.
+
+        US-008: Multi-Currency Support
+
+        Args:
+            currency: ISO 4217 currency code
+
+        Returns:
+            Dict with name, symbol, decimals
+
+        Example:
+            >>> AccountValidator.get_currency_info('USD')
+            {'name': 'US Dollar', 'symbol': '$', 'decimals': 2}
+        """
+        return cls.SUPPORTED_CURRENCIES.get(currency, {
+            'name': currency,
+            'symbol': currency,
+            'decimals': 2
+        })
 
 
 class CategoryValidator:

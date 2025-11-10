@@ -147,6 +147,14 @@ class AccountDialog(QDialog):
         self.subtype_combo = QComboBox()
         form.addRow("Account Subtype:", self.subtype_combo)
 
+        # US-008: Currency dropdown with search/filter
+        self.currency_combo = QComboBox()
+        self.currency_combo.setEditable(True)  # Enables search/filter
+        self.currency_combo.setInsertPolicy(QComboBox.NoInsert)  # Prevent adding new items
+        self.currency_combo.currentIndexChanged.connect(self._on_currency_changed)
+        self._populate_currencies()
+        form.addRow("Currency:", self.currency_combo)
+
         # US-009: Account color picker
         self.color_picker = ColorPickerWidget()
         self.color_picker.color_changed.connect(self._on_color_changed)
@@ -241,12 +249,6 @@ class AccountDialog(QDialog):
         self.opening_date_edit.setDisplayFormat("MMM dd, yyyy")
         self.opening_date_edit.setEnabled(False)
         form.addRow("Opening Date:", self.opening_date_edit)
-
-        # Currency (hidden for now since it's disabled)
-        self.currency_edit = QLineEdit()
-        self.currency_edit.setText("USD")
-        self.currency_edit.setMaxLength(3)
-        self.currency_edit.setVisible(False)  # Hide instead of disable
 
         layout.addLayout(form)
 
@@ -442,6 +444,158 @@ class AccountDialog(QDialog):
         # Color is stored in the widget, will be retrieved during save
         logger.debug(f"Account color changed to: {color_hex}")
 
+    def _populate_currencies(self) -> None:
+        """
+        Populate currency dropdown with supported currencies.
+        US-008: Popular currencies first, then separator, then all others alphabetically.
+        """
+        currencies = AccountValidator.SUPPORTED_CURRENCIES
+
+        # Popular currencies first
+        popular = ['USD', 'EUR', 'GBP', 'CAD', 'AUD', 'JPY']
+        for code in popular:
+            if code in currencies:
+                info = currencies[code]
+                display = f"{code} - {info['symbol']} ({info['name']})"
+                self.currency_combo.addItem(display, code)
+
+        # Add separator
+        self.currency_combo.insertSeparator(len(popular))
+
+        # Add all other currencies alphabetically
+        other_currencies = sorted([c for c in currencies.keys() if c not in popular])
+        for code in other_currencies:
+            info = currencies[code]
+            display = f"{code} - {info['symbol']} ({info['name']})"
+            self.currency_combo.addItem(display, code)
+
+        # Set default to USD
+        usd_index = self.currency_combo.findData('USD')
+        if usd_index >= 0:
+            self.currency_combo.setCurrentIndex(usd_index)
+
+        # Add helpful tooltip
+        self.currency_combo.setToolTip(
+            "Select account currency (ISO 4217 standard).\n\n"
+            "Type to search currencies.\n"
+            "Popular currencies are listed first.\n\n"
+            "Note: Currency cannot be changed if account has transactions.\n"
+            "Zero-decimal currencies (JPY, KRW, CLP, VND) do not allow cents."
+        )
+
+        logger.debug(f"Populated {len(currencies)} currencies in dropdown")
+
+    def _on_currency_changed(self, index: int) -> None:
+        """
+        Handle currency selection change.
+        US-008: Validate currency changes for existing accounts.
+
+        Args:
+            index: Selected index in currency combo box
+        """
+        if not self.is_edit_mode:
+            return  # No validation needed for new accounts
+
+        if index < 0:
+            return  # Invalid index
+
+        # Get new currency
+        new_currency = self.currency_combo.currentData()
+        if not new_currency:
+            return
+
+        # Get old currency
+        old_currency = self.account.currency if self.account else 'USD'
+
+        if new_currency == old_currency:
+            return  # No change
+
+        # US-008: Check if currency change is allowed
+        try:
+            # Check transaction count
+            trans_count = self.account_service.get_transaction_count(self.account.id)
+
+            if trans_count > 0:
+                # Show warning and revert
+                QMessageBox.warning(
+                    self,
+                    "Currency Change Not Allowed",
+                    f"Cannot change currency for '{self.account.name}'.\n\n"
+                    f"This account has {trans_count} transaction(s).\n"
+                    f"Currency changes are only allowed for accounts with no transactions.\n\n"
+                    f"To change currency:\n"
+                    f"1. Create a new account with the desired currency\n"
+                    f"2. Transfer transactions to the new account\n"
+                    f"3. Delete this account"
+                )
+                # Revert to original currency
+                old_index = self.currency_combo.findData(old_currency)
+                if old_index >= 0:
+                    self.currency_combo.blockSignals(True)
+                    self.currency_combo.setCurrentIndex(old_index)
+                    self.currency_combo.blockSignals(False)
+                return
+
+            # Check parent/child currency consistency
+            if self.account.parent_account_id:
+                parent = self.account_service.get_account(self.account.parent_account_id)
+                if parent and parent.currency != new_currency:
+                    QMessageBox.warning(
+                        self,
+                        "Currency Mismatch",
+                        f"Cannot change currency to {new_currency}.\n\n"
+                        f"This account's parent '{parent.name}' uses {parent.currency}.\n"
+                        f"Child accounts must match their parent's currency."
+                    )
+                    # Revert to original currency
+                    old_index = self.currency_combo.findData(old_currency)
+                    if old_index >= 0:
+                        self.currency_combo.blockSignals(True)
+                        self.currency_combo.setCurrentIndex(old_index)
+                        self.currency_combo.blockSignals(False)
+                    return
+
+            # Check if account has children with different currencies
+            if self.account.is_parent:
+                children = self.account_service.account_repo.get_child_accounts(self.account.id)
+                mismatched = [c for c in children if c.currency != new_currency]
+                if mismatched:
+                    names = ', '.join([c.name for c in mismatched[:3]])  # Show first 3
+                    if len(mismatched) > 3:
+                        names += f", and {len(mismatched) - 3} more"
+
+                    QMessageBox.warning(
+                        self,
+                        "Currency Mismatch",
+                        f"Cannot change currency to {new_currency}.\n\n"
+                        f"Child accounts have different currencies: {names}\n\n"
+                        f"Change child account currencies first."
+                    )
+                    # Revert to original currency
+                    old_index = self.currency_combo.findData(old_currency)
+                    if old_index >= 0:
+                        self.currency_combo.blockSignals(True)
+                        self.currency_combo.setCurrentIndex(old_index)
+                        self.currency_combo.blockSignals(False)
+                    return
+
+            # Currency change is valid
+            logger.info(f"Currency change allowed: {old_currency} → {new_currency}")
+
+        except Exception as e:
+            logger.error(f"Error validating currency change: {e}")
+            QMessageBox.warning(
+                self,
+                "Validation Error",
+                f"Could not validate currency change: {e}"
+            )
+            # Revert to original currency
+            old_index = self.currency_combo.findData(old_currency)
+            if old_index >= 0:
+                self.currency_combo.blockSignals(True)
+                self.currency_combo.setCurrentIndex(old_index)
+                self.currency_combo.blockSignals(False)
+
     def _populate_parent_accounts(self, account_type: AccountType) -> None:
         """
         Populate parent account dropdown with compatible parent accounts.
@@ -549,7 +703,17 @@ class AccountDialog(QDialog):
         self.is_parent_checkbox.setChecked(self.account.is_parent)
 
         self.balance_edit.setText(f"{self.account.balance:.2f}")
-        self.currency_edit.setText(self.account.currency)
+
+        # US-008: Set currency in combo box
+        currency_index = self.currency_combo.findData(self.account.currency)
+        if currency_index >= 0:
+            self.currency_combo.setCurrentIndex(currency_index)
+        else:
+            # Fallback to USD if currency not found
+            logger.warning(f"Currency '{self.account.currency}' not found in dropdown, defaulting to USD")
+            usd_index = self.currency_combo.findData('USD')
+            if usd_index >= 0:
+                self.currency_combo.setCurrentIndex(usd_index)
 
         # US-007: Set metadata fields
         if hasattr(self.account, 'account_number') and self.account.account_number:
@@ -572,7 +736,7 @@ class AccountDialog(QDialog):
             account_type = self.type_combo.currentData()
             account_subtype = self.subtype_combo.currentData()
             initial_balance = self.balance_edit.text().strip()
-            currency = self.currency_edit.text().strip()
+            currency = self.currency_combo.currentData()  # US-008: Get from combo box
 
             # US-005: Opening balance fields
             use_opening_balance = self.use_opening_balance_checkbox.isChecked()
@@ -782,6 +946,6 @@ class AccountDialog(QDialog):
                 'account_type': self.type_combo.currentData(),
                 'account_subtype': self.subtype_combo.currentData(),
                 'initial_balance': self.balance_edit.text().strip(),
-                'currency': self.currency_edit.text().strip()
+                'currency': self.currency_combo.currentData()  # US-008: Get from combo box
             }
         return None
