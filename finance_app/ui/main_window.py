@@ -141,15 +141,31 @@ class MainWindow(QMainWindow):
         # Edit menu
         edit_menu = menubar.addMenu("Edit")
 
-        # Unified transaction dialog (HomeBank-style)
-        add_trans_action = QAction("Add Transaction", self)
+        # Transaction operations
+        add_trans_action = QAction("Add Transaction...", self)
         add_trans_action.setShortcut("Ctrl+N")
+        add_trans_action.setToolTip("Create a new transaction")
         add_trans_action.triggered.connect(self.add_transaction_unified)
         edit_menu.addAction(add_trans_action)
 
-        # Reconciliation dialog (US-004)
+        delete_trans_action = QAction("Delete Transaction", self)
+        delete_trans_action.setShortcut("Ctrl+D")
+        delete_trans_action.setToolTip("Delete the selected transaction")
+        delete_trans_action.triggered.connect(self.delete_transaction)
+        edit_menu.addAction(delete_trans_action)
+
+        edit_menu.addSeparator()
+
+        # Account operations
+        new_account_action = QAction("New Account...", self)
+        new_account_action.setShortcut("Ctrl+Shift+N")
+        new_account_action.setToolTip("Create a new account")
+        new_account_action.triggered.connect(self.add_account)
+        edit_menu.addAction(new_account_action)
+
         reconcile_action = QAction("Reconcile Account...", self)
         reconcile_action.setShortcut("Ctrl+R")
+        reconcile_action.setToolTip("Reconcile the selected account")
         reconcile_action.triggered.connect(self.open_reconciliation_dialog)
         edit_menu.addAction(reconcile_action)
 
@@ -191,6 +207,15 @@ class MainWindow(QMainWindow):
 
         # Help menu
         help_menu = menubar.addMenu("Help")
+
+        shortcuts_action = QAction("Keyboard Shortcuts", self)
+        shortcuts_action.setShortcut("F1")
+        shortcuts_action.setToolTip("Show keyboard shortcuts reference")
+        shortcuts_action.triggered.connect(self.show_keyboard_shortcuts)
+        help_menu.addAction(shortcuts_action)
+
+        help_menu.addSeparator()
+
         about_action = QAction("About", self)
         about_action.triggered.connect(self.show_about)
         help_menu.addAction(about_action)
@@ -1053,6 +1078,55 @@ class MainWindow(QMainWindow):
             logger.info("UI refreshed after balance validation fixes")
         except Exception as e:
             logger.error(f"Failed to refresh UI: {e}")
+
+    def show_keyboard_shortcuts(self) -> None:
+        """Show keyboard shortcuts reference dialog."""
+        shortcuts_text = """
+<h2>Keyboard Shortcuts</h2>
+
+<h3>Transaction Operations</h3>
+<table cellpadding="5" cellspacing="0" border="0">
+<tr><td><b>Ctrl+N</b></td><td>Add Transaction</td></tr>
+<tr><td><b>Ctrl+D</b></td><td>Delete Transaction</td></tr>
+</table>
+
+<h3>Account Operations</h3>
+<table cellpadding="5" cellspacing="0" border="0">
+<tr><td><b>Ctrl+Shift+N</b></td><td>New Account</td></tr>
+<tr><td><b>Ctrl+R</b></td><td>Reconcile Account</td></tr>
+</table>
+
+<h3>Legacy Operations</h3>
+<table cellpadding="5" cellspacing="0" border="0">
+<tr><td><b>Ctrl+Shift+T</b></td><td>Transfer Money (Old)</td></tr>
+</table>
+
+<h3>Tools & Validation</h3>
+<table cellpadding="5" cellspacing="0" border="0">
+<tr><td><b>Ctrl+Shift+V</b></td><td>Validate Account Balances</td></tr>
+<tr><td><b>Ctrl+T</b></td><td>Trial Balance Report</td></tr>
+</table>
+
+<h3>Help</h3>
+<table cellpadding="5" cellspacing="0" border="0">
+<tr><td><b>F1</b></td><td>Keyboard Shortcuts (this dialog)</td></tr>
+</table>
+
+<h3>General</h3>
+<table cellpadding="5" cellspacing="0" border="0">
+<tr><td><b>Alt+F</b></td><td>Open File menu</td></tr>
+<tr><td><b>Alt+E</b></td><td>Open Edit menu</td></tr>
+<tr><td><b>Alt+T</b></td><td>Open Tools menu</td></tr>
+<tr><td><b>Alt+H</b></td><td>Open Help menu</td></tr>
+</table>
+"""
+
+        msg_box = QMessageBox(self)
+        msg_box.setWindowTitle("Keyboard Shortcuts")
+        msg_box.setTextFormat(Qt.RichText)
+        msg_box.setText(shortcuts_text)
+        msg_box.setStandardButtons(QMessageBox.Ok)
+        msg_box.exec()
 
     def show_about(self) -> None:
         """Show about dialog."""
