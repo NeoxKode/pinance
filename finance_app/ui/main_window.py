@@ -169,17 +169,9 @@ class MainWindow(QMainWindow):
         reconcile_action.triggered.connect(self.open_reconciliation_dialog)
         edit_menu.addAction(reconcile_action)
 
-        edit_menu.addSeparator()
-
-        # Legacy dialogs (kept for compatibility)
-        add_trans_old_action = QAction("Add Transaction (Old)", self)
-        add_trans_old_action.triggered.connect(self.add_transaction)
-        edit_menu.addAction(add_trans_old_action)
-
-        transfer_action = QAction("Transfer Money (Old)", self)
-        transfer_action.setShortcut("Ctrl+Shift+T")
-        transfer_action.triggered.connect(self.transfer_money)
-        edit_menu.addAction(transfer_action)
+        # Legacy dialogs removed - unified transaction dialog is sufficient
+        # Previous items: Add Transaction (Old), Transfer Money (Old)
+        # Users can use the unified "Add Transaction" dialog for all transaction types
 
         # TODO: BUG-FIX-009 - Add View menu back in EPIC-003 when Reports are implemented
         # View menu removed because it was empty after Bug #8 fix
@@ -1094,11 +1086,6 @@ class MainWindow(QMainWindow):
 <table cellpadding="5" cellspacing="0" border="0">
 <tr><td><b>Ctrl+Shift+N</b></td><td>New Account</td></tr>
 <tr><td><b>Ctrl+R</b></td><td>Reconcile Account</td></tr>
-</table>
-
-<h3>Legacy Operations</h3>
-<table cellpadding="5" cellspacing="0" border="0">
-<tr><td><b>Ctrl+Shift+T</b></td><td>Transfer Money (Old)</td></tr>
 </table>
 
 <h3>Tools & Validation</h3>
