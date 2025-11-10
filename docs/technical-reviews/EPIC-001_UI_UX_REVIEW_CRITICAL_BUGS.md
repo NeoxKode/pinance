@@ -9,13 +9,22 @@
 
 ## Executive Summary
 
-During comprehensive UI/UX testing, **critical bugs were discovered** that prevent basic account management operations. These bugs were **missed by all previous testing** and render key features non-functional.
+During comprehensive UI/UX testing, **critical bugs were discovered** that prevent basic account and transaction operations. These bugs were **missed by all previous testing** and render key features non-functional.
 
 **Status:** ⚠️ **HOLD PRODUCTION DEPLOYMENT**
 
-**Critical Issues Found:** 2 major bugs
+**Critical Issues Found:** 4 major bugs
 **Priority:** **P0 - Blocking**
 **Required Action:** **Immediate fix before production**
+
+### Bugs Discovered
+
+| Bug # | Feature | Severity | Impact |
+|-------|---------|----------|--------|
+| Bug #1 | Edit Account | CRITICAL | Cannot edit account details after creation |
+| Bug #2 | Delete Account | CRITICAL | Cannot delete accounts via context menu |
+| Bug #3 | Set Opening Balance | CRITICAL | Context menu item does nothing |
+| Bug #4 | Edit Transaction | HIGH | No way to edit transactions - must delete and recreate |
 
 ---
 
@@ -144,9 +153,157 @@ Same reasons as Bug #1:
 
 ---
 
+## 🚨 Critical Bug #3: Set Opening Balance Not Working
+
+### Issue Description
+
+**Symptom:** "Set Opening Balance" context menu item does nothing
+**Location:** `finance_app/ui/widgets/account_tree_widget.py:823`
+**Severity:** **CRITICAL (P0)**
+**Impact:** Users cannot set opening balances via context menu (US-005 feature non-functional)
+
+### Root Cause Analysis
+
+```python
+# File: account_tree_widget.py:823-825
+def _set_opening_balance(self, account_id: int):
+    """Emit signal to set opening balance (handled by main window)."""
+    logger.info(f"Set opening balance requested: {account_id}")
+    # ❌ NO SIGNAL EMITTED!
+    # ❌ NO ACTION TAKEN!
+```
+
+**Problems:**
+1. ❌ No signal defined for opening balance operations
+2. ❌ Method only logs, doesn't do anything
+3. ❌ MainWindow HAS a working `set_opening_balance()` method (line 750)
+4. ❌ SetOpeningBalanceDialog exists and works properly
+5. ❌ But AccountTreeWidget never calls it!
+
+### Expected Behavior
+
+```python
+# Should have signal like:
+opening_balance_requested = Signal(int)  # account_id
+
+def _set_opening_balance(self, account_id: int):
+    """Request opening balance dialog."""
+    logger.info(f"Set opening balance requested: {account_id}")
+    self.opening_balance_requested.emit(account_id)  # ✅ Emit signal
+```
+
+```python
+# In MainWindow._create_account_panel() (connect signal):
+self.account_tree.opening_balance_requested.connect(self.set_opening_balance)
+```
+
+### How Bug Was Missed
+
+- Dialog was implemented properly for US-005 ✅
+- MainWindow handler exists and works ✅
+- BUT: No integration between context menu and handler ❌
+- Tests validate service layer, not UI integration ❌
+- No manual testing of context menu workflow ❌
+
+### User Impact
+
+**Severity: HIGH**
+- Users can set opening balance from menu bar ✅ (if they know shortcut/menu)
+- Users CANNOT set opening balance from context menu ❌ (most intuitive place!)
+- Context menu item exists but is non-functional (broken promise)
+- **Critical usability regression for US-005 feature**
+
+---
+
+## 🚨 Critical Bug #4: No Way to Edit Transactions
+
+### Issue Description
+
+**Symptom:** No UI capability to edit existing transactions
+**Location:** Transaction table / Main window
+**Severity:** **HIGH (P1)**
+**Impact:** Users must delete and recreate transactions to fix mistakes
+
+### Root Cause Analysis
+
+**Problems:**
+1. ❌ No "Edit" button in transaction panel (only Add and Delete)
+2. ❌ No context menu on transaction table
+3. ❌ No double-click handler to edit
+4. ❌ No keyboard shortcut (F2, Enter, etc.)
+5. ❌ No `edit_transaction()` method in MainWindow
+6. ✅ Delete transaction works properly
+
+### Expected Behavior
+
+**Option 1: Double-click to edit**
+```python
+# In MainWindow._create_transaction_panel()
+self.transaction_table.itemDoubleClicked.connect(self.edit_transaction)
+
+def edit_transaction(self):
+    """Open edit dialog for selected transaction."""
+    selected_items = self.transaction_table.selectedItems()
+    if not selected_items:
+        return
+
+    row = selected_items[0].row()
+    trans_id = self.transaction_table.item(row, 3).data(Qt.UserRole)
+
+    # Get transaction and open dialog
+    transaction = self.transaction_service.get_transaction(trans_id)
+    dialog = UnifiedTransactionDialog(self.db, transaction=transaction, parent=self)
+    if dialog.exec() == QDialog.Accepted:
+        self._load_transactions()
+```
+
+**Option 2: Add Edit button**
+```python
+# Add between Add and Delete buttons:
+edit_btn = QPushButton("Edit")
+edit_btn.clicked.connect(self.edit_transaction)
+control_layout.addWidget(edit_btn)
+```
+
+**Option 3: Context menu on transaction table**
+```python
+self.transaction_table.setContextMenuPolicy(Qt.CustomContextMenu)
+self.transaction_table.customContextMenuRequested.connect(self._show_transaction_context_menu)
+
+def _show_transaction_context_menu(self, position):
+    menu = QMenu(self)
+    edit_action = QAction("Edit Transaction", self)
+    edit_action.triggered.connect(self.edit_transaction)
+    menu.addAction(edit_action)
+    # ... more actions
+    menu.exec_(self.transaction_table.viewport().mapToGlobal(position))
+```
+
+### How Bug Was Missed
+
+- Feature was never planned or specified ❌
+- No user story covering transaction editing ❌
+- Focus was on creating transactions (US-002 series) ✅
+- Edit capability assumed but never implemented ❌
+- No manual workflow testing ❌
+
+### User Impact
+
+**Severity: HIGH**
+- Users can ADD transactions ✅
+- Users can DELETE transactions ✅
+- Users CANNOT EDIT transactions ❌
+- Must delete and recreate to fix typos
+- Loses transaction history (reconciliation status, etc.)
+- **Major usability gap**
+
+**Workaround:** Delete and recreate transaction (loses metadata)
+
+---
+
 ## 📋 Additional UI/UX Issues Found
 
-### Issue #3: No Visual Feedback on Context Menu Click
+### Issue #5: No Visual Feedback on Context Menu Click
 
 **Severity:** Medium
 **Location:** Context menu actions in AccountTreeWidget
@@ -164,7 +321,7 @@ Same reasons as Bug #1:
 
 ---
 
-### Issue #4: Missing Edit/Delete Buttons in UI
+### Issue #6: Missing Edit/Delete Buttons in UI
 
 **Severity:** Medium
 **Location:** `main_window.py:193` (_create_account_panel)
@@ -703,16 +860,35 @@ def _on_item_double_clicked(self, item: QTreeWidgetItem, column: int):
 
 ## 🎓 Conclusion
 
-This review uncovered **critical bugs** that would have severely impacted users in production. The bugs were caused by:
-- Incomplete implementation (missing signals)
+This review uncovered **4 critical bugs** that would have severely impacted users in production. The bugs were caused by:
+- Incomplete implementation (missing signals and edit capability)
 - No E2E testing (workflow never validated)
 - No manual testing (never actually used the app)
 
 **Required Action:** **Fix critical bugs before production deployment**
 
-**Estimated Fix Time:** 1 hour for critical fixes
-**Testing Time:** 30 minutes
-**Total:** 1.5 hours to make production-ready
+### Fix Time Estimates
+
+**Critical Bug Fixes (P0 - Must Fix):**
+- Bug #1: Edit Account signal/handler - 20 minutes
+- Bug #2: Delete Account signal/handler - 20 minutes
+- Bug #3: Set Opening Balance signal/handler - 15 minutes
+- **Subtotal:** 55 minutes
+
+**High Priority Fix (P1 - Should Fix):**
+- Bug #4: Edit Transaction capability - 30 minutes
+- **Subtotal:** 30 minutes
+
+**Testing:**
+- Manual testing of all 4 fixes - 30 minutes
+- Regression testing - 15 minutes
+- **Subtotal:** 45 minutes
+
+**Total Time:**
+- **Critical fixes only (P0):** 1 hour 40 minutes
+- **All fixes (P0 + P1):** 2 hours 10 minutes
+
+**Recommendation:** Fix all 4 bugs before production deployment.
 
 **Status:** Hold deployment, fix bugs, re-test, then deploy.
 
