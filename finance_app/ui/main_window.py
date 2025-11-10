@@ -123,13 +123,16 @@ class MainWindow(QMainWindow):
         # File menu
         file_menu = menubar.addMenu("File")
 
-        new_action = QAction("New File", self)
-        file_menu.addAction(new_action)
-
-        open_action = QAction("Open File", self)
-        file_menu.addAction(open_action)
-
-        file_menu.addSeparator()
+        # TODO: Implement New/Open File when multi-database support is added
+        # new_action = QAction("New File", self)
+        # new_action.triggered.connect(self.new_file)
+        # file_menu.addAction(new_action)
+        #
+        # open_action = QAction("Open File", self)
+        # open_action.triggered.connect(self.open_file)
+        # file_menu.addAction(open_action)
+        #
+        # file_menu.addSeparator()
 
         exit_action = QAction("Exit", self)
         exit_action.triggered.connect(self.close)
@@ -164,8 +167,10 @@ class MainWindow(QMainWindow):
 
         # View menu
         view_menu = menubar.addMenu("View")
-        reports_action = QAction("Reports", self)
-        view_menu.addAction(reports_action)
+        # TODO: BUG-FIX-008 - Implement Reports when EPIC-003 (Reporting) is complete
+        # See docs/technical-reviews/FINAL_UI_UX_REVIEW.md - Bug #8
+        # reports_action = QAction("Reports", self)
+        # view_menu.addAction(reports_action)
 
         # Tools menu (US-010)
         tools_menu = menubar.addMenu("Tools")
@@ -309,8 +314,9 @@ class MainWindow(QMainWindow):
         # ISSUE-002 FIX: Enable tooltips for table items
         self.transaction_table.setMouseTracking(True)
 
-        # BUG-FIX-004: Enable double-click to edit transaction
-        self.transaction_table.itemDoubleClicked.connect(self.edit_transaction)
+        # TODO: Add double-click to edit when UnifiedTransactionDialog supports editing
+        # See docs/technical-reviews/FINAL_UI_UX_REVIEW.md - Bug #5
+        # self.transaction_table.itemDoubleClicked.connect(self.edit_transaction)
 
         layout.addWidget(self.transaction_table)
 
@@ -643,43 +649,13 @@ class MainWindow(QMainWindow):
                 logger.error(f"Unexpected error deleting transaction: {e}")
                 QMessageBox.critical(self, "Error", f"Unexpected error: {e}")
 
-    def edit_transaction(self) -> None:
-        """
-        Edit selected transaction (BUG-FIX-004).
-
-        Opens the unified transaction dialog with the selected transaction data
-        pre-populated for editing.
-        """
-        selected_items = self.transaction_table.selectedItems()
-        if not selected_items:
-            QMessageBox.warning(self, "No Selection", "Please select a transaction to edit")
-            return
-
-        try:
-            # Get transaction ID from selected row
-            row = selected_items[0].row()
-            trans_id = self.transaction_table.item(row, 3).data(Qt.UserRole)
-
-            # Get transaction details
-            transaction = self.transaction_service.get_transaction(trans_id)
-            if not transaction:
-                QMessageBox.warning(self, "Error", "Transaction not found")
-                return
-
-            # Open unified transaction dialog in edit mode
-            dialog = UnifiedTransactionDialog(self.db, transaction=transaction, parent=self)
-
-            if dialog.exec() == QDialog.Accepted:
-                self.load_data()
-                self.statusBar().showMessage("Transaction updated successfully")
-                logger.info(f"Transaction edited via UI: {trans_id}")
-
-        except FinanceAppError as e:
-            logger.error(f"Failed to edit transaction: {e}")
-            QMessageBox.critical(self, "Error", f"Failed to edit transaction: {e}")
-        except Exception as e:
-            logger.error(f"Unexpected error editing transaction: {e}")
-            QMessageBox.critical(self, "Error", f"Unexpected error: {e}")
+    # TODO: Implement edit_transaction when UnifiedTransactionDialog supports editing
+    # See docs/technical-reviews/FINAL_UI_UX_REVIEW.md - Bug #5
+    # Current workaround: Delete and recreate transaction
+    #
+    # def edit_transaction(self) -> None:
+    #     """Edit selected transaction - NOT YET IMPLEMENTED."""
+    #     pass
 
     def add_account(self) -> None:
         """Show dialog to add a new account."""
