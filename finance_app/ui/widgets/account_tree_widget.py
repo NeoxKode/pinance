@@ -35,9 +35,15 @@ class AccountTreeWidget(QTreeWidget):
 
     Signals:
         account_selected(int): Emitted when an account is selected (account_id)
+        account_edit_requested(int): Emitted when user wants to edit an account
+        account_delete_requested(int): Emitted when user wants to delete an account
+        opening_balance_requested(int): Emitted when user wants to set opening balance
     """
 
     account_selected = Signal(int)  # Emits account_id
+    account_edit_requested = Signal(int)  # BUG-FIX-001: Edit account signal
+    account_delete_requested = Signal(int)  # BUG-FIX-002: Delete account signal
+    opening_balance_requested = Signal(int)  # BUG-FIX-003: Opening balance signal
 
     def __init__(self, account_service: AccountService, parent=None):
         """
@@ -817,12 +823,15 @@ class AccountTreeWidget(QTreeWidget):
 
     def _edit_account(self, account_id: int):
         """Emit signal to edit account (handled by main window)."""
-        # This will be connected by main window
+        # BUG-FIX-001: Now properly emits signal to main window
         logger.info(f"Edit account requested: {account_id}")
+        self.account_edit_requested.emit(account_id)
 
     def _set_opening_balance(self, account_id: int):
         """Emit signal to set opening balance (handled by main window)."""
+        # BUG-FIX-003: Now properly emits signal to main window
         logger.info(f"Set opening balance requested: {account_id}")
+        self.opening_balance_requested.emit(account_id)
 
     def _move_to_parent(self, account_id: int):
         """Show dialog to move account to different parent."""
@@ -895,7 +904,9 @@ class AccountTreeWidget(QTreeWidget):
 
     def _delete_account(self, account_id: int):
         """Delete account (handled by main window)."""
+        # BUG-FIX-002: Now properly emits signal to main window
         logger.info(f"Delete account requested: {account_id}")
+        self.account_delete_requested.emit(account_id)
 
     def _move_account_up(self, account_id: int):
         """

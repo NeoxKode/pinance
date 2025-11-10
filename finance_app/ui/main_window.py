@@ -244,6 +244,11 @@ class MainWindow(QMainWindow):
         self.account_tree = AccountTreeWidget(self.account_service)
         self.account_tree.account_selected.connect(self.on_account_selected)
 
+        # BUG-FIX: Connect edit, delete, and opening balance signals
+        self.account_tree.account_edit_requested.connect(self.edit_account)
+        self.account_tree.account_delete_requested.connect(self.delete_account)
+        self.account_tree.opening_balance_requested.connect(self.set_opening_balance)
+
         layout.addWidget(self.account_tree)
 
         # Summary
@@ -303,6 +308,9 @@ class MainWindow(QMainWindow):
 
         # ISSUE-002 FIX: Enable tooltips for table items
         self.transaction_table.setMouseTracking(True)
+
+        # BUG-FIX-004: Enable double-click to edit transaction
+        self.transaction_table.itemDoubleClicked.connect(self.edit_transaction)
 
         layout.addWidget(self.transaction_table)
 
@@ -635,6 +643,44 @@ class MainWindow(QMainWindow):
                 logger.error(f"Unexpected error deleting transaction: {e}")
                 QMessageBox.critical(self, "Error", f"Unexpected error: {e}")
 
+    def edit_transaction(self) -> None:
+        """
+        Edit selected transaction (BUG-FIX-004).
+
+        Opens the unified transaction dialog with the selected transaction data
+        pre-populated for editing.
+        """
+        selected_items = self.transaction_table.selectedItems()
+        if not selected_items:
+            QMessageBox.warning(self, "No Selection", "Please select a transaction to edit")
+            return
+
+        try:
+            # Get transaction ID from selected row
+            row = selected_items[0].row()
+            trans_id = self.transaction_table.item(row, 3).data(Qt.UserRole)
+
+            # Get transaction details
+            transaction = self.transaction_service.get_transaction(trans_id)
+            if not transaction:
+                QMessageBox.warning(self, "Error", "Transaction not found")
+                return
+
+            # Open unified transaction dialog in edit mode
+            dialog = UnifiedTransactionDialog(self.db, transaction=transaction, parent=self)
+
+            if dialog.exec() == QDialog.Accepted:
+                self.load_data()
+                self.statusBar().showMessage("Transaction updated successfully")
+                logger.info(f"Transaction edited via UI: {trans_id}")
+
+        except FinanceAppError as e:
+            logger.error(f"Failed to edit transaction: {e}")
+            QMessageBox.critical(self, "Error", f"Failed to edit transaction: {e}")
+        except Exception as e:
+            logger.error(f"Unexpected error editing transaction: {e}")
+            QMessageBox.critical(self, "Error", f"Unexpected error: {e}")
+
     def add_account(self) -> None:
         """Show dialog to add a new account."""
         try:
@@ -654,18 +700,25 @@ class MainWindow(QMainWindow):
             logger.error(f"Traceback: {traceback.format_exc()}")
             QMessageBox.critical(self, "Error", f"Unexpected error: {e}")
 
-    def edit_account(self) -> None:
+    def edit_account(self, account_id: int = None) -> None:
         """
         Show dialog to edit selected account.
 
+        Args:
+            account_id: ID of account to edit. If None, uses current selection.
+
         US-006: Updated to use current_account_id from tree widget selection.
+        BUG-FIX-001: Now accepts account_id from signal.
         """
-        if not self.current_account_id:
+        # BUG-FIX-001: Use provided account_id or fall back to current selection
+        if account_id is None:
+            account_id = self.current_account_id
+
+        if not account_id:
             QMessageBox.warning(self, "No Selection", "Please select an account to edit")
             return
 
         try:
-            account_id = self.current_account_id
 
             # Get account details
             account = self.account_service.get_account(account_id)
@@ -699,17 +752,23 @@ class MainWindow(QMainWindow):
             logger.error(f"Unexpected error editing account: {e}")
             QMessageBox.critical(self, "Error", f"Unexpected error: {e}")
 
-    def delete_account(self) -> None:
+    def delete_account(self, account_id: int = None) -> None:
         """
         Delete selected account.
 
+        Args:
+            account_id: ID of account to delete. If None, uses current selection.
+
         US-006: Updated to use current_account_id from tree widget selection.
+        BUG-FIX-002: Now accepts account_id from signal.
         """
-        if not self.current_account_id:
+        # BUG-FIX-002: Use provided account_id or fall back to current selection
+        if account_id is None:
+            account_id = self.current_account_id
+
+        if not account_id:
             QMessageBox.warning(self, "No Selection", "Please select an account to delete")
             return
-
-        account_id = self.current_account_id
 
         try:
             # US-005: Prevent deleting Opening Balance Equity account
@@ -747,17 +806,23 @@ class MainWindow(QMainWindow):
             logger.error(f"Unexpected error deleting account: {e}")
             QMessageBox.critical(self, "Error", f"Unexpected error: {e}")
 
-    def set_opening_balance(self) -> None:
+    def set_opening_balance(self, account_id: int = None) -> None:
         """
         Open dialog to set opening balance for selected account (US-005).
 
+        Args:
+            account_id: ID of account. If None, uses current selection.
+
         US-006: Updated to use current_account_id from tree widget selection.
+        BUG-FIX-003: Now accepts account_id from signal.
         """
-        if not self.current_account_id:
+        # BUG-FIX-003: Use provided account_id or fall back to current selection
+        if account_id is None:
+            account_id = self.current_account_id
+
+        if not account_id:
             QMessageBox.warning(self, "No Selection", "Please select an account to set opening balance")
             return
-
-        account_id = self.current_account_id
 
         try:
             # Get the account
