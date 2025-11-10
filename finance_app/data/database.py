@@ -703,6 +703,82 @@ def _apply_account_visual_metadata_migration(conn: sqlite3.Connection) -> None:
         logger.debug("Account visual metadata migration already applied, skipping")
 
 
+def _apply_account_metadata_migration(conn: sqlite3.Connection) -> None:
+    """
+    Apply account metadata migration (011_account_metadata.sql).
+
+    This adds search performance indices for US-007 metadata fields.
+    Story: US-007 - Account Metadata & Organization (Sprint 11)
+
+    Note: All field columns (account_number, institution_name, notes, icon, tags)
+    were pre-created in Migration 010 to prevent duplicate column errors.
+    Migration 011 only adds search indices.
+
+    Args:
+        conn: Database connection
+    """
+    cursor = conn.cursor()
+
+    # Check if migration is needed (look for idx_accounts_institution index)
+    cursor.execute("""
+        SELECT name FROM sqlite_master
+        WHERE type='index' AND name='idx_accounts_institution'
+    """)
+
+    if cursor.fetchone() is None:
+        logger.info("Applying account metadata migration (011)...")
+
+        # Read and execute migration file
+        migration_path = Path(__file__).parent / "migrations" / "011_account_metadata.sql"
+
+        if not migration_path.exists():
+            logger.warning(f"Migration file not found: {migration_path}")
+            return
+
+        with open(migration_path, 'r') as f:
+            migration_sql = f.read()
+
+        # Execute migration
+        cursor.executescript(migration_sql)
+
+        conn.commit()
+        logger.info("Account metadata migration (011) completed")
+
+        # Verify columns exist (should already exist from Migration 010)
+        cursor.execute("PRAGMA table_info(accounts)")
+        columns = [row[1] for row in cursor.fetchall()]
+
+        us007_fields = ['account_number', 'institution_name', 'notes', 'icon', 'tags']
+        for field in us007_fields:
+            if field in columns:
+                logger.info(f"Migration verification: ✓ {field} column exists (from Migration 010)")
+            else:
+                logger.error(f"Migration verification failed: {field} column not found - Migration 010 not applied?")
+
+        # Verify indices created
+        cursor.execute("""
+            SELECT name FROM sqlite_master
+            WHERE type='index' AND name IN (
+                'idx_accounts_institution',
+                'idx_accounts_number'
+            )
+        """)
+        indices = [row[0] for row in cursor.fetchall()]
+
+        if len(indices) >= 2:
+            logger.info(f"Migration verification: ✓ All 2 metadata search indices created")
+            for index_name in indices:
+                logger.info(f"  - {index_name}")
+        else:
+            logger.warning(f"Migration verification: Found {len(indices)}/2 indices: {indices}")
+
+        # Log summary
+        logger.info("Account metadata migration (011) verification complete")
+        logger.info("✓ Ready for account metadata & organization features (US-007 Sprint 11)")
+    else:
+        logger.debug("Account metadata migration already applied, skipping")
+
+
 class Database:
     """
     Database manager with connection pooling and lifecycle management.
@@ -875,6 +951,9 @@ class Database:
                 # Apply account visual metadata migration for new databases
                 _apply_account_visual_metadata_migration(conn)
 
+                # Apply account metadata migration for new databases
+                _apply_account_metadata_migration(conn)
+
                 # Add sample data if empty
                 self._add_sample_data(conn)
 
@@ -895,6 +974,7 @@ class Database:
                 _apply_account_hierarchy_migration(conn)
                 _apply_balance_validation_migration(conn)
                 _apply_account_visual_metadata_migration(conn)
+                _apply_account_metadata_migration(conn)
                 logger.info("All migrations applied successfully")
         except Exception as e:
             logger.error(f"Failed to apply migrations: {e}")

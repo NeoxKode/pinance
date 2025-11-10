@@ -50,6 +50,7 @@ class AccountTreeWidget(QTreeWidget):
         self.account_service = account_service
         self._expansion_state: Dict[int, bool] = {}  # Remember expanded state
         self._show_favorites_only = False  # US-009: Favorites filter
+        self._search_query = ""  # US-007: Search filter
 
         self.setup_ui()
         self.setup_drag_drop()
@@ -225,6 +226,8 @@ class AccountTreeWidget(QTreeWidget):
         """Connect internal signals."""
         self.itemSelectionChanged.connect(self._on_selection_changed)
         self.customContextMenuRequested.connect(self._show_context_menu)
+        # US-007: Make favorite star clickable in column 3
+        self.itemClicked.connect(self._on_item_clicked)
         self.itemExpanded.connect(self._on_item_expanded)
         self.itemCollapsed.connect(self._on_item_collapsed)
 
@@ -250,6 +253,13 @@ class AccountTreeWidget(QTreeWidget):
             # Filter system accounts if needed
             if not show_system_accounts:
                 accounts = [acc for acc in accounts if not acc.name.startswith("Opening Balance Equity")]
+
+            # US-007: Filter by search query if provided
+            if self._search_query:
+                search_results = self.account_service.account_repo.search_accounts(self._search_query)
+                search_ids = {acc.id for acc in search_results}
+                accounts = [acc for acc in accounts if acc.id in search_ids]
+                logger.info(f"Search '{self._search_query}' matched {len(accounts)} accounts")
 
             # US-009: Filter by favorites if enabled
             if self._show_favorites_only:
@@ -293,6 +303,21 @@ class AccountTreeWidget(QTreeWidget):
         self._show_favorites_only = enabled
         self.load_accounts()
         logger.info(f"Favorites filter {'enabled' if enabled else 'disabled'}")
+
+    def set_search_filter(self, query: str):
+        """
+        Set search filter for accounts.
+        US-007: Filter accounts by name, account number, or institution name.
+
+        Args:
+            query: Search query string (searches name, account_number, institution_name)
+        """
+        self._search_query = query.strip()
+        self.load_accounts()
+        if self._search_query:
+            logger.info(f"Search filter applied: '{self._search_query}'")
+        else:
+            logger.info("Search filter cleared")
 
     def _add_account_item(self, account: Account, parent_item: Optional[QTreeWidgetItem]):
         """
@@ -365,14 +390,18 @@ class AccountTreeWidget(QTreeWidget):
         item.setText(2, balance_text)
         item.setTextAlignment(2, Qt.AlignRight | Qt.AlignVCenter)
 
-        # US-009: Add favorite star in column 3
+        # US-007/US-009: Add clickable favorite star in column 3
         if hasattr(account, 'is_favorite') and account.is_favorite:
             item.setText(3, "⭐")
-            item.setToolTip(3, "Favorite Account")
+            item.setToolTip(3, "Favorite Account (click to unfavorite)")
         else:
-            item.setText(3, "")
+            item.setText(3, "☆")
+            item.setToolTip(3, "Click to mark as favorite")
 
         item.setTextAlignment(3, Qt.AlignCenter)
+
+        # Make star column more visually clickable
+        item.setForeground(3, QColor("#FFB800"))  # Golden color for both states
 
         # Add helpful tooltip
         tooltip = self._create_account_tooltip(account, parent_balance if account.is_parent else None)
@@ -536,6 +565,23 @@ class AccountTreeWidget(QTreeWidget):
             account_id = item.data(0, Qt.UserRole)
             logger.debug(f"Account selected: ID={account_id}")
             self.account_selected.emit(account_id)
+
+    def _on_item_clicked(self, item: QTreeWidgetItem, column: int):
+        """
+        Handle item clicks - toggle favorite when star column is clicked.
+        US-007: Make favorite star clickable (AC4).
+
+        Args:
+            item: The clicked tree item
+            column: The column that was clicked
+        """
+        # Column 3 is the Actions column with favorite star
+        if column == 3:
+            account_id = item.data(0, Qt.UserRole)
+            if account_id:
+                # Toggle favorite status
+                self._toggle_favorite(account_id)
+                logger.debug(f"Favorite star clicked for account ID={account_id}")
 
     def _save_expansion_state(self):
         """Save which items are expanded."""

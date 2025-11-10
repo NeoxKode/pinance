@@ -1,7 +1,7 @@
 # Personal Finance Manager - User Guide
 
-**Version:** 2.4.0
-**Last Updated:** October 27, 2025
+**Version:** 2.5.0
+**Last Updated:** November 5, 2025
 **Status:** ✅ Complete
 
 ---
@@ -62,7 +62,19 @@
    - [Validation Best Practices](#validation-best-practices)
    - [Troubleshooting Validation](#troubleshooting-validation)
    - [Frequently Asked Questions](#validation-faq)
-6. [Advanced Features](#advanced-features)
+6. [Account Metadata & Organization](#account-metadata--organization)
+   - [What is Account Metadata?](#what-is-account-metadata)
+   - [Why Add Metadata to Accounts?](#why-add-metadata-to-accounts)
+   - [How to Add Account Metadata](#how-to-add-account-metadata)
+   - [Using Favorite Accounts](#using-favorite-accounts)
+   - [Searching Accounts by Metadata](#searching-accounts-by-metadata)
+   - [Account Numbers for Reconciliation](#account-numbers-for-reconciliation)
+   - [Organizing by Institution](#organizing-by-institution)
+   - [Adding Notes to Accounts](#adding-notes-to-accounts)
+   - [Metadata Best Practices](#metadata-best-practices)
+   - [Troubleshooting Metadata](#troubleshooting-metadata)
+   - [Frequently Asked Questions](#metadata-faq)
+7. [Advanced Features](#advanced-features)
 
 ---
 
@@ -3430,6 +3442,674 @@ This shows:
 4. Report bug if software issue suspected
 
 Don't just keep fixing - find and fix the underlying problem!
+
+---
+
+## Account Metadata & Organization
+
+### What is Account Metadata?
+
+**Account metadata** is additional information you can attach to your accounts to help organize, search, and manage them more effectively. Think of metadata as "labels" or "tags" that describe your accounts.
+
+**Available Metadata Fields:**
+- **Account Number**: Your bank/institution account number (e.g., "1234-5678-9012")
+- **Institution Name**: The financial institution (e.g., "Chase Bank", "Wells Fargo")
+- **Notes**: Free-form text for reminders, goals, restrictions (up to 1000 characters)
+- **Favorite**: Mark frequently-used accounts with a star ⭐ for quick access
+
+**Real-World Example:**
+
+Imagine you have 15 different accounts across 5 banks. Without metadata, you might struggle to remember:
+- Which account number matches which account?
+- Which accounts are at the same bank?
+- What's the purpose of this savings account?
+- Which accounts do you use most often?
+
+With metadata, you can add these details directly to each account, making it easy to find what you need!
+
+### Why Add Metadata to Accounts?
+
+#### ✅ **1. Faster Reconciliation**
+- Store account numbers for quick reference during bank reconciliation
+- No need to look up account numbers in your bank statements
+- Match transactions to accounts more easily
+
+#### ✅ **2. Better Organization**
+- Group accounts by institution (e.g., all Chase accounts)
+- Add notes about account purpose (e.g., "Emergency fund - don't touch!")
+- Track account goals and restrictions
+
+#### ✅ **3. Quick Access**
+- Mark frequently-used accounts as favorites
+- Favorites appear with a star ⭐ for easy identification
+- Filter to show only favorite accounts
+
+#### ✅ **4. Powerful Search**
+- Search across account names, numbers, and institutions
+- Find accounts quickly even with many accounts
+- Real-time search results as you type
+
+#### ✅ **5. Better Planning**
+- Add notes about savings goals
+- Document account restrictions or rules
+- Keep important account information in one place
+
+### How to Add Account Metadata
+
+You can add metadata when creating a new account or edit it anytime for existing accounts.
+
+#### Adding Metadata to a New Account
+
+1. **Click** the "+ Add" button in the Accounts panel
+2. **Fill in** the basic account information:
+   - Account Name (e.g., "Chase Premier Checking")
+   - Account Type (e.g., Asset > Checking)
+   - Color (optional - for visual organization)
+
+3. **Add metadata fields**:
+
+   **Account Number:**
+   - Enter your bank account number (e.g., "1234-5678-9012")
+   - This field is optional but helpful for reconciliation
+   - Accepts numbers, dashes, spaces, dots (3-50 characters)
+   - Example formats: "1234-5678", "****1234" (masked), "ACCT-12345"
+
+   **Institution Name:**
+   - Start typing the institution name (e.g., "Chase")
+   - Autocomplete will suggest institutions you've used before
+   - You can enter any institution name (up to 100 characters)
+   - Examples: "Chase Bank", "Wells Fargo", "Bank of America"
+
+   **Notes:**
+   - Add free-form notes about the account (up to 1000 characters)
+   - Multi-line text supported - press Enter for new lines
+   - Examples:
+     - "Emergency fund - $10,000 goal"
+     - "Primary checking - direct deposit"
+     - "DO NOT TOUCH - savings for house down payment"
+
+   **Mark as Favorite:**
+   - Check the "⭐ Mark as favorite" checkbox
+   - Favorite accounts show a star icon in the account list
+   - Use for accounts you access frequently
+
+4. **Complete** other fields (opening balance, parent account, etc.)
+
+5. **Click** "Save" to create the account with metadata
+
+**Visual Guide:**
+```
+[Account Name: Chase Premier Checking    ]
+[Account Type: Asset ▼] [Subtype: Checking ▼]
+[Account Color: ■ (Blue)                  ]
+┌─────────────────────────────────────────┐
+│ METADATA FIELDS (NEW in v2.5.0)        │
+├─────────────────────────────────────────┤
+│ Account Number:  1234-5678-9012        │
+│ Institution:     Chase Bank ▼           │
+│ Notes:          ┌───────────────────┐  │
+│                 │ Primary checking   │  │
+│                 │ Direct deposit     │  │
+│                 │ Monthly bills      │  │
+│                 └───────────────────┘  │
+│ ☑ ⭐ Mark as favorite                 │
+└─────────────────────────────────────────┘
+[Currency: USD ▼]
+[Opening Balance: $2,500.00] [Date: 11/05/2025]
+```
+
+#### Editing Metadata for Existing Accounts
+
+1. **Select** the account in the account list
+2. **Right-click** and choose "Edit Account" (or double-click)
+3. **Update** any metadata fields:
+   - Account Number
+   - Institution Name
+   - Notes
+   - Favorite status
+4. **Click** "Save" to update the account
+
+**Tip:** You can update metadata without affecting the account balance or transaction history!
+
+### Using Favorite Accounts
+
+Favorite accounts help you quickly access the accounts you use most often.
+
+#### Marking an Account as Favorite
+
+**Method 1: Via Account Dialog**
+1. Edit the account
+2. Check "⭐ Mark as favorite"
+3. Save changes
+
+**Method 2: Click the Star (Quick Toggle)**
+1. Find the account in the account list
+2. Look at the "Actions" column (rightmost column)
+3. **Click** the star icon:
+   - ☆ (empty star) = Click to mark as favorite
+   - ⭐ (filled star) = Click to remove from favorites
+
+**Visual Feedback:**
+- Favorite accounts show a **golden ⭐** in the Actions column
+- Non-favorite accounts show an **empty ☆**
+- Hover over the star to see tooltip
+
+#### Filtering Favorite Accounts
+
+1. Look for the "⭐ Favorites Only" checkbox above the account list
+2. **Check** the box to show only favorite accounts
+3. **Uncheck** to show all accounts again
+
+**Use Cases for Favorites:**
+- Daily checking account ⭐
+- Primary credit card ⭐
+- Main savings account ⭐
+- Most-used investment account ⭐
+
+**Tip:** You can have multiple favorites - use them for the 3-5 accounts you access daily!
+
+### Searching Accounts by Metadata
+
+The search box allows you to find accounts quickly by searching across multiple fields.
+
+#### How to Search
+
+1. **Locate** the search box above the account list
+   - Label: "Search:"
+   - Placeholder text: "Search by name, account number, or institution..."
+
+2. **Start typing** your search query
+   - Results appear in real-time as you type
+   - Search is case-insensitive
+
+3. **View results** - Only matching accounts are shown
+
+4. **Clear search**:
+   - Click the "X" button in the search box, OR
+   - Delete all text to show all accounts again
+
+#### What Can You Search?
+
+The search looks across three fields:
+
+**1. Account Name**
+- Search: "checking" → Finds "Chase Checking", "Wells Checking"
+- Search: "savings" → Finds "Emergency Savings", "House Savings"
+
+**2. Account Number**
+- Search: "1234" → Finds account with number "1234-5678-9012"
+- Search: "5678" → Finds accounts with "5678" in their number
+- Useful when you have a statement but can't remember the account name
+
+**3. Institution Name**
+- Search: "chase" → Finds all accounts at "Chase Bank"
+- Search: "wells" → Finds all accounts at "Wells Fargo"
+- Great for grouping accounts by bank
+
+**Real-World Examples:**
+
+**Example 1: Find Account by Partial Number**
+```
+You have a bank statement: Account ending in "7890"
+Search: "7890"
+Result: "Chase Checking (1234-5678-7890)" ✓
+```
+
+**Example 2: Find All Accounts at One Bank**
+```
+You need to review all Chase accounts
+Search: "chase"
+Results:
+  - Chase Checking
+  - Chase Savings
+  - Chase Credit Card
+```
+
+**Example 3: Find Account by Purpose**
+```
+You named your account: "Emergency Savings"
+Search: "emergency"
+Result: "Emergency Savings" ✓
+```
+
+**Search Tips:**
+- ✅ Search is **case-insensitive** - "Chase" = "chase" = "CHASE"
+- ✅ Partial matches work - "check" finds "checking"
+- ✅ Searches all fields simultaneously
+- ✅ Real-time results - no need to press Enter
+- ❌ Notes field is NOT searched (for performance)
+
+### Account Numbers for Reconciliation
+
+Account numbers help you reconcile accounts faster by matching your bank statements to the correct account.
+
+#### Why Store Account Numbers?
+
+**Benefits:**
+1. **Faster Reconciliation**: No need to look up account numbers
+2. **Accuracy**: Ensure you're reconciling the right account
+3. **Multi-Account Management**: Easily distinguish similar accounts
+4. **Bank Statement Matching**: Match statements to accounts by number
+
+#### Account Number Format
+
+The app accepts flexible account number formats:
+
+**Supported Formats:**
+- Numeric: "123456789012"
+- With dashes: "1234-5678-9012"
+- With spaces: "1234 5678 9012"
+- With dots: "1234.5678.9012"
+- Mixed: "ACCT-1234-5678"
+- Masked: "****1234" (for security)
+
+**Validation Rules:**
+- Minimum: 3 characters
+- Maximum: 50 characters
+- Allowed: Letters, numbers, spaces, dashes, dots, slashes, parentheses, asterisks
+
+**Examples:**
+```
+✅ "1234-5678-9012"      - Credit card format
+✅ "123456789012"        - Plain numeric
+✅ "ACCT-12345"          - Alphanumeric
+✅ "****1234"            - Masked (last 4 digits)
+✅ "1234 5678 9012"      - Spaced format
+✅ "CHK/1234567890"      - With prefix
+❌ "12"                  - Too short (< 3 characters)
+❌ "1234@#$%"            - Invalid characters
+```
+
+#### Using Account Numbers During Reconciliation
+
+When you reconcile an account:
+
+1. The account number appears in the reconciliation dialog
+2. Compare it to your bank statement
+3. Verify you're reconciling the correct account
+4. This prevents reconciling the wrong account by mistake!
+
+### Organizing by Institution
+
+Grouping accounts by institution helps you manage accounts at the same bank or credit union.
+
+#### How to Group by Institution
+
+**Method 1: Search by Institution**
+1. Use the search box
+2. Type the institution name (e.g., "Chase")
+3. All accounts at that institution appear
+
+**Method 2: Consistent Naming**
+When adding accounts:
+- Use the same institution name for all accounts at that bank
+- The autocomplete will suggest previous institutions
+- Example: Always use "Chase Bank" (not "Chase" or "chase bank")
+
+**Example Organization:**
+
+```
+Chase Bank:
+  - Chase Premier Checking (1234-5678)
+  - Chase Savings (8765-4321)
+  - Chase Freedom Credit Card (9999-8888)
+
+Wells Fargo:
+  - Wells Checking (1111-2222)
+  - Wells Savings (3333-4444)
+
+Bank of America:
+  - BofA Checking (5555-6666)
+```
+
+#### Institution Autocomplete
+
+As you type an institution name, the app suggests institutions you've used before:
+
+1. **Click** in the "Institution Name" field
+2. **Start typing** (e.g., "Ch")
+3. **See suggestions**: "Charles Schwab", "Chase Bank"
+4. **Click** a suggestion OR continue typing a new name
+5. Suggestions update as you type
+
+**Benefits:**
+- Consistent naming across accounts
+- Faster data entry
+- No typos or variations
+
+**Tips:**
+- Use full official names: "Bank of America" not "BofA"
+- Be consistent: "Wells Fargo" or "Wells Fargo Bank" - pick one
+- Autocomplete is case-insensitive: "chase" will suggest "Chase Bank"
+
+### Adding Notes to Accounts
+
+Notes let you add free-form text to remember important details about your accounts.
+
+#### When to Use Notes
+
+**Common Use Cases:**
+
+**1. Account Purpose**
+```
+"Primary checking account for monthly expenses"
+"Emergency fund - target $10,000"
+"House down payment savings - DO NOT TOUCH"
+```
+
+**2. Savings Goals**
+```
+"Vacation fund
+Goal: $5,000 by June 2026
+Current: $2,000 (40%)
+Monthly target: $250"
+```
+
+**3. Account Restrictions**
+```
+"Required minimum balance: $1,500
+Monthly fee if below minimum: $12"
+```
+
+**4. Account Rules**
+```
+"Linked to checking for overdraft protection
+Maximum 6 withdrawals per month"
+```
+
+**5. Special Instructions**
+```
+"Transfer to savings every payday
+Direct deposit from employer
+Auto-pay: Mortgage (15th), Utilities (1st)"
+```
+
+#### Notes Field Features
+
+**Specifications:**
+- **Multi-line**: Press Enter to create new lines
+- **Maximum**: 1000 characters
+- **Format**: Plain text (no rich formatting)
+- **Optional**: Leave blank if not needed
+
+**Visual Example:**
+```
+┌────────────────────────────────────────┐
+│ Notes:                                 │
+│ ┌────────────────────────────────────┐│
+│ │ Emergency Fund Account             ││
+│ │                                    ││
+│ │ Goal: $10,000                      ││
+│ │ Current: $7,500                    ││
+│ │ Remaining: $2,500                  ││
+│ │                                    ││
+│ │ DO NOT withdraw except for         ││
+│ │ true emergencies only!             ││
+│ └────────────────────────────────────┘│
+│ 158 / 1000 characters                  │
+└────────────────────────────────────────┘
+```
+
+**Tips:**
+- Keep notes concise but informative
+- Update notes when goals or rules change
+- Use notes for information you reference often
+- Notes are NOT included in search (for performance)
+
+### Metadata Best Practices
+
+#### ✅ DO: Recommended Practices
+
+**1. Be Consistent**
+- Use the same institution name for all accounts at that bank
+- Follow a consistent account numbering format
+- Use similar note structures across accounts
+
+**2. Use Favorites Wisely**
+- Mark 3-5 most-used accounts as favorites
+- Don't mark everything - defeats the purpose!
+- Review favorites quarterly, unmark if no longer used
+
+**3. Keep Notes Updated**
+- Update savings goals as they change
+- Remove outdated information
+- Add new restrictions or rules as they occur
+
+**4. Store Account Numbers**
+- Add account numbers to accounts you reconcile
+- Use masked format (****1234) if concerned about security
+- Verify account numbers match your bank statements
+
+**5. Leverage Search**
+- Use search instead of scrolling through long lists
+- Search by institution to review all accounts at one bank
+- Search by account number when reconciling
+
+#### ❌ DON'T: Practices to Avoid
+
+**1. Don't Store Sensitive Information**
+- ❌ Don't put full account numbers if security is a concern
+- ❌ Don't put PINs, passwords, or security questions
+- ❌ Don't put SSN or other personal identifiers
+- ✅ Use masked numbers: "****1234" instead of full number
+
+**2. Don't Mark Everything as Favorite**
+- ❌ Marking 20 accounts as favorites defeats the purpose
+- ✅ Limit to 3-5 most-used accounts
+
+**3. Don't Duplicate Information**
+- ❌ Don't put account name in notes (already in account name field)
+- ❌ Don't repeat institution in notes (use institution field)
+- ✅ Use notes for unique information not captured elsewhere
+
+**4. Don't Use Inconsistent Institution Names**
+- ❌ "Chase", "chase bank", "Chase Bank", "CHASE" (4 different entries)
+- ✅ Pick one: "Chase Bank" and stick with it (use autocomplete!)
+
+**5. Don't Write a Novel in Notes**
+- ❌ 1000-character essays about account history
+- ✅ Brief, relevant information you'll actually reference
+
+### Troubleshooting Metadata
+
+#### Issue: Autocomplete Not Working
+
+**Problem:** Institution name autocomplete doesn't show suggestions
+
+**Solutions:**
+1. **Type more characters** - Autocomplete activates after 1-2 characters
+2. **Check for typos** - Autocomplete matches existing institution names
+3. **First institution** - If this is your first account, no suggestions exist yet
+4. **Create new entry** - Just type the full name, it will be added
+
+**Note:** Autocomplete only suggests institutions you've already entered in other accounts.
+
+---
+
+#### Issue: Can't Find Account in Search
+
+**Problem:** You search but don't find the account you're looking for
+
+**Solutions:**
+1. **Check search fields** - Search only looks at: name, account number, institution
+2. **Notes not searchable** - Notes field is NOT included in search (performance)
+3. **Clear search** - Click X to clear and verify account exists
+4. **Check spelling** - Search is case-insensitive but spelling must match
+5. **Try partial match** - Search "check" instead of "checking"
+
+**Example:**
+```
+Account: "Emergency Savings"
+Notes: "DO NOT TOUCH"
+Search: "touch" ❌ Won't find it (notes not searched)
+Search: "emergency" ✅ Will find it (name searched)
+```
+
+---
+
+#### Issue: Validation Error on Account Number
+
+**Problem:** "Account number must be at least 3 characters"
+
+**Solutions:**
+1. **Enter longer number** - Minimum 3 characters required
+2. **Leave blank** - Account number is optional
+3. **Use masked format** - "****1234" is valid (8 characters)
+
+**Example:**
+```
+❌ "12" - Too short
+✅ "123" - Valid (minimum)
+✅ "" (blank) - Valid (optional field)
+✅ "****1234" - Valid (masked)
+```
+
+---
+
+#### Issue: Favorite Star Not Showing
+
+**Problem:** Marked account as favorite but no star appears
+
+**Solutions:**
+1. **Check saved** - Click Save after checking favorite box
+2. **Refresh view** - Try closing and reopening the account list
+3. **Check right column** - Star appears in "Actions" column (rightmost)
+4. **Account tree expanded** - Make sure account's parent is expanded
+
+---
+
+#### Issue: Lost Account Metadata
+
+**Problem:** Metadata disappeared after editing account
+
+**Solutions:**
+1. **Check correct account** - Verify you're viewing the right account
+2. **Metadata separate from balance** - Balance changes don't affect metadata
+3. **Undo if just changed** - Close without saving to revert changes
+4. **Check validation log** - Tools > Validate Account Balances to check data integrity
+
+### Frequently Asked Questions {#metadata-faq}
+
+#### Q: Is account metadata required?
+
+**A:** No, all metadata fields are **optional**. You can use as much or as little as you want:
+- Use all fields for complete organization
+- Use only what you need (e.g., just favorites)
+- Skip entirely if you have few accounts
+
+Metadata is a power-user feature to help manage complexity!
+
+---
+
+#### Q: Will adding metadata affect my account balance?
+
+**A:** No, metadata is purely informational:
+- ✅ Balance stays the same
+- ✅ Transaction history unchanged
+- ✅ Reports and calculations unaffected
+- ✅ Can add/edit/remove metadata anytime without impacting data
+
+---
+
+#### Q: Can I bulk-edit metadata for multiple accounts?
+
+**A:** Currently, no. You must edit accounts individually:
+1. Select account
+2. Edit metadata
+3. Save
+4. Repeat for next account
+
+**Workaround for institutions:**
+- Use autocomplete to ensure consistent institution names
+- First account: Type "Chase Bank"
+- Next accounts: Start typing "Ch" → select "Chase Bank" from autocomplete
+
+---
+
+#### Q: Are notes searchable?
+
+**A:** No, notes are NOT included in search for performance reasons:
+- ✅ Search includes: name, account number, institution
+- ❌ Search excludes: notes, color, favorite status
+
+**Workaround:** If you want searchable information, put it in the account name:
+- Instead of: Name="Savings", Notes="Emergency fund"
+- Use: Name="Emergency Savings", Notes="Monthly target: $200"
+
+---
+
+#### Q: How many accounts can I mark as favorites?
+
+**A:** As many as you want! However, best practice:
+- ✅ **Recommended**: 3-5 accounts (daily use)
+- ⚠️ **Avoid**: Marking everything (defeats purpose)
+
+Think "Which accounts do I access daily or weekly?"
+
+---
+
+#### Q: Can I see which accounts have metadata?
+
+**A:** There's no special indicator, but you can:
+1. **Search by institution** - Find all accounts at a bank
+2. **Look for stars** - ⭐ indicates favorites
+3. **Open account** - Edit to view all metadata fields
+
+Future enhancement: Filter by "has account number" or "has notes"
+
+---
+
+#### Q: What's the difference between account notes and transaction descriptions?
+
+**A:** They serve different purposes:
+
+**Account Notes:**
+- Describe the account itself
+- One note per account
+- Examples: "Emergency fund", "Savings goal: $10k"
+
+**Transaction Descriptions:**
+- Describe individual transactions
+- One description per transaction
+- Examples: "Grocery store", "Gas station"
+
+Use account notes for account-level information!
+
+---
+
+#### Q: Can I export account metadata?
+
+**A:** Metadata is stored in the database and included in database backups:
+- Account number → Stored in database
+- Institution name → Stored in database
+- Notes → Stored in database
+- Favorite status → Stored in database
+
+When you back up your database file, all metadata is included!
+
+---
+
+#### Q: Why can't I mark a parent account as favorite?
+
+**A:** You can! Parent accounts support all metadata fields:
+- ✅ Mark as favorite
+- ✅ Add notes
+- ✅ Add institution name
+- ✅ Add account number (if parent represents a real account)
+
+Parent accounts work just like child accounts for metadata purposes.
+
+---
+
+#### Q: Will institution autocomplete work across users?
+
+**A:** No, autocomplete is per-database:
+- Each database has its own institution list
+- List builds as you add accounts
+- No shared "global" institution list
+- This ensures privacy and customization
+
+If you start a new database, you'll rebuild your institution list from scratch.
 
 ---
 

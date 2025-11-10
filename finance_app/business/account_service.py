@@ -1245,3 +1245,123 @@ class AccountService:
             List of Account objects sorted by display_order, then alphabetically
         """
         return self.account_repo.get_accounts_by_display_order()
+
+    def get_institution_autocomplete(self, partial_name: str = "") -> List[str]:
+        """
+        Get autocomplete suggestions for institution names.
+
+        US-007: Institution autocomplete support (AC2).
+
+        Args:
+            partial_name: Partial institution name for filtering (case-insensitive).
+                        If empty, returns all institutions.
+
+        Returns:
+            List of matching institution names, sorted alphabetically
+
+        Example:
+            >>> service.get_institution_autocomplete("Cha")
+            ['Charles Schwab', 'Chase Bank']
+        """
+        # Get all institution names
+        all_institutions = self.account_repo.get_institution_names()
+
+        # If no partial name provided, return all
+        if not partial_name or not partial_name.strip():
+            return all_institutions
+
+        # Filter by partial match (case-insensitive)
+        partial_lower = partial_name.lower().strip()
+        matches = [
+            inst for inst in all_institutions
+            if partial_lower in inst.lower()
+        ]
+
+        return sorted(matches)
+
+    def update_metadata(
+        self,
+        account_id: int,
+        account_number: Optional[str] = None,
+        institution_name: Optional[str] = None,
+        notes: Optional[str] = None
+    ) -> Account:
+        """
+        Update account metadata fields.
+
+        US-007: Account metadata management (AC1, AC2, AC3).
+
+        Args:
+            account_id: Account to update
+            account_number: Bank account number (3-50 chars if provided)
+            institution_name: Financial institution name (max 100 chars)
+            notes: Free-form notes (max 1000 chars)
+
+        Returns:
+            Updated Account object
+
+        Raises:
+            ValueError: If account not found
+            ValueError: If validation fails (length, format)
+
+        Example:
+            >>> service.update_metadata(
+            ...     account_id=1,
+            ...     account_number="1234-5678",
+            ...     institution_name="Chase Bank",
+            ...     notes="Primary checking account"
+            ... )
+        """
+        # Get existing account
+        account = self.account_repo.get_by_id(account_id)
+        if not account:
+            raise ValueError(f"Account {account_id} not found")
+
+        # Validate account_number (AC1)
+        if account_number is not None:
+            account_number = account_number.strip()
+            if account_number:  # Only validate if not empty
+                if len(account_number) < 3:
+                    raise ValueError("Account number must be at least 3 characters")
+                if len(account_number) > 50:
+                    raise ValueError("Account number cannot exceed 50 characters")
+                # Alphanumeric + common separators + asterisks (for masking)
+                import re
+                if not re.match(r'^[A-Za-z0-9\s\.\-/\(\)\*]+$', account_number):
+                    raise ValueError("Invalid account number format (alphanumeric, spaces, and -./()* only)")
+            else:
+                account_number = None  # Empty string becomes None
+
+        # Validate institution_name (AC2)
+        if institution_name is not None:
+            institution_name = institution_name.strip()
+            if institution_name:  # Only validate if not empty
+                if len(institution_name) > 100:
+                    raise ValueError("Institution name cannot exceed 100 characters")
+            else:
+                institution_name = None  # Empty string becomes None
+
+        # Validate notes (AC3)
+        if notes is not None:
+            notes = notes.strip()
+            if notes:  # Only validate if not empty
+                if len(notes) > 1000:
+                    raise ValueError(f"Notes cannot exceed 1000 characters (currently {len(notes)})")
+                # Sanitize for XSS prevention
+                import html
+                notes = html.escape(notes)
+            else:
+                notes = None  # Empty string becomes None
+
+        # Update fields (only update non-None values)
+        if account_number is not None:
+            account.account_number = account_number
+        if institution_name is not None:
+            account.institution_name = institution_name
+        if notes is not None:
+            account.notes = notes
+
+        # Save and return
+        updated_account = self.account_repo.update(account)
+        logger.info(f"Updated metadata for account {account_id}: {account.name}")
+        return updated_account

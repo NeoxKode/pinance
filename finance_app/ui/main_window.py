@@ -7,7 +7,7 @@ from decimal import Decimal
 from PySide6.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QTableWidget,
     QTableWidgetItem, QPushButton, QLabel, QSplitter, QMessageBox, QDialog, QCheckBox,
-    QHeaderView
+    QHeaderView, QLineEdit
 )
 from finance_app.ui.widgets import AccountTreeWidget
 from PySide6.QtCore import Qt
@@ -221,6 +221,25 @@ class MainWindow(QMainWindow):
 
         layout.addLayout(header_layout)
 
+        # US-007: Multi-field search box
+        search_layout = QHBoxLayout()
+        search_label = QLabel("Search:")
+        search_layout.addWidget(search_label)
+
+        self.account_search_box = QLineEdit()
+        self.account_search_box.setPlaceholderText("Search by name, account number, or institution...")
+        self.account_search_box.setToolTip(
+            "Search accounts by:\n"
+            "• Account name\n"
+            "• Account number\n"
+            "• Institution name"
+        )
+        self.account_search_box.setClearButtonEnabled(True)
+        self.account_search_box.textChanged.connect(self._on_account_search_changed)
+        search_layout.addWidget(self.account_search_box)
+
+        layout.addLayout(search_layout)
+
         # US-006: Replace table with hierarchical tree widget
         self.account_tree = AccountTreeWidget(self.account_service)
         self.account_tree.account_selected.connect(self.on_account_selected)
@@ -328,6 +347,18 @@ class MainWindow(QMainWindow):
         is_checked = self.show_favorites_only_checkbox.isChecked()
         self.account_tree.set_favorites_filter(is_checked)
         logger.info(f"Favorites filter {'enabled' if is_checked else 'disabled'}")
+
+    def _on_account_search_changed(self, text: str):
+        """
+        Handle account search box text changes.
+        US-007: Multi-field search across name, account number, and institution name.
+
+        Args:
+            text: Current search query
+        """
+        # Update tree with search filter
+        self.account_tree.set_search_filter(text)
+        logger.debug(f"Account search query: '{text}'")
 
     def _load_transactions(self, account_id: Optional[int] = None) -> None:
         """

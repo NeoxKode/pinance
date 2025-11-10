@@ -43,7 +43,8 @@ class AccountRepository:
                            normal_balance, currency, parent_account_id,
                            legacy_type, last_reconciled_date, opening_balance_date,
                            is_parent, hierarchy_level, hierarchy_path,
-                           color_hex, display_order, is_favorite
+                           color_hex, display_order, is_favorite,
+                           account_number, institution_name, notes, icon, tags
                     FROM accounts
                     ORDER BY
                         CASE WHEN display_order = 0 THEN 999999 ELSE display_order END,
@@ -76,7 +77,8 @@ class AccountRepository:
                            normal_balance, currency, parent_account_id,
                            legacy_type, last_reconciled_date, opening_balance_date,
                            is_parent, hierarchy_level, hierarchy_path,
-                           color_hex, display_order, is_favorite
+                           color_hex, display_order, is_favorite,
+                           account_number, institution_name, notes, icon, tags
                     FROM accounts
                     WHERE id = ?
                 """, (account_id,))
@@ -126,9 +128,10 @@ class AccountRepository:
                         name, type, account_type, account_subtype, balance,
                         normal_balance, currency, parent_account_id, legacy_type,
                         is_parent, hierarchy_level,
-                        color_hex, display_order, is_favorite
+                        color_hex, display_order, is_favorite,
+                        account_number, institution_name, notes, icon, tags
                     )
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """, (
                     account.name,
                     legacy_type,  # Old type column for backward compatibility
@@ -143,7 +146,12 @@ class AccountRepository:
                     account.hierarchy_level,  # US-006: Hierarchy support
                     account.color_hex,  # US-009: Color coding
                     account.display_order,  # US-009: Custom order
-                    1 if account.is_favorite else 0  # US-009: Favorite flag
+                    1 if account.is_favorite else 0,  # US-009: Favorite flag
+                    account.account_number if hasattr(account, 'account_number') else None,  # US-007
+                    account.institution_name if hasattr(account, 'institution_name') else None,  # US-007
+                    account.notes if hasattr(account, 'notes') else None,  # US-007
+                    account.icon if hasattr(account, 'icon') else None,  # US-007
+                    account.tags if hasattr(account, 'tags') else None  # US-007
                 ))
                 account.id = cursor.lastrowid
 
@@ -231,7 +239,12 @@ class AccountRepository:
                         opening_balance_date = ?,
                         color_hex = ?,
                         display_order = ?,
-                        is_favorite = ?
+                        is_favorite = ?,
+                        account_number = ?,
+                        institution_name = ?,
+                        notes = ?,
+                        icon = ?,
+                        tags = ?
                     WHERE id = ?
                 """, (
                     account.name,
@@ -248,6 +261,11 @@ class AccountRepository:
                     account.color_hex,  # US-009
                     account.display_order,  # US-009
                     1 if account.is_favorite else 0,  # US-009
+                    account.account_number,  # US-007
+                    account.institution_name,  # US-007
+                    account.notes,  # US-007
+                    account.icon,  # US-007
+                    account.tags,  # US-007
                     account.id
                 ))
 
@@ -837,6 +855,226 @@ class AccountRepository:
             logger.error(f"Failed to build account tree: {e}")
             raise DatabaseError(f"Failed to build account tree: {e}") from e
 
+    def search_accounts(self, query: str) -> List[Account]:
+        """
+        Search accounts by name, account_number, and institution_name.
+
+        US-007: Multi-field search for account metadata (AC6).
+        Performance target: <50ms for 1000+ accounts.
+
+        Note: Notes field excluded from search for performance reasons.
+        Future enhancement: Add FTS5 full-text search for notes.
+
+        Args:
+            query: Search term (case-insensitive)
+
+        Returns:
+            List of matching accounts sorted by favorites first,
+            then display_order, then name
+
+        Example:
+            >>> repo.search_accounts("Chase")
+            [Account(name="Chase Checking"), Account(name="Chase Savings")]
+            >>> repo.search_accounts("1234")
+            [Account(account_number="1234-5678")]
+        """
+        try:
+            with self.db.get_connection() as conn:
+                cursor = conn.cursor()
+
+                search_pattern = f"%{query}%"
+
+                cursor.execute("""
+                    SELECT id, name, account_type, account_subtype, balance,
+                           normal_balance, currency, parent_account_id, legacy_type,
+                           is_parent, hierarchy_level, hierarchy_path,
+                           last_reconciled_date, opening_balance_date,
+                           color_hex, display_order, is_favorite,
+                           icon, notes, tags, account_number, institution_name
+                    FROM accounts
+                    WHERE name LIKE ?
+                       OR account_number LIKE ?
+                       OR institution_name LIKE ?
+                    ORDER BY is_favorite DESC, display_order ASC, name ASC
+                """, (search_pattern, search_pattern, search_pattern))
+
+                accounts = [self._row_to_account(row) for row in cursor.fetchall()]
+                logger.debug(f"Found {len(accounts)} accounts matching '{query}'")
+                return accounts
+
+        except sqlite3.Error as e:
+            logger.error(f"Failed to search accounts: {e}")
+            raise DatabaseError(f"Failed to search accounts: {e}") from e
+
+    def get_institution_names(self) -> List[str]:
+        """
+        Get list of distinct institution names for autocomplete.
+
+        US-007: Institution autocomplete support (AC2).
+
+        Returns:
+            List of institution names, sorted alphabetically,
+            excluding NULL/empty values
+
+        Example:
+            >>> repo.get_institution_names()
+            ['Bank of America', 'Chase Bank', 'Wells Fargo']
+        """
+        try:
+            with self.db.get_connection() as conn:
+                cursor = conn.cursor()
+
+                cursor.execute("""
+                    SELECT DISTINCT institution_name
+                    FROM accounts
+                    WHERE institution_name IS NOT NULL
+                      AND institution_name != ''
+                    ORDER BY institution_name ASC
+                """)
+
+                institutions = [row[0] for row in cursor.fetchall()]
+                logger.debug(f"Found {len(institutions)} distinct institutions")
+                return institutions
+
+        except sqlite3.Error as e:
+            logger.error(f"Failed to get institution names: {e}")
+            raise DatabaseError(f"Failed to get institution names: {e}") from e
+
+    def group_by_institution(self) -> dict[str, List[Account]]:
+        """
+        Group accounts by institution name.
+
+        US-007: Institution-based reporting (AC2).
+
+        Returns:
+            Dictionary mapping institution name to list of accounts.
+            Accounts without institution excluded.
+
+        Example:
+            >>> groups = repo.group_by_institution()
+            >>> groups['Chase Bank']
+            [Account(name="Checking"), Account(name="Savings")]
+        """
+        try:
+            with self.db.get_connection() as conn:
+                cursor = conn.cursor()
+
+                cursor.execute("""
+                    SELECT id, name, account_type, account_subtype, balance,
+                           normal_balance, currency, parent_account_id, legacy_type,
+                           is_parent, hierarchy_level, hierarchy_path,
+                           last_reconciled_date, opening_balance_date,
+                           color_hex, display_order, is_favorite,
+                           icon, notes, tags, account_number, institution_name
+                    FROM accounts
+                    WHERE institution_name IS NOT NULL
+                      AND institution_name != ''
+                    ORDER BY institution_name ASC, display_order ASC, name ASC
+                """)
+
+                accounts = [self._row_to_account(row) for row in cursor.fetchall()]
+
+                # Group by institution
+                groups = {}
+                for account in accounts:
+                    institution = account.institution_name
+                    if institution not in groups:
+                        groups[institution] = []
+                    groups[institution].append(account)
+
+                logger.debug(f"Grouped {len(accounts)} accounts into {len(groups)} institutions")
+                return groups
+
+        except sqlite3.Error as e:
+            logger.error(f"Failed to group accounts by institution: {e}")
+            raise DatabaseError(f"Failed to group accounts by institution: {e}") from e
+
+    def reset_display_order(self) -> None:
+        """
+        Reset all accounts to default display order (alphabetical by name).
+
+        US-007: Reset custom ordering to default (AC5).
+
+        Note: This sets display_order = id for all accounts to maintain
+        a stable order. Accounts are then sorted by name.
+        """
+        try:
+            with self.db.get_connection() as conn:
+                cursor = conn.cursor()
+
+                # Get all accounts sorted by name
+                cursor.execute("""
+                    SELECT id FROM accounts ORDER BY name ASC
+                """)
+
+                account_ids = [row[0] for row in cursor.fetchall()]
+
+                # Update display_order sequentially
+                for idx, account_id in enumerate(account_ids):
+                    cursor.execute("""
+                        UPDATE accounts
+                        SET display_order = ?,
+                            updated_at = CURRENT_TIMESTAMP
+                        WHERE id = ?
+                    """, (idx, account_id))
+
+                conn.commit()
+                logger.info(f"Reset display_order for {len(account_ids)} accounts to alphabetical")
+
+        except sqlite3.Error as e:
+            logger.error(f"Failed to reset display order: {e}")
+            raise DatabaseError(f"Failed to reset display order: {e}") from e
+
+    def get_all_sorted(self, include_favorites_first: bool = True) -> List[Account]:
+        """
+        Get all accounts sorted by favorites, display_order, and name.
+
+        US-007: Comprehensive sorting for account lists (AC4, AC5).
+
+        Sort order:
+        1. is_favorite DESC (favorites first, if enabled)
+        2. display_order ASC (custom order)
+        3. name ASC (alphabetical)
+
+        Args:
+            include_favorites_first: Show favorites at top (default True)
+
+        Returns:
+            List of accounts sorted according to criteria
+
+        Example:
+            >>> accounts = repo.get_all_sorted()
+            >>> accounts[0].is_favorite
+            True
+        """
+        try:
+            with self.db.get_connection() as conn:
+                cursor = conn.cursor()
+
+                if include_favorites_first:
+                    order_by = "ORDER BY is_favorite DESC, display_order ASC, name ASC"
+                else:
+                    order_by = "ORDER BY display_order ASC, name ASC"
+
+                cursor.execute(f"""
+                    SELECT id, name, account_type, account_subtype, balance,
+                           normal_balance, currency, parent_account_id, legacy_type,
+                           is_parent, hierarchy_level, hierarchy_path,
+                           last_reconciled_date, opening_balance_date,
+                           color_hex, display_order, is_favorite,
+                           icon, notes, tags, account_number, institution_name
+                    FROM accounts
+                    {order_by}
+                """)
+
+                accounts = [self._row_to_account(row) for row in cursor.fetchall()]
+                logger.debug(f"Retrieved {len(accounts)} accounts (sorted)")
+                return accounts
+
+        except sqlite3.Error as e:
+            logger.error(f"Failed to get sorted accounts: {e}")
+            raise DatabaseError(f"Failed to get sorted accounts: {e}") from e
+
     @staticmethod
     def _row_to_account(row: sqlite3.Row) -> Account:
         """
@@ -844,6 +1082,7 @@ class AccountRepository:
 
         US-006: Added hierarchy field mapping.
         US-009: Added visual customization field mapping.
+        US-007: Added metadata field mapping (Sprint 11).
 
         Args:
             row: Database row
@@ -873,6 +1112,12 @@ class AccountRepository:
             color_hex=row['color_hex'] if 'color_hex' in row.keys() else '#2563EB',
             display_order=row['display_order'] if 'display_order' in row.keys() else 0,
             is_favorite=bool(row['is_favorite']) if 'is_favorite' in row.keys() else False,
+            # US-007: Metadata fields
+            icon=row['icon'] if 'icon' in row.keys() else None,
+            notes=row['notes'] if 'notes' in row.keys() else None,
+            tags=row['tags'] if 'tags' in row.keys() else None,
+            account_number=row['account_number'] if 'account_number' in row.keys() else None,
+            institution_name=row['institution_name'] if 'institution_name' in row.keys() else None,
             created_at=None,  # Not in current schema
             updated_at=None   # Not in current schema
         )

@@ -11,9 +11,10 @@ from datetime import date
 
 from PySide6.QtWidgets import (
     QDialog, QVBoxLayout, QFormLayout, QHBoxLayout,
-    QLineEdit, QComboBox, QPushButton, QLabel, QMessageBox, QDateEdit, QCheckBox
+    QLineEdit, QComboBox, QPushButton, QLabel, QMessageBox, QDateEdit, QCheckBox,
+    QPlainTextEdit, QCompleter
 )
-from PySide6.QtCore import Qt, QDate
+from PySide6.QtCore import Qt, QDate, QStringListModel
 
 from finance_app.data.models import Account, AccountType, AccountSubtype, NormalBalance
 from finance_app.business.account_service import AccountService
@@ -150,6 +151,43 @@ class AccountDialog(QDialog):
         self.color_picker = ColorPickerWidget()
         self.color_picker.color_changed.connect(self._on_color_changed)
         form.addRow("Account Color:", self.color_picker)
+
+        # US-007: Account metadata fields
+        # Account number
+        self.account_number_edit = QLineEdit()
+        self.account_number_edit.setPlaceholderText("e.g., 1234-5678 or ****1234")
+        self.account_number_edit.setMaxLength(50)
+        self.account_number_edit.setToolTip("Optional: Bank account number for reconciliation (3-50 characters)")
+        form.addRow("Account Number:", self.account_number_edit)
+
+        # Institution name with autocomplete
+        self.institution_edit = QLineEdit()
+        self.institution_edit.setPlaceholderText("e.g., Chase Bank, Wells Fargo")
+        self.institution_edit.setMaxLength(100)
+        self.institution_edit.setToolTip("Optional: Financial institution name")
+
+        # Setup autocomplete for institution
+        self.institution_completer = QCompleter()
+        self.institution_completer.setCaseSensitivity(Qt.CaseInsensitive)
+        self.institution_completer.setFilterMode(Qt.MatchContains)
+        self.institution_edit.setCompleter(self.institution_completer)
+
+        # Load institution autocomplete data
+        self._load_institution_autocomplete()
+
+        form.addRow("Institution Name:", self.institution_edit)
+
+        # Notes (multi-line)
+        self.notes_edit = QPlainTextEdit()
+        self.notes_edit.setPlaceholderText("Add notes about this account (optional, max 1000 characters)")
+        self.notes_edit.setMaximumHeight(80)
+        self.notes_edit.setToolTip("Optional: Free-form notes (max 1000 characters)")
+        form.addRow("Notes:", self.notes_edit)
+
+        # Favorite checkbox
+        self.is_favorite_checkbox = QCheckBox("⭐ Mark as favorite")
+        self.is_favorite_checkbox.setToolTip("Favorite accounts appear at the top of the list")
+        form.addRow("", self.is_favorite_checkbox)
 
         # US-006: Parent account selection
         self.parent_combo = QComboBox()
@@ -439,6 +477,24 @@ class AccountDialog(QDialog):
         except Exception as e:
             logger.warning(f"Failed to load parent accounts: {e}")
 
+    def _load_institution_autocomplete(self) -> None:
+        """
+        Load institution names for autocomplete.
+        US-007: Populate autocomplete with existing institution names.
+        """
+        try:
+            # Get institution autocomplete suggestions from service
+            institutions = self.account_service.get_institution_autocomplete("")
+
+            # Create string list model for completer
+            model = QStringListModel(institutions)
+            self.institution_completer.setModel(model)
+
+            logger.debug(f"Loaded {len(institutions)} institutions for autocomplete")
+
+        except Exception as e:
+            logger.warning(f"Failed to load institution autocomplete: {e}")
+
     def _on_opening_balance_toggle(self, state: int) -> None:
         """
         Handle opening balance checkbox toggle.
@@ -495,6 +551,19 @@ class AccountDialog(QDialog):
         self.balance_edit.setText(f"{self.account.balance:.2f}")
         self.currency_edit.setText(self.account.currency)
 
+        # US-007: Set metadata fields
+        if hasattr(self.account, 'account_number') and self.account.account_number:
+            self.account_number_edit.setText(self.account.account_number)
+
+        if hasattr(self.account, 'institution_name') and self.account.institution_name:
+            self.institution_edit.setText(self.account.institution_name)
+
+        if hasattr(self.account, 'notes') and self.account.notes:
+            self.notes_edit.setPlainText(self.account.notes)
+
+        if hasattr(self.account, 'is_favorite'):
+            self.is_favorite_checkbox.setChecked(self.account.is_favorite)
+
     def _on_save(self) -> None:
         """Validate and save the account."""
         try:
@@ -513,6 +582,28 @@ class AccountDialog(QDialog):
             # US-006: Parent account and is_parent fields
             parent_account_id = self.parent_combo.currentData()
             is_parent = self.is_parent_checkbox.isChecked()
+
+            # US-007: Metadata fields
+            account_number = self.account_number_edit.text().strip() or None
+            institution_name = self.institution_edit.text().strip() or None
+            notes = self.notes_edit.toPlainText().strip() or None
+            is_favorite = self.is_favorite_checkbox.isChecked()
+
+            # US-007: Validate metadata fields
+            if account_number and len(account_number) < 3:
+                QMessageBox.warning(self, "Validation Error", "Account number must be at least 3 characters")
+                self.account_number_edit.setFocus()
+                return
+
+            if institution_name and len(institution_name) > 100:
+                QMessageBox.warning(self, "Validation Error", "Institution name cannot exceed 100 characters")
+                self.institution_edit.setFocus()
+                return
+
+            if notes and len(notes) > 1000:
+                QMessageBox.warning(self, "Validation Error", "Notes cannot exceed 1000 characters")
+                self.notes_edit.setFocus()
+                return
 
             # Validate required fields
             if not name:
@@ -567,19 +658,49 @@ class AccountDialog(QDialog):
 
             # Create or update account
             if self.is_edit_mode:
-                # Update existing account
-                # US-006: Include parent_account_id in update
-                # US-009: Include color_hex in update
+                # Update existing account - make separate service calls for different features
+
+                # 1. Update basic account fields
                 self.account_service.update_account(
                     account_id=self.account.id,
                     name=name,
                     account_type=account_type,
                     account_subtype=account_subtype,
-                    currency=currency,
-                    parent_account_id=parent_account_id,
-                    color_hex=color_hex
+                    currency=currency
                 )
-                logger.info(f"Account updated: {name}, color={color_hex}")
+
+                # 2. US-006: Update parent if changed
+                if parent_account_id != self.account.parent_account_id:
+                    self.account_service.move_account(
+                        account_id=self.account.id,
+                        new_parent_id=parent_account_id
+                    )
+
+                # 3. US-006: Update is_parent if changed
+                if is_parent and not self.account.is_parent:
+                    self.account_service.convert_to_parent_account(self.account.id)
+
+                # 4. US-009: Update color if changed
+                if color_hex != getattr(self.account, 'color_hex', None):
+                    self.account_service.update_color(
+                        account_id=self.account.id,
+                        color_hex=color_hex
+                    )
+
+                # 5. US-007: Update metadata fields
+                self.account_service.update_metadata(
+                    account_id=self.account.id,
+                    account_number=account_number,
+                    institution_name=institution_name,
+                    notes=notes
+                )
+
+                # 6. US-009: Update favorite status if changed
+                current_favorite = getattr(self.account, 'is_favorite', False)
+                if is_favorite != current_favorite:
+                    self.account_service.toggle_favorite(self.account.id)
+
+                logger.info(f"Account updated: {name}, color={color_hex}, metadata fields included")
                 QMessageBox.information(self, "Success", f"Account '{name}' updated successfully")
             else:
                 # US-005: Create account with or without opening balance
@@ -588,7 +709,7 @@ class AccountDialog(QDialog):
                     opening_balance = Decimal(opening_balance_str)
                     # US-006: Include parent_account_id and is_parent
                     # US-009: Include color_hex
-                    account, journal_entry = self.account_service.create_account_with_opening_balance(
+                    created_account, journal_entry = self.account_service.create_account_with_opening_balance(
                         name=name,
                         account_type=account_type,
                         account_subtype=account_subtype,
@@ -600,16 +721,11 @@ class AccountDialog(QDialog):
                         color_hex=color_hex
                     )
                     logger.info(f"Account created with opening balance: {name}, balance={opening_balance}, date={opening_date}, color={color_hex}")
-                    QMessageBox.information(
-                        self,
-                        "Success",
-                        f"Account '{name}' created successfully with opening balance of ${opening_balance:.2f}"
-                    )
                 else:
                     # Create account without opening balance (original flow)
                     # US-006: Include parent_account_id and is_parent
                     # US-009: Include color_hex
-                    self.account_service.create_account(
+                    created_account = self.account_service.create_account(
                         name=name,
                         account_type=account_type,
                         account_subtype=account_subtype,
@@ -620,6 +736,28 @@ class AccountDialog(QDialog):
                         color_hex=color_hex
                     )
                     logger.info(f"Account created: {name}, color={color_hex}")
+
+                # US-007: Add metadata to newly created account
+                if account_number or institution_name or notes:
+                    self.account_service.update_metadata(
+                        account_id=created_account.id,
+                        account_number=account_number,
+                        institution_name=institution_name,
+                        notes=notes
+                    )
+
+                # US-009: Set favorite status if checked
+                if is_favorite:
+                    self.account_service.toggle_favorite(created_account.id)
+
+                # Show success message
+                if use_opening_balance and opening_balance_str:
+                    QMessageBox.information(
+                        self,
+                        "Success",
+                        f"Account '{name}' created successfully with opening balance of ${opening_balance:.2f}"
+                    )
+                else:
                     QMessageBox.information(self, "Success", f"Account '{name}' created successfully")
 
             self.accept()

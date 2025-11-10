@@ -117,11 +117,11 @@ class Account:
     display_order: int = 0  # Custom sort order (0 = alphabetical default)
     is_favorite: bool = False  # Star/favorite accounts for quick access
 
-    # US-007: Metadata (INACTIVE until Sprint 11) 💤
+    # US-007: Metadata (ACTIVE in Sprint 11) ✅
     icon: Optional[str] = None  # Optional icon name/emoji (e.g., "💰", "credit-card")
-    notes: Optional[str] = None  # Free-form notes (e.g., "Primary checking", "Emergency fund")
+    notes: Optional[str] = None  # Free-form notes (max 1000 chars, e.g., "Primary checking", "Emergency fund")
     tags: Optional[str] = None  # JSON array of tags (e.g., '["personal", "tax-deductible"]')
-    account_number: Optional[str] = None  # Masked account number (e.g., "****1234")
+    account_number: Optional[str] = None  # Bank account number (3-50 chars, e.g., "1234-5678-9012")
     institution_name: Optional[str] = None  # Financial institution (e.g., "Chase", "Wells Fargo")
 
     created_at: Optional[datetime] = None
@@ -245,6 +245,29 @@ class Account:
             True if this is a leaf account (is_parent=False), False if parent account
         """
         return not self.is_parent
+
+    @property
+    def truncated_notes(self) -> str:
+        """
+        Get truncated notes for list view display (first 100 characters).
+
+        US-007: Helper property for displaying notes in account lists without
+        overwhelming the UI with long text.
+
+        Returns:
+            First 100 characters of notes with "..." suffix if truncated,
+            or empty string if no notes
+
+        Example:
+            >>> account.notes = "This is a very long note " * 50  # 1250 chars
+            >>> account.truncated_notes
+            "This is a very long note This is a very long note This is a very long note This is a very lo..."
+            >>> len(account.truncated_notes)
+            103
+        """
+        if not self.notes:
+            return ""
+        return self.notes[:100] + ("..." if len(self.notes) > 100 else "")
 
 
 @dataclass
