@@ -165,10 +165,10 @@ class MainWindow(QMainWindow):
         transfer_action.triggered.connect(self.transfer_money)
         edit_menu.addAction(transfer_action)
 
-        # View menu
-        view_menu = menubar.addMenu("View")
-        # TODO: BUG-FIX-008 - Implement Reports when EPIC-003 (Reporting) is complete
-        # See docs/technical-reviews/FINAL_UI_UX_REVIEW.md - Bug #8
+        # TODO: BUG-FIX-009 - Add View menu back in EPIC-003 when Reports are implemented
+        # View menu removed because it was empty after Bug #8 fix
+        # See docs/technical-reviews/FINAL_COMPREHENSIVE_UI_REVIEW.md - Bug #9
+        # view_menu = menubar.addMenu("View")
         # reports_action = QAction("Reports", self)
         # view_menu.addAction(reports_action)
 
