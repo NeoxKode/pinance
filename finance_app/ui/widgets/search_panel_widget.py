@@ -522,8 +522,9 @@ class SearchPanelWidget(QWidget):
 
             /* Placeholder labels */
             QLabel#placeholderLabel {
-                color: #999;
-                font-size: 12px;
+                color: #666;
+                font-size: 13px;
+                font-style: italic;
             }
 
             /* Collapse button */

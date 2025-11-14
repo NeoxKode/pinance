@@ -75,6 +75,26 @@ class TransactionSearchWidget(QWidget):
             "Keyboard shortcut: Ctrl+F (this account) or Ctrl+Shift+F (all accounts)"
         )
 
+        # Apply professional styling to match app design
+        self.search_input.setStyleSheet("""
+            QLineEdit {
+                padding: 6px 8px;
+                border: 1px solid #d0d0d0;
+                border-radius: 4px;
+                background-color: white;
+                font-size: 13px;
+                color: #333;
+            }
+            QLineEdit:focus {
+                border: 2px solid #2196F3;
+                padding: 5px 7px;  /* Compensate for thicker border */
+            }
+            QLineEdit:disabled {
+                background-color: #f5f5f5;
+                color: #999;
+            }
+        """)
+
         # Connect text change to debounce timer
         self.search_input.textChanged.connect(self._on_text_changed)
 
