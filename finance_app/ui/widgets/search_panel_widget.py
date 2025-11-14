@@ -477,52 +477,52 @@ class SearchPanelWidget(QWidget):
         Apply QSS styling to panel and child widgets.
 
         Styling includes:
-        - Panel background and border
-        - Header/Footer backgrounds
+        - Panel background and border (respects theme)
+        - Header/Footer backgrounds (respects theme)
         - Button styles (collapse, clear all)
-        - Label colors and fonts
+        - Label colors and fonts (respects theme)
         - Focus indicators for accessibility
         """
         self.setStyleSheet("""
-            /* Panel container */
+            /* Panel container - respects system theme */
             SearchPanelWidget {
-                background-color: #f9f9f9;
-                border: 1px solid #e0e0e0;
+                background-color: palette(window);
+                border: 1px solid palette(mid);
                 border-radius: 4px;
             }
 
             /* Header frame */
             QFrame#headerFrame {
-                background-color: white;
-                border-bottom: 1px solid #e0e0e0;
+                background-color: palette(base);
+                border-bottom: 1px solid palette(mid);
             }
 
             /* Filters container */
             QFrame#filtersContainer {
-                background-color: white;
+                background-color: palette(base);
             }
 
             /* Footer frame */
             QFrame#footerFrame {
-                background-color: #fafafa;
-                border-top: 1px solid #e0e0e0;
+                background-color: palette(window);
+                border-top: 1px solid palette(mid);
             }
 
             /* Title label */
             QLabel#titleLabel {
                 font-size: 14px;
-                color: #333;
+                color: palette(text);
             }
 
             /* Filter count labels */
             QLabel#filterCountLabel {
-                color: #666;
+                color: palette(dark);
                 font-size: 12px;
             }
 
             /* Placeholder labels */
             QLabel#placeholderLabel {
-                color: #666;
+                color: palette(dark);
                 font-size: 13px;
                 font-style: italic;
             }
@@ -538,11 +538,11 @@ class SearchPanelWidget(QWidget):
             }
 
             QPushButton#collapseButton:hover {
-                background-color: #E3F2FD;
+                background-color: palette(midlight);
             }
 
             QPushButton#collapseButton:pressed {
-                background-color: #BBDEFB;
+                background-color: palette(mid);
             }
 
             QPushButton#collapseButton:focus {
@@ -570,8 +570,8 @@ class SearchPanelWidget(QWidget):
             }
 
             QPushButton#clearAllButton:disabled {
-                background-color: #cccccc;
-                color: #999999;
+                background-color: palette(midlight);
+                color: palette(mid);
             }
 
             QPushButton#clearAllButton:focus {
