@@ -230,6 +230,52 @@ class TransactionService:
 
         return self.transaction_repo.get_by_date_range(start_date, end_date, account_id)
 
+    def search_transactions(
+        self,
+        keyword: str,
+        account_id: Optional[int] = None
+    ) -> List[Transaction]:
+        """
+        Search transactions by description keyword.
+
+        US-011: Basic Text Search - Enables users to find transactions quickly
+        by searching for keywords in descriptions.
+
+        Args:
+            keyword: Search keyword (will be trimmed, empty returns empty list)
+            account_id: Optional account ID filter
+
+        Returns:
+            List of matching transactions, empty list if no matches or empty keyword
+
+        Business Rules:
+            - Empty/whitespace keyword returns empty list (not all transactions)
+            - Keyword trimmed for consistency
+            - Minimum length: 1 character (after trim)
+            - Case-insensitive search
+
+        Examples:
+            >>> service.search_transactions("Starbucks")
+            [Transaction(...), ...]
+
+            >>> service.search_transactions("  ")  # Empty after trim
+            []
+
+        Raises:
+            DatabaseError: If database query fails
+        """
+        # Trim and validate keyword
+        keyword_trimmed = keyword.strip()
+
+        # Business rule: Empty keyword returns empty list (not all transactions)
+        if not keyword_trimmed:
+            logger.debug("Empty search keyword, returning empty list")
+            return []
+
+        # Call repository method
+        logger.info(f"Searching transactions for keyword: '{keyword_trimmed}' (account_id: {account_id})")
+        return self.transaction_repo.search_by_description(keyword_trimmed, account_id)
+
     def calculate_total(
         self,
         transactions: List[Transaction],

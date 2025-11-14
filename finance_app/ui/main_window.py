@@ -9,7 +9,7 @@ from PySide6.QtWidgets import (
     QTableWidgetItem, QPushButton, QLabel, QSplitter, QMessageBox, QDialog, QCheckBox,
     QHeaderView, QLineEdit
 )
-from finance_app.ui.widgets import AccountTreeWidget
+from finance_app.ui.widgets import AccountTreeWidget, TransactionSearchWidget, SearchPanelWidget
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QAction
 
@@ -156,6 +156,21 @@ class MainWindow(QMainWindow):
 
         edit_menu.addSeparator()
 
+        # US-011: Search operations
+        search_account_action = QAction("Search in Account...", self)
+        search_account_action.setShortcut("Ctrl+F")
+        search_account_action.setToolTip("Search transactions in current account")
+        search_account_action.triggered.connect(self._focus_search_in_account)
+        edit_menu.addAction(search_account_action)
+
+        search_all_action = QAction("Search All Accounts...", self)
+        search_all_action.setShortcut("Ctrl+Shift+F")
+        search_all_action.setToolTip("Search transactions across all accounts")
+        search_all_action.triggered.connect(self._focus_search_all_accounts)
+        edit_menu.addAction(search_all_action)
+
+        edit_menu.addSeparator()
+
         # Account operations
         new_account_action = QAction("New Account...", self)
         new_account_action.setShortcut("Ctrl+Shift+N")
@@ -285,9 +300,20 @@ class MainWindow(QMainWindow):
         panel = QWidget()
         layout = QVBoxLayout(panel)
 
+        # US-016: Create search/filter panel (foundation for all filters)
+        self.search_panel = SearchPanelWidget()
+        self.search_panel.filters_cleared.connect(self._on_filters_cleared)
+        layout.addWidget(self.search_panel)  # Panel above transaction list
+
+        # US-011: Create search widget and integrate into panel
+        self.transaction_search = TransactionSearchWidget()
+        self.search_panel.set_text_search_widget(self.transaction_search)
+        self.transaction_search.search_changed.connect(self._on_search_changed)
+
         # Transaction controls
         control_layout = QHBoxLayout()
         control_layout.addWidget(QLabel("<b>Transactions</b>"))
+
         control_layout.addStretch()
 
         # US-005: Filter toggle for opening balance transactions
@@ -397,6 +423,7 @@ class MainWindow(QMainWindow):
 
         US-004: Phase 6 - Task 4.37 - Added reconciliation status column
         US-005: Added filtering and special styling for opening balance transactions
+        US-011: Refactored to use _display_transactions() helper method
         """
         try:
             all_transactions = self.transaction_service.get_all_transactions(account_id)
@@ -408,82 +435,8 @@ class MainWindow(QMainWindow):
             else:
                 transactions = [t for t in all_transactions if not t.is_opening_balance]
 
-            self.transaction_table.setRowCount(len(transactions))
-
-            for i, trans in enumerate(transactions):
-                # US-005: Check if this is an opening balance transaction
-                is_opening_balance = trans.is_opening_balance
-
-                # Date
-                date_text = trans.date
-                if is_opening_balance:
-                    date_text = f"🔓 {date_text}"  # Opening balance icon
-                date_item = QTableWidgetItem(date_text)
-                if is_opening_balance:
-                    date_item.setToolTip("Opening balance transaction - automatically created")
-                self.transaction_table.setItem(i, 0, date_item)
-
-                # Description
-                desc_item = QTableWidgetItem(trans.description)
-                if is_opening_balance:
-                    # Make opening balance description italic
-                    font = desc_item.font()
-                    font.setItalic(True)
-                    desc_item.setFont(font)
-                # ISSUE-002 FIX: Add tooltip showing full description text
-                desc_item.setToolTip(trans.description)
-                self.transaction_table.setItem(i, 1, desc_item)
-
-                # Category
-                self.transaction_table.setItem(i, 2, QTableWidgetItem(trans.category))
-
-                # Amount with color
-                amount_item = QTableWidgetItem(f"${abs(trans.amount):.2f}")
-                amount_item.setData(Qt.UserRole, trans.id)  # Store transaction ID
-                if trans.is_expense:
-                    amount_item.setForeground(Qt.red)
-                else:
-                    amount_item.setForeground(Qt.darkGreen)
-                self.transaction_table.setItem(i, 3, amount_item)
-
-                # Type
-                self.transaction_table.setItem(i, 4, QTableWidgetItem(trans.type.capitalize()))
-
-                # US-004: Reconciliation Status (Task 4.37)
-                # US-005: Show "Auto-Reconciled" for opening balance transactions
-                status_text = ""
-                status_tooltip = ""
-                recon_status = None
-
-                if is_opening_balance:
-                    # Opening balance transactions are auto-reconciled
-                    status_text = "🔒 Auto-Reconciled"
-                    status_tooltip = "Opening balance transactions are automatically reconciled"
-                else:
-                    # Get reconciliation status from transaction
-                    recon_status = trans.reconciliation_status
-                    if hasattr(recon_status, 'value'):
-                        recon_status = recon_status.value
-
-                    if recon_status == 'cleared':
-                        status_text = "✓ Reconciled"
-                        status_tooltip = f"Reconciled on {trans.reconciled_date}" if trans.reconciled_date else "Reconciled"
-                    elif recon_status == 'pending':
-                        status_text = "⏳ Pending"
-                        status_tooltip = "Reconciliation in progress"
-                    else:
-                        status_text = ""
-                        status_tooltip = "Not reconciled"
-
-                status_item = QTableWidgetItem(status_text)
-                status_item.setToolTip(status_tooltip)
-                if is_opening_balance or (recon_status and recon_status == 'cleared'):
-                    status_item.setForeground(Qt.darkGreen)
-                elif recon_status and recon_status == 'pending':
-                    status_item.setForeground(Qt.darkYellow)
-                self.transaction_table.setItem(i, 5, status_item)
-
-            self.transaction_table.resizeColumnsToContents()
+            # US-011: Use helper method to display transactions
+            self._display_transactions(transactions)
 
         except FinanceAppError as e:
             logger.error(f"Failed to load transactions: {e}")
@@ -522,6 +475,203 @@ class MainWindow(QMainWindow):
         """
         # Reload transactions with current filter state
         self._load_transactions(self.current_account_id)
+
+    def _on_search_changed(self, keyword: str) -> None:
+        """
+        Handle transaction search text change (US-011).
+
+        Filters transaction table by description keyword. Empty keyword
+        shows all transactions (respecting current account filter).
+
+        Args:
+            keyword: Search keyword (already trimmed by widget)
+        """
+        try:
+            # Determine account filter (current account or all accounts)
+            account_id = self.current_account_id
+
+            # Empty keyword = show all transactions
+            if not keyword:
+                self._load_transactions(account_id)
+                self.statusBar().showMessage("Showing all transactions", 2000)
+                return
+
+            # Search transactions using backend service
+            transactions = self.transaction_service.search_transactions(keyword, account_id)
+
+            # Apply opening balance filter
+            show_opening_balance = self.show_opening_balance_checkbox.isChecked()
+            if not show_opening_balance:
+                transactions = [t for t in transactions if not t.is_opening_balance]
+
+            # Update table with search results
+            self._display_transactions(transactions)
+
+            # Update status bar with result count
+            count = len(transactions)
+            account_msg = "in this account" if account_id else "in all accounts"
+            if count == 0:
+                self.statusBar().showMessage(f"No transactions found for '{keyword}' {account_msg}", 3000)
+            else:
+                self.statusBar().showMessage(f"Found {count} transaction(s) for '{keyword}' {account_msg}", 3000)
+
+        except FinanceAppError as e:
+            logger.error(f"Search failed: {e}")
+            QMessageBox.warning(self, "Search Error", f"Search failed: {e}")
+
+    def _on_filters_cleared(self) -> None:
+        """
+        Handle Clear All Filters action (US-016).
+
+        Called when user clicks "Clear All Filters" button in SearchPanelWidget.
+        Reloads all transactions for the current account with no filters applied.
+
+        Signal Flow:
+            SearchPanelWidget.filters_cleared
+                ↓
+            MainWindow._on_filters_cleared() ← THIS METHOD
+                ↓
+            _load_transactions(current_account_id)
+        """
+        try:
+            # Reload transactions with no filters
+            self._load_transactions(self.current_account_id)
+
+            # Update status bar
+            self.statusBar().showMessage("All filters cleared", 2000)
+
+            logger.info("All filters cleared via Clear All button")
+
+        except FinanceAppError as e:
+            logger.error(f"Failed to clear filters: {e}")
+            QMessageBox.warning(self, "Filter Error", f"Failed to clear filters: {e}")
+
+    def _focus_search_in_account(self) -> None:
+        """
+        Focus search widget for current account (Ctrl+F).
+
+        US-011: Keyboard shortcut handler for searching within the currently
+        selected account.
+        """
+        # Focus search widget and select all text for easy replacement
+        self.transaction_search.set_focus()
+
+        # Update status bar to indicate search scope
+        if self.current_account_id:
+            try:
+                account = self.account_service.get_account(self.current_account_id)
+                if account:
+                    self.statusBar().showMessage(f"Search in: {account.name}", 2000)
+            except Exception as e:
+                logger.warning(f"Failed to get account name: {e}")
+        else:
+            self.statusBar().showMessage("Search in: All accounts", 2000)
+
+    def _focus_search_all_accounts(self) -> None:
+        """
+        Focus search widget and clear account filter (Ctrl+Shift+F).
+
+        US-011: Keyboard shortcut handler for searching across all accounts.
+        This temporarily clears the account filter to enable global search.
+        """
+        # Clear current account selection to search all accounts
+        self.current_account_id = None
+
+        # Clear account tree selection to reflect "all accounts" state
+        self.account_tree.clearSelection()
+
+        # Focus search widget
+        self.transaction_search.set_focus()
+
+        # Update status bar
+        self.statusBar().showMessage("Search in: All accounts", 2000)
+
+    def _display_transactions(self, transactions: list) -> None:
+        """
+        Display transactions in table (extracted from _load_transactions for reuse).
+
+        US-011: Helper method to display transactions from search results
+        or regular load operations.
+
+        Args:
+            transactions: List of Transaction objects to display
+        """
+        self.transaction_table.setRowCount(len(transactions))
+
+        for i, trans in enumerate(transactions):
+            # US-005: Check if this is an opening balance transaction
+            is_opening_balance = trans.is_opening_balance
+
+            # Date
+            date_text = trans.date
+            if is_opening_balance:
+                date_text = f"🔓 {date_text}"  # Opening balance icon
+            date_item = QTableWidgetItem(date_text)
+            if is_opening_balance:
+                date_item.setToolTip("Opening balance transaction - automatically created")
+            self.transaction_table.setItem(i, 0, date_item)
+
+            # Description
+            desc_item = QTableWidgetItem(trans.description)
+            if is_opening_balance:
+                # Make opening balance description italic
+                font = desc_item.font()
+                font.setItalic(True)
+                desc_item.setFont(font)
+            # ISSUE-002 FIX: Add tooltip showing full description text
+            desc_item.setToolTip(trans.description)
+            self.transaction_table.setItem(i, 1, desc_item)
+
+            # Category
+            self.transaction_table.setItem(i, 2, QTableWidgetItem(trans.category))
+
+            # Amount with color
+            amount_item = QTableWidgetItem(f"${abs(trans.amount):.2f}")
+            amount_item.setData(Qt.UserRole, trans.id)  # Store transaction ID
+            if trans.is_expense:
+                amount_item.setForeground(Qt.red)
+            else:
+                amount_item.setForeground(Qt.darkGreen)
+            self.transaction_table.setItem(i, 3, amount_item)
+
+            # Type
+            self.transaction_table.setItem(i, 4, QTableWidgetItem(trans.type.capitalize()))
+
+            # US-004: Reconciliation Status (Task 4.37)
+            # US-005: Show "Auto-Reconciled" for opening balance transactions
+            status_text = ""
+            status_tooltip = ""
+            recon_status = None
+
+            if is_opening_balance:
+                # Opening balance transactions are auto-reconciled
+                status_text = "🔒 Auto-Reconciled"
+                status_tooltip = "Opening balance transactions are automatically reconciled"
+            else:
+                # Get reconciliation status from transaction
+                recon_status = trans.reconciliation_status
+                if hasattr(recon_status, 'value'):
+                    recon_status = recon_status.value
+
+                if recon_status == 'cleared':
+                    status_text = "✓ Reconciled"
+                    status_tooltip = f"Reconciled on {trans.reconciled_date}" if trans.reconciled_date else "Reconciled"
+                elif recon_status == 'pending':
+                    status_text = "⏳ Pending"
+                    status_tooltip = "Reconciliation in progress"
+                else:
+                    status_text = ""
+                    status_tooltip = "Not reconciled"
+
+            status_item = QTableWidgetItem(status_text)
+            status_item.setToolTip(status_tooltip)
+            if is_opening_balance or (recon_status and recon_status == 'cleared'):
+                status_item.setForeground(Qt.darkGreen)
+            elif recon_status and recon_status == 'pending':
+                status_item.setForeground(Qt.darkYellow)
+            self.transaction_table.setItem(i, 5, status_item)
+
+        self.transaction_table.resizeColumnsToContents()
 
     def add_transaction(self) -> None:
         """Show dialog to add transaction (legacy)."""
@@ -1080,6 +1230,8 @@ class MainWindow(QMainWindow):
 <table cellpadding="5" cellspacing="0" border="0">
 <tr><td><b>Ctrl+N</b></td><td>Add Transaction</td></tr>
 <tr><td><b>Ctrl+D</b></td><td>Delete Transaction</td></tr>
+<tr><td><b>Ctrl+F</b></td><td>Search in Account</td></tr>
+<tr><td><b>Ctrl+Shift+F</b></td><td>Search All Accounts</td></tr>
 </table>
 
 <h3>Account Operations</h3>

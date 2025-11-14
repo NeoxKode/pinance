@@ -309,6 +309,71 @@ class TransactionRepository:
             logger.error(f"Failed to fetch transactions by date range: {e}")
             raise DatabaseError(f"Failed to fetch transactions by date range: {e}") from e
 
+    def search_by_description(
+        self,
+        keyword: str,
+        account_id: Optional[int] = None
+    ) -> List[Transaction]:
+        """
+        Search transactions by description keyword (case-insensitive).
+
+        US-011: Basic Text Search - Enables users to find transactions by searching
+        for keywords in transaction descriptions.
+
+        Args:
+            keyword: Search term (case-insensitive substring match)
+            account_id: Optional account ID to filter (search within account only)
+
+        Returns:
+            List of matching Transaction objects, sorted by date DESC, id DESC
+
+        Performance:
+            - Uses idx_transactions_description for fast LIKE queries
+            - Expected: < 50ms for 1K transactions, < 200ms for 10K transactions
+
+        Examples:
+            >>> repo.search_by_description("Starbucks")
+            [Transaction(...), Transaction(...)]
+
+            >>> repo.search_by_description("coffee", account_id=5)
+            [Transaction(...)]
+
+        Raises:
+            DatabaseError: If query fails
+        """
+        try:
+            with self.db.get_connection() as conn:
+                cursor = conn.cursor()
+
+                # Build query with optional account filter
+                if account_id:
+                    cursor.execute("""
+                        SELECT id, account_id, date, description, category, amount, type,
+                               is_split, split_count,
+                               reconciliation_status, reconciled_date, statement_date,
+                               is_opening_balance
+                        FROM transactions
+                        WHERE description LIKE ? AND account_id = ?
+                        ORDER BY date DESC, id DESC
+                    """, (f'%{keyword}%', account_id))
+                else:
+                    cursor.execute("""
+                        SELECT id, account_id, date, description, category, amount, type,
+                               is_split, split_count,
+                               reconciliation_status, reconciled_date, statement_date,
+                               is_opening_balance
+                        FROM transactions
+                        WHERE description LIKE ?
+                        ORDER BY date DESC, id DESC
+                    """, (f'%{keyword}%',))
+
+                rows = cursor.fetchall()
+                return [self._row_to_transaction(row) for row in rows]
+
+        except sqlite3.Error as e:
+            logger.error(f"Failed to search transactions by description: {e}")
+            raise DatabaseError(f"Failed to search transactions by description: {e}") from e
+
     @staticmethod
     def _row_to_transaction(row: sqlite3.Row) -> Transaction:
         """
