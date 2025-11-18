@@ -1,7 +1,7 @@
 # Personal Finance Manager - User Guide
 
-**Version:** 2.5.0
-**Last Updated:** November 5, 2025
+**Version:** 2.6.0
+**Last Updated:** November 17, 2025
 **Status:** ✅ Complete
 
 ---
@@ -74,7 +74,18 @@
    - [Metadata Best Practices](#metadata-best-practices)
    - [Troubleshooting Metadata](#troubleshooting-metadata)
    - [Frequently Asked Questions](#metadata-faq)
-7. [Advanced Features](#advanced-features)
+7. [Finding and Filtering Transactions](#finding-and-filtering-transactions)
+   - [What are Transaction Filters?](#what-are-transaction-filters)
+   - [Why Use Filters?](#why-use-filters)
+   - [Using the Search & Filter Panel](#using-the-search--filter-panel)
+   - [Text Search Filter (US-011)](#text-search-filter-us-011)
+   - [Date Range Filter (US-012)](#date-range-filter-us-012)
+   - [Category Filter (US-013)](#category-filter-us-013)
+   - [Opening Balance Filter](#opening-balance-filter)
+   - [Combining Multiple Filters](#combining-multiple-filters)
+   - [Keyboard Shortcuts](#keyboard-shortcuts)
+   - [Troubleshooting](#troubleshooting-1)
+8. [Advanced Features](#advanced-features)
 
 ---
 
@@ -4110,6 +4121,799 @@ Parent accounts work just like child accounts for metadata purposes.
 - This ensures privacy and customization
 
 If you start a new database, you'll rebuild your institution list from scratch.
+
+---
+
+## Finding and Filtering Transactions
+
+> **Feature**: US-011 Basic Text Search + US-012 Date Range Filter + US-013 Category Filter (EPIC-002, Sprint 13-14)
+>
+> **Version**: 2.6.0+
+>
+> Quickly find and filter transactions using text search, date ranges, and categories to focus on specific time periods, transaction types, or spending categories.
+
+### What are Transaction Filters?
+
+Transaction filters help you narrow down the list of transactions displayed in your account view. Instead of scrolling through hundreds or thousands of transactions, you can use filters to show only the transactions you're interested in.
+
+**Available Filters:**
+- **Text Search** - Find transactions by description, category, or account name
+- **Date Range** - Show transactions within a specific time period
+- **Category** - Filter by spending/income categories (Groceries, Entertainment, etc.)
+- **Opening Balance Toggle** - Hide/show opening balance transactions
+- **Combined Filters** - Use multiple filters together for precise results
+
+### Why Use Filters?
+
+#### ✅ **1. Find Transactions Quickly**
+
+Instead of manually scrolling:
+- Search for "Starbucks" to find all coffee purchases
+- Filter by "Last Month" to see recent activity
+- Combine "grocery" search with "Last 30 Days" for recent grocery spending
+
+#### ✅ **2. Review Specific Time Periods**
+
+Analyze transactions for a specific period:
+- **Tax Season**: Filter by "Last Year" or custom date range for tax preparation
+- **Monthly Review**: Use "This Month" to review current month spending
+- **Quarterly Reports**: Filter by "This Quarter" or "Last Quarter"
+
+#### ✅ **3. Track Spending Patterns**
+
+Identify trends and patterns:
+- Search for vendor names to see all transactions with that vendor
+- Filter by date range to compare spending across time periods
+- Combine filters to analyze specific categories in specific timeframes
+
+#### ✅ **4. Clean and Focused View**
+
+Reduce clutter in your transaction list:
+- Hide opening balance transactions when reviewing regular activity
+- Filter to specific date range to focus on recent transactions
+- Search for specific terms to temporarily hide unrelated transactions
+
+### Using the Search & Filter Panel
+
+The Search & Filter panel is located at the top of the transaction list and provides all filtering options in one place.
+
+#### **Filter Panel Layout**
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│ 🔍 Search & Filter Panel                            [−] [×]  │
+├─────────────────────────────────────────────────────────────┤
+│ Search:    [Search transactions...          ] [×]           │
+│ Date:      [All Time ▼                       ]              │
+│ Category:  [All Categories ▼                 ]              │
+│ ☐ Show Opening Balance Transactions                         │
+│ Filters Active: 0  [Clear All Filters]                      │
+└─────────────────────────────────────────────────────────────┘
+```
+
+**Key Elements:**
+- **Search box** - Text search field with clear button (×)
+- **Date dropdown** - 12 preset ranges plus custom option
+- **Category dropdown** - Filter by transaction category with counts
+- **Opening Balance checkbox** - Toggle visibility of opening balance transactions
+- **Filter counter** - Shows how many filters are currently active
+- **Clear All button** - Removes all active filters at once
+
+### Text Search Filter (US-011)
+
+#### **How to Search for Transactions**
+
+**Step 1: Click the Search Box**
+- Click in the search field or use keyboard shortcut `Ctrl+F` (Windows/Linux) or `Cmd+F` (Mac)
+- The search box will be focused and ready for input
+
+**Step 2: Type Your Search Term**
+- Enter any text to search for (minimum 1 character)
+- Search is **case-insensitive** ("starbucks" finds "Starbucks")
+- Results update **live** as you type
+
+**Step 3: Review Results**
+- Matching transactions are displayed immediately
+- Transaction count shows in status bar
+- Non-matching transactions are hidden
+
+**Step 4: Clear Search (Optional)**
+- Click the **×** button in search box to clear
+- Or select all text and delete
+- Or click **Clear All Filters** button
+
+#### **What Does Text Search Look For?**
+
+The text search scans the **description field** of each transaction:
+- ✅ Transaction description text
+- ❌ Categories (not currently searched)
+- ❌ Account names (not currently searched)
+- ❌ Amounts (not currently searched)
+
+**Examples:**
+```
+Search "coffee"     → Finds "Coffee Shop", "Starbucks Coffee", "coffee purchase"
+Search "groceries"  → Finds "Weekly Groceries", "Grocery Shopping", "GROCERIES"
+Search "ATM"        → Finds "ATM Withdrawal", "atm cash", "Bank ATM fee"
+```
+
+#### **Search Tips**
+
+**Tip 1: Use Partial Words**
+- "star" finds "Starbucks", "Starlight Cafe", "All Star Gas"
+- Useful when you don't remember exact spelling
+
+**Tip 2: Search for Vendor Names**
+- Find all transactions from a specific vendor
+- Example: "amazon" finds all Amazon purchases
+
+**Tip 3: Search for Transaction Types**
+- "withdrawal" finds all ATM withdrawals
+- "payment" finds all payment transactions
+- "transfer" finds all transfer descriptions
+
+**Tip 4: Be Specific for Better Results**
+- "grocery" is better than "gr" (fewer false matches)
+- "starbucks" is better than "star" (more precise)
+
+**Tip 5: Combine with Date Filter**
+- Search "grocery" + "Last 30 Days" = Recent grocery spending
+- Search "amazon" + "This Month" = Current month Amazon purchases
+
+### Date Range Filter (US-012)
+
+#### **How to Filter by Date Range**
+
+**Step 1: Click the Date Dropdown**
+- Click the date filter dropdown (shows "All Time" by default)
+- A list of 12 preset date ranges appears
+
+**Step 2: Select a Preset or Custom Range**
+- Choose a preset range from the list (see options below)
+- Or select "Custom Range..." to specify exact dates
+
+**Step 3: Review Filtered Results**
+- Transactions are immediately filtered to the selected date range
+- Status bar shows the active date range
+- Filter counter increases by 1
+
+**Step 4: Clear Date Filter (Optional)**
+- Select "All Time" from the dropdown to remove date filter
+- Or click **Clear All Filters** button
+
+#### **Available Date Presets**
+
+The date filter provides 12 convenient presets:
+
+| Preset | Description | Example (if today is Nov 17, 2025) |
+|--------|-------------|-------------------------------------|
+| **All Time** | No date filter (default) | All transactions |
+| **Today** | Transactions from today only | Nov 17, 2025 |
+| **Yesterday** | Transactions from yesterday only | Nov 16, 2025 |
+| **Last 7 Days** | Past week including today | Nov 11 - Nov 17, 2025 |
+| **Last 30 Days** | Past month including today | Oct 19 - Nov 17, 2025 |
+| **This Month** | Current calendar month | Nov 1 - Nov 17, 2025 |
+| **Last Month** | Previous calendar month | Oct 1 - Oct 31, 2025 |
+| **This Quarter (Q4)** | Current fiscal quarter | Oct 1 - Nov 17, 2025 |
+| **Last Quarter** | Previous fiscal quarter | Jul 1 - Sep 30, 2025 |
+| **This Year (2025)** | Current calendar year | Jan 1 - Nov 17, 2025 |
+| **Last Year (2024)** | Previous calendar year | Jan 1 - Dec 31, 2024 |
+| **Custom Range...** | Choose exact start/end dates | Opens date picker dialog |
+
+**Notes:**
+- All date ranges are **inclusive** (both start and end dates included)
+- "Last N Days" includes today (e.g., "Last 7 Days" = 7 days including today)
+- Quarters are calendar quarters (Q1=Jan-Mar, Q2=Apr-Jun, Q3=Jul-Sep, Q4=Oct-Dec)
+
+#### **Custom Date Range Picker**
+
+When you select **"Custom Range..."** from the dropdown, a date picker dialog opens:
+
+**Dialog Features:**
+- **From Date** - Calendar popup to select start date
+- **To Date** - Calendar popup to select end date
+- **Validation** - Ensures From Date ≤ To Date
+- **Apply** - Saves the custom range
+- **Cancel** - Closes without applying
+
+**How to Select Custom Dates:**
+
+1. **Open Custom Range Dialog**
+   - Select "Custom Range..." from date dropdown
+   - Dialog opens with default dates (1 month ago to today)
+
+2. **Set From Date**
+   - Click the "From Date" calendar icon
+   - Calendar popup appears
+   - Click a date or use arrow keys to navigate
+   - Selected date appears in the field
+
+3. **Set To Date**
+   - Click the "To Date" calendar icon
+   - Calendar popup appears
+   - Click a date or use arrow keys to navigate
+   - Selected date appears in the field
+
+4. **Validation**
+   - If From Date > To Date, an error message appears:
+     > **Invalid Date Range**
+     > The date range is invalid:
+     > From date (Dec 15, 2025) must be <= To date (Dec 01, 2025)
+     >
+     > Please ensure the 'From' date is not after the 'To' date.
+
+   - Correct the dates and click "Apply" again
+
+5. **Apply Custom Range**
+   - Click "Apply" button (or press Enter)
+   - Transactions are filtered to the custom range
+   - Dropdown shows the selected range (e.g., "Nov 01 - Nov 17, 2025")
+
+6. **Cancel Custom Range**
+   - Click "Cancel" button (or press Escape)
+   - Returns to previous date filter setting
+   - No changes are applied
+
+**Tips for Custom Ranges:**
+
+**Tip 1: Use for Tax Season**
+- Set range to full tax year (Jan 1 - Dec 31)
+- Review all transactions for tax preparation
+- Export to CSV for tax software
+
+**Tip 2: Use for Budgeting**
+- Set range to pay period (biweekly, monthly, etc.)
+- Track spending within budget period
+- Compare to previous periods
+
+**Tip 3: Use for Account Reconciliation**
+- Set range to match bank statement dates
+- Verify all transactions in that period
+- Easier than scrolling through long lists
+
+**Tip 4: Use for Project Tracking**
+- Set range to project start/end dates
+- Track all project-related transactions
+- Combine with text search for project name
+
+### Category Filter (US-013)
+
+#### **How to Filter by Category**
+
+The category filter allows you to view transactions from specific spending or income categories, making it easy to track spending patterns and analyze budget adherence.
+
+**Step 1: Click the Category Dropdown**
+- Click the category filter dropdown (shows "All Categories" by default)
+- A list of all categories used in your transactions appears
+- Categories are sorted alphabetically
+- Each category shows the transaction count: "Groceries (23)"
+
+**Step 2: Select a Category**
+- Choose a category from the list
+- Transactions are immediately filtered to show only that category
+- Status bar shows the active category filter
+- Filter counter increases by 1
+
+**Step 3: Review Filtered Results**
+- Only transactions in the selected category are displayed
+- All other filters (date, text search) continue to apply
+- Transaction count updates in status bar
+
+**Step 4: Clear Category Filter (Optional)**
+- Select "All Categories" from the dropdown to remove filter
+- Or click **Clear All Filters** button
+
+#### **Understanding Categories**
+
+**What are Categories?**
+Categories are labels you assign to transactions to organize your spending and income. Common categories include:
+- **Spending Categories**: Groceries, Dining Out, Entertainment, Transportation, Utilities, Healthcare, Shopping
+- **Income Categories**: Salary, Freelance Income, Investment Income, Gifts
+- **Transfer Categories**: Transfers, Account Transfers, Internal Transfers
+
+**Where do Categories Come From?**
+- You assign categories when creating or editing transactions
+- The category dropdown automatically populates with all unique categories you've used
+- New categories are added to the list as you use them
+
+**Category Count Display:**
+Each category in the dropdown shows how many transactions use that category:
+```
+All Categories
+Dining Out (45)
+Entertainment (23)
+Groceries (123)
+Healthcare (12)
+Salary (24)
+Shopping (67)
+Transportation (34)
+Utilities (12)
+```
+
+#### **Common Use Cases**
+
+**Use Case 1: Monthly Budget Review**
+**Goal:** See all grocery spending for the current month
+
+1. Set date filter to "This Month"
+2. Set category filter to "Groceries"
+3. Review all grocery transactions
+4. Compare total to budget
+
+**Example Result:** "Showing 23 transactions in Groceries from Nov 1 - Nov 17, 2025"
+
+---
+
+**Use Case 2: Category Comparison**
+**Goal:** Compare Entertainment vs Dining Out spending
+
+1. Filter by "This Month" + "Entertainment" → note total ($234.56)
+2. Filter by "This Month" + "Dining Out" → note total ($456.78)
+3. Identify which category needs budget adjustment
+
+**Insight:** "Dining Out is 95% higher than Entertainment this month"
+
+---
+
+**Use Case 3: Quarterly Expense Analysis**
+**Goal:** Review all transportation expenses for tax purposes
+
+1. Set date filter to "Last Quarter" (Q3)
+2. Set category filter to "Transportation"
+3. Review all mileage, gas, parking, transit transactions
+4. Export or total for tax deduction
+
+**Example Result:** "42 Transportation transactions from Jul 1 - Sep 30, 2025"
+
+---
+
+**Use Case 4: Vendor + Category Tracking**
+**Goal:** Find all Starbucks purchases in Dining Out category
+
+1. Set search to "starbucks"
+2. Set category to "Dining Out"
+3. Optionally add date filter for specific period
+4. Review Starbucks spending in that category
+
+**Insight:** "23 Starbucks transactions in Dining Out this month = $147.35"
+
+---
+
+**Use Case 5: Income Verification**
+**Goal:** Verify all salary deposits received this year
+
+1. Set date filter to "This Year (2025)"
+2. Set category filter to "Salary"
+3. Review all salary deposits
+4. Verify amounts and dates match pay stubs
+
+**Example Result:** "24 Salary transactions in 2025 (2 per month)"
+
+#### **Combining Category Filter with Other Filters**
+
+The category filter works seamlessly with other filters:
+
+**Category + Date Range:**
+- "Groceries from last month"
+- "Entertainment this quarter"
+- "Salary deposits this year"
+
+**Category + Text Search:**
+- Category: "Dining Out" + Search: "starbucks" = All Starbucks in Dining Out
+- Category: "Groceries" + Search: "whole foods" = All Whole Foods purchases
+- Category: "Transportation" + Search: "uber" = All Uber rides
+
+**Category + Date + Text Search:**
+- "Starbucks purchases in Dining Out category last month"
+- "Amazon purchases in Shopping category this quarter"
+- "Gas stations in Transportation category this year"
+
+**Category + All Filters:**
+- Date: "Last 30 Days"
+- Category: "Groceries"
+- Search: "trader"
+- Opening Balance: Unchecked
+- **Result:** Trader Joe's grocery purchases in the past 30 days
+
+#### **Tips and Best Practices**
+
+**Tip 1: Use Consistent Category Names**
+- Decide on category names early (e.g., "Groceries" vs "Grocery Shopping")
+- Stick to the same names to avoid fragmentation
+- Use Title Case for consistency: "Dining Out" not "dining out"
+
+**Tip 2: Review Category List Regularly**
+- Periodically review the category dropdown to spot duplicates
+- Consolidate similar categories (merge "Coffee" into "Dining Out")
+- Delete or rename categories that are too specific
+
+**Tip 3: Combine with Date Filter for Budget Tracking**
+- Set date to "This Month" and category to each budget category
+- Track spending against monthly budget targets
+- Identify categories that exceed budget
+
+**Tip 4: Use Broad Categories for Better Insights**
+- Too specific: "Starbucks", "Peet's Coffee", "Local Cafe"
+- Better: "Dining Out" or "Coffee & Dining"
+- Broad categories make budget tracking easier
+
+**Tip 5: Filter Before Exporting**
+- Filter to desired category and date range
+- Export filtered transactions to CSV
+- Import into spreadsheet for detailed analysis
+
+#### **Category Filter Examples**
+
+**Example 1: Monthly Grocery Review**
+```
+Filters:
+  Date: This Month (Nov 1 - Nov 17, 2025)
+  Category: Groceries
+
+Result: 23 transactions
+Total: $847.52
+Average: $36.85 per transaction
+Status: Within monthly budget of $1,000
+```
+
+**Example 2: Quarterly Healthcare Expenses**
+```
+Filters:
+  Date: This Quarter (Q4: Oct 1 - Nov 17, 2025)
+  Category: Healthcare
+  Opening Balance: Unchecked
+
+Result: 8 transactions
+Total: $1,234.67
+Note: For tax deduction worksheet
+```
+
+**Example 3: Entertainment Budget Check**
+```
+Filters:
+  Date: Last 30 Days
+  Category: Entertainment
+  Search: (empty)
+
+Result: 12 transactions
+Total: $234.56
+Insight: 7% over monthly budget of $220
+```
+
+**Example 4: Income Verification**
+```
+Filters:
+  Date: This Year (2025)
+  Category: Salary
+  Search: (empty)
+
+Result: 22 transactions (Jan-Nov)
+Total: $88,000 (2 missing months)
+Action: Verify December deposits
+```
+
+#### **Frequently Asked Questions**
+
+**Q: Can I select multiple categories at once?**
+
+**A:** Not in the current version (v2.6.0). Category filter supports single-select only:
+- Select "All Categories" to see all transactions
+- Select one category to filter to that category
+- **Future Enhancement (US-015):** Multi-select will be added in a future update
+
+**Workaround for now:** Filter each category separately and note totals
+
+---
+
+**Q: The category I want doesn't appear in the dropdown**
+
+**A:** Categories only appear if they've been used in at least one transaction:
+1. Create or edit a transaction
+2. Assign the category you want
+3. Save the transaction
+4. The category will now appear in the dropdown
+
+---
+
+**Q: Can I rename a category across all transactions?**
+
+**A:** Not directly in the filter panel. To rename a category:
+1. Edit each transaction individually
+2. Change category to the new name
+3. The dropdown will update automatically
+
+**Future Enhancement:** Bulk category rename may be added in a future version
+
+---
+
+**Q: How do I see transactions with no category?**
+
+**A:** Currently, all transactions must have a category. If you see "(empty)" or "Uncategorized" in the dropdown, select that to see uncategorized transactions.
+
+---
+
+**Q: Does category filter work with split transactions?**
+
+**A:** Yes! Each split in a split transaction has its own category:
+- Filter shows the parent transaction if ANY split matches the category
+- Useful for finding transactions that include a specific category split
+
+---
+
+**Q: Why does the category count change when I apply a date filter?**
+
+**A:** Category counts are **global** across all transactions, not affected by other filters:
+- "Groceries (123)" means 123 total Groceries transactions in the database
+- NOT 123 Groceries in the currently selected date range
+- This is intentional to show overall category usage
+
+---
+
+**Q: Can I export just one category?**
+
+**A:** Yes! Filter to the category you want, then export:
+1. Set category filter (e.g., "Groceries")
+2. Optionally add date filter
+3. Use File → Export or right-click → Export
+4. Only visible (filtered) transactions will be exported
+
+---
+
+**Q: The category dropdown is very long. Can I search it?**
+
+**A:** Current version (v2.6.0) doesn't support search in the dropdown. Categories are sorted alphabetically to make finding easier.
+
+**Tip:** Use text search + category filter together:
+- Search "grocery" to find grocery-related transactions
+- Then select "Groceries" category to refine
+
+---
+
+**Q: How do I clear the category filter quickly?**
+
+**A:** Three ways to clear:
+1. Select "All Categories" from the dropdown (1 click)
+2. Click "Clear All Filters" button (clears ALL filters)
+3. Keyboard: Tab to category dropdown, press Down arrow, select "All Categories"
+
+---
+
+### Opening Balance Filter
+
+The opening balance filter lets you hide or show opening balance transactions.
+
+#### **What are Opening Balance Transactions?**
+
+When you create an account with an opening balance, a special "Opening Balance" transaction is created automatically. This transaction:
+- Sets the initial balance of the account
+- Is dated to the opening balance date you specify
+- Has description "Opening Balance"
+- Cannot be edited or deleted normally
+- Is marked with `is_opening_balance = true` flag
+
+#### **Why Hide Opening Balance Transactions?**
+
+**Reason 1: Focus on Regular Activity**
+- Opening balance transactions are one-time setup entries
+- When reviewing regular spending, they add clutter
+- Hiding them shows only your actual transactions
+
+**Reason 2: Better Spending Analysis**
+- Opening balances skew totals when analyzing spending
+- Hide them to see only real income/expense transactions
+- Get accurate spending patterns
+
+**Reason 3: Cleaner Reports**
+- When exporting or reviewing transactions
+- Opening balances are usually not relevant
+- Hiding them makes reports clearer
+
+#### **How to Toggle Opening Balance Visibility**
+
+**To Hide Opening Balance Transactions:**
+1. **Uncheck** the "Show Opening Balance Transactions" checkbox
+2. Opening balance transactions disappear immediately
+3. Filter counter increases by 1
+
+**To Show Opening Balance Transactions:**
+1. **Check** the "Show Opening Balance Transactions" checkbox
+2. Opening balance transactions appear immediately
+3. Filter counter decreases by 1
+
+**Default Behavior:**
+- Checkbox is **checked** by default (opening balances shown)
+- This matches accounting software conventions
+- Uncheck when you want to focus on regular transactions only
+
+### Combining Multiple Filters
+
+The real power of filtering comes from **combining** multiple filters to create very specific views.
+
+#### **How Filters Work Together**
+
+Filters are applied in this order:
+1. **Date Range Filter** (backend SQL filter)
+2. **Category Filter** (post-filter in Python)
+3. **Text Search Filter** (post-filter in Python)
+4. **Opening Balance Filter** (post-filter in Python)
+
+This means:
+- Date filter runs first and narrows down the dataset (fastest, uses database index)
+- Category filter then filters the date-filtered results
+- Text search further filters the category-filtered results
+- Opening balance filter finally removes opening balance transactions (if unchecked)
+
+#### **Common Filter Combinations**
+
+**Combination 1: Recent Vendor Spending**
+- **Date**: "Last 30 Days"
+- **Search**: "amazon"
+- **Result**: All Amazon purchases in the past month
+
+**Combination 2: Monthly Grocery Budget**
+- **Date**: "This Month"
+- **Category**: "Groceries"
+- **Opening Balance**: Unchecked
+- **Result**: Current month grocery spending (accurate budget tracking)
+
+**Combination 3: Category + Vendor Tracking**
+- **Date**: "This Month"
+- **Category**: "Dining Out"
+- **Search**: "starbucks"
+- **Result**: All Starbucks purchases in Dining Out category this month
+
+**Combination 4: Quarterly Category Review**
+- **Date**: "This Quarter"
+- **Category**: "Entertainment"
+- **Opening Balance**: Unchecked
+- **Result**: All entertainment spending this quarter (no opening balances)
+
+**Combination 5: Tax Preparation (Category-Specific)**
+- **Date**: "Last Year (2024)"
+- **Category**: "Healthcare"
+- **Opening Balance**: Unchecked
+- **Result**: All 2024 healthcare expenses for tax deductions
+
+**Combination 6: Vendor Analysis (Specific Period)**
+- **Date**: Custom Range (e.g., Jan 1 - Mar 31)
+- **Search**: "trader"
+- **Category**: "Groceries"
+- **Opening Balance**: Unchecked
+- **Result**: Trader Joe's grocery purchases in Q1
+
+**Combination 7: All Filters Combined (Maximum Precision)**
+- **Date**: "Last 30 Days"
+- **Category**: "Transportation"
+- **Search**: "uber"
+- **Opening Balance**: Unchecked
+- **Result**: Uber rides in Transportation category in the past 30 days
+
+#### **Monitoring Active Filters**
+
+The filter panel shows how many filters are currently active:
+- **"Filters Active: 0"** - No filters applied (showing all transactions)
+- **"Filters Active: 1"** - One filter applied
+- **"Filters Active: 2"** - Two filters applied
+- **"Filters Active: 3"** - Three filters applied
+- **"Filters Active: 4"** - All four filter types applied
+
+**What Counts as Active:**
+- Text search with any text entered = 1 filter
+- Date range other than "All Time" = 1 filter
+- Category other than "All Categories" = 1 filter
+- Opening Balance checkbox unchecked = 1 filter
+
+#### **Clearing All Filters**
+
+**Quick Clear:**
+- Click the **"Clear All Filters"** button
+- All filters are removed at once:
+  - Text search cleared
+  - Date range reset to "All Time"
+  - Category reset to "All Categories"
+  - Opening Balance checkbox re-checked
+- All transactions reappear
+- Status bar shows "All filters cleared"
+
+**Individual Clear:**
+You can also clear filters one at a time:
+- Clear text search: Click × button in search box
+- Clear date filter: Select "All Time" from dropdown
+- Clear category filter: Select "All Categories" from dropdown
+- Clear opening balance filter: Re-check the checkbox
+
+### Keyboard Shortcuts
+
+| Shortcut | Action |
+|----------|--------|
+| **Ctrl+F** (Win/Linux) <br> **Cmd+F** (Mac) | Focus search box |
+| **Enter** | Apply custom date range (in date picker dialog) |
+| **Escape** | Cancel custom date range (in date picker dialog) |
+| **Tab** | Navigate between filters (search → date → checkbox → clear button) |
+
+### Troubleshooting
+
+#### Q: No results when I search, but I know the transaction exists
+
+**A:** Check these common issues:
+1. **Case sensitivity**: Search is case-insensitive, but check spelling
+2. **Date filter active**: You might have a date filter that excludes the transaction
+3. **Description field**: Search only looks in description, not category or amount
+4. **Opening balance hidden**: If searching for opening balance, check the checkbox
+
+**Solution**: Click "Clear All Filters" and try again
+
+---
+
+#### Q: Date filter shows no transactions
+
+**A:** Possible reasons:
+1. **No transactions in that date range**: Select a different date range
+2. **Opening balance unchecked**: If only opening balance exists, check the box
+3. **Text search too specific**: Clear text search to see all transactions in date range
+
+**Solution**: Try "All Time" date range to see all transactions, then narrow down
+
+---
+
+#### Q: Custom date range validation error
+
+**A:** The error appears when From Date > To Date:
+- **Invalid**: From = Dec 15, To = Dec 01 (From is after To)
+- **Valid**: From = Dec 01, To = Dec 15 (From is before To)
+
+**Solution**: Swap the dates or correct them, then click Apply again
+
+---
+
+#### Q: Filter counter shows 2, but I only set 1 filter
+
+**A:** Check if multiple filters are active:
+- Opening Balance checkbox might be unchecked (counts as 1 filter)
+- Date range might not be "All Time" (counts as 1 filter)
+- Text search might have text entered (counts as 1 filter)
+
+**Solution**: Click "Clear All Filters" to reset everything to defaults
+
+---
+
+#### Q: Can I filter by category or amount?
+
+**A:** Not currently:
+- **US-011** (Basic Text Search) only searches description field
+- **US-012** (Date Range Filter) only filters by date
+- Category and amount filtering planned for future releases
+
+**Workaround**: Use descriptive transaction descriptions that include category info
+
+---
+
+#### Q: Can I save filter presets?
+
+**A:** Not currently:
+- Filter settings are temporary and reset when you close the app
+- Saved filter presets planned for future release (US-013 Advanced Filters)
+
+**Workaround**: Use standard presets (Last 30 Days, This Month, etc.) for common views
+
+---
+
+#### Q: Do filters affect other accounts?
+
+**A:** Filters are **per-account** when viewing a specific account:
+- Filters only affect the currently selected account
+- Switch to another account and filters remain active
+- Filters work the same way on all accounts
+
+---
+
+#### Q: Can I filter across all accounts at once?
+
+**A:** Yes, when viewing "All Accounts":
+- Select "All Accounts" from account list
+- Apply filters as normal
+- Results include matching transactions from ALL accounts
+- Useful for cross-account analysis
 
 ---
 

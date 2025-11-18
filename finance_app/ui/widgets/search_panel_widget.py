@@ -10,11 +10,16 @@ Created: 2025-11-12
 Story: US-016 - Search & Filter UI Panel (EPIC-002, Sprint 13)
 """
 
+from datetime import date
+
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QGridLayout,
-    QLabel, QPushButton, QFrame
+    QLabel, QPushButton, QFrame, QComboBox, QDialog
 )
 from PySide6.QtCore import Signal, Qt
+
+from finance_app.business.date_range_utils import DateRange
+from finance_app.ui.dialogs import DateRangeDialog
 
 
 class SearchPanelWidget(QWidget):
@@ -67,8 +72,8 @@ class SearchPanelWidget(QWidget):
 
     # Signals for filter changes
     search_changed = Signal(str)                      # Text search keyword
-    date_filter_changed = Signal(object)              # Date range object (US-012)
-    category_filter_changed = Signal(str)             # Category name (US-013)
+    date_filter_changed = Signal(object, object)      # from_date, to_date (US-012)
+    category_filter_changed = Signal(list)            # Category names list (US-013)
     amount_filter_changed = Signal(float, float)      # Min, max amount (US-014)
     filters_cleared = Signal()                        # Clear all filters action
 
@@ -85,6 +90,14 @@ class SearchPanelWidget(QWidget):
         self.is_collapsed = False                     # Panel expansion state
         self.active_filter_count = 0                  # Number of active filters
         self.text_search_widget = None                # US-011 widget reference
+
+        # US-012: Date filter state
+        self.current_date_from = None                 # Current from_date filter
+        self.current_date_to = None                   # Current to_date filter
+
+        # US-013: Category filter state
+        self.current_categories = []                  # Current selected categories
+        self.transaction_service = None               # Service for loading categories
 
         # Setup UI
         self._setup_ui()
@@ -199,25 +212,31 @@ class SearchPanelWidget(QWidget):
         self.filters_layout.addWidget(text_label, 0, 0)
         # US-011 widget will be added here via set_text_search_widget()
 
-        # Row 1: Date filter (US-012 placeholder)
+        # Row 1: Date filter (US-012 implementation)
         date_label = QLabel("Date:")
         date_label.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
         self.filters_layout.addWidget(date_label, 1, 0)
 
-        self.date_placeholder = QLabel("<i>[Date filter - US-012]</i>")
-        self.date_placeholder.setObjectName("placeholderLabel")
-        self.date_placeholder.setToolTip("Date range filter will be added in Sprint 14 (US-012)")
-        self.filters_layout.addWidget(self.date_placeholder, 1, 1)
+        # Date dropdown with presets
+        self.date_combo = QComboBox()
+        self.date_combo.setMinimumWidth(200)
+        self.date_combo.setToolTip("Filter transactions by date range")
+        self._populate_date_presets()
+        self.date_combo.currentTextChanged.connect(self._on_date_preset_changed)
+        self.filters_layout.addWidget(self.date_combo, 1, 1)
 
-        # Row 2: Category filter (US-013 placeholder)
+        # Row 2: Category filter (US-013 implementation)
         category_label = QLabel("Category:")
         category_label.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
         self.filters_layout.addWidget(category_label, 2, 0)
 
-        self.category_placeholder = QLabel("<i>[Category filter - US-013]</i>")
-        self.category_placeholder.setObjectName("placeholderLabel")
-        self.category_placeholder.setToolTip("Category filter will be added in Sprint 14 (US-013)")
-        self.filters_layout.addWidget(self.category_placeholder, 2, 1)
+        # Category dropdown
+        self.category_combo = QComboBox()
+        self.category_combo.setMinimumWidth(200)
+        self.category_combo.setToolTip("Filter transactions by category")
+        self.category_combo.addItem("All Categories")  # Default option
+        self.category_combo.currentTextChanged.connect(self._on_category_changed)
+        self.filters_layout.addWidget(self.category_combo, 2, 1)
 
         # Row 3: Amount filter (US-014 placeholder)
         amount_label = QLabel("Amount:")
@@ -341,6 +360,295 @@ class SearchPanelWidget(QWidget):
         # US-016 Task F4: Configure tab order after search widget is added
         self._configure_tab_order()
 
+    def _populate_date_presets(self):
+        """
+        Populate date dropdown with preset options (US-012).
+
+        Adds 12 preset date ranges plus "Custom Range..." option.
+        Calculates current quarter and year for dynamic labels.
+        """
+        today = date.today()
+        quarter = (today.month - 1) // 3 + 1
+
+        self.date_combo.addItems([
+            "All Time",
+            "Today",
+            "Yesterday",
+            "Last 7 Days",
+            "Last 30 Days",
+            "This Month",
+            "Last Month",
+            f"This Quarter (Q{quarter})",
+            "Last Quarter",
+            f"This Year ({today.year})",
+            f"Last Year ({today.year - 1})",
+            "Custom Range..."
+        ])
+
+    def _on_date_preset_changed(self, text: str):
+        """
+        Handle date preset selection (US-012).
+
+        Args:
+            text: Selected preset text from dropdown
+
+        Behavior:
+            - "All Time": Clears date filter
+            - "Custom Range...": Opens DateRangeDialog
+            - Other presets: Calculate range and emit signal
+        """
+        if text == "Custom Range...":
+            self._show_custom_date_dialog()
+        elif text == "All Time":
+            # Clear date filter
+            self.current_date_from = None
+            self.current_date_to = None
+            self.date_filter_changed.emit(None, None)
+            self._on_filter_changed()
+        else:
+            # Get date range from preset
+            from_date, to_date = self._get_preset_range(text)
+            if from_date and to_date:
+                self.current_date_from = from_date
+                self.current_date_to = to_date
+                self.date_filter_changed.emit(from_date, to_date)
+                self._on_filter_changed()
+
+    def _get_preset_range(self, text: str) -> tuple:
+        """
+        Map preset dropdown text to date range (US-012).
+
+        Args:
+            text: Preset text from dropdown
+
+        Returns:
+            Tuple of (from_date, to_date) or (None, None) if unknown
+
+        Note:
+            Handles quarter/year presets that have dynamic text
+            (e.g., "This Quarter (Q3)" -> extract "This Quarter")
+        """
+        # Map simple presets
+        preset_map = {
+            "Today": DateRange.get_today,
+            "Yesterday": DateRange.get_yesterday,
+            "Last 7 Days": DateRange.get_last_7_days,
+            "Last 30 Days": DateRange.get_last_30_days,
+            "This Month": DateRange.get_this_month,
+            "Last Month": DateRange.get_last_month,
+        }
+
+        # Check simple presets first
+        if text in preset_map:
+            return preset_map[text]()
+
+        # Handle dynamic presets (quarter/year with embedded info)
+        if text.startswith("This Quarter"):
+            return DateRange.get_this_quarter()
+        elif text.startswith("Last Quarter"):
+            return DateRange.get_last_quarter()
+        elif text.startswith("This Year"):
+            return DateRange.get_this_year()
+        elif text.startswith("Last Year"):
+            return DateRange.get_last_year()
+
+        # Unknown preset
+        return (None, None)
+
+    def _show_custom_date_dialog(self):
+        """
+        Show custom date range picker dialog (US-012).
+
+        Opens DateRangeDialog and updates combo box text with selected range
+        if user clicks Apply.
+        """
+        dialog = DateRangeDialog(self)
+
+        if dialog.exec() == QDialog.Accepted:
+            from_date, to_date = dialog.get_date_range()
+
+            # Store filter state
+            self.current_date_from = from_date
+            self.current_date_to = to_date
+
+            # Update combo text to show selected range
+            range_text = f"{from_date.strftime('%b %d')} - {to_date.strftime('%b %d, %Y')}"
+            custom_index = self.date_combo.findText("Custom Range...", Qt.MatchStartsWith)
+
+            if custom_index >= 0:
+                # Replace "Custom Range..." with actual range
+                self.date_combo.setItemText(custom_index, range_text)
+                self.date_combo.setCurrentText(range_text)
+
+            # Emit signal
+            self.date_filter_changed.emit(from_date, to_date)
+            self._on_filter_changed()
+        else:
+            # User cancelled - revert to "All Time"
+            self.date_combo.setCurrentText("All Time")
+
+    def has_date_filter(self) -> bool:
+        """
+        Check if date filter is currently active (US-012).
+
+        Returns:
+            True if date filter is set, False otherwise
+
+        Note:
+            Date filter is active if both from_date and to_date are set.
+            "All Time" is not considered an active filter.
+        """
+        return self.current_date_from is not None and self.current_date_to is not None
+
+    def clear_date_filter(self):
+        """
+        Clear date filter and reset to "All Time" (US-012).
+
+        Called by _on_clear_all() when user clicks "Clear All Filters" button.
+        """
+        self.current_date_from = None
+        self.current_date_to = None
+        self.date_combo.setCurrentText("All Time")
+
+        # Restore "Custom Range..." if it was replaced
+        custom_index = self.date_combo.findText("Custom Range...", Qt.MatchStartsWith)
+        if custom_index < 0:
+            # Find any item that doesn't match a preset (custom range text)
+            for i in range(self.date_combo.count()):
+                item_text = self.date_combo.itemText(i)
+                if "-" in item_text and "Days" not in item_text:  # Custom range format
+                    self.date_combo.setItemText(i, "Custom Range...")
+                    break
+
+    def set_transaction_service(self, service):
+        """
+        Set transaction service for category dropdown population (US-013).
+
+        Args:
+            service: TransactionService instance
+
+        Usage:
+            >>> panel = SearchPanelWidget()
+            >>> panel.set_transaction_service(transaction_service)
+            >>> panel.populate_categories()
+        """
+        self.transaction_service = service
+
+    def populate_categories(self, account_id=None):
+        """
+        Populate category dropdown with categories from database (US-013).
+
+        Fetches distinct categories with transaction counts from the backend
+        and populates the category combo box. Categories are sorted alphabetically
+        with transaction counts displayed (e.g., "Groceries (45)").
+
+        Args:
+            account_id: Optional account ID to filter categories (only show
+                        categories used in this account)
+
+        Behavior:
+            - Clears existing categories (except "All Categories")
+            - Calls transaction_service.get_categories_with_counts()
+            - Adds each category with count: "Category (count)"
+            - Maintains current selection if possible
+
+        Example:
+            >>> panel.populate_categories()
+            # Dropdown shows: "All Categories", "Dining Out (23)", "Groceries (45)"
+
+            >>> panel.populate_categories(account_id=5)
+            # Shows only categories from account 5
+        """
+        if not self.transaction_service:
+            return
+
+        # Store current selection
+        current_text = self.category_combo.currentText()
+
+        # Clear existing items (keep "All Categories")
+        self.category_combo.clear()
+        self.category_combo.addItem("All Categories")
+
+        try:
+            # Get categories with counts from backend
+            categories = self.transaction_service.get_categories_with_counts(account_id=account_id)
+
+            # Add categories with counts
+            for category, count in categories:
+                if category:  # Skip empty categories
+                    display_text = f"{category} ({count})"
+                    self.category_combo.addItem(display_text, category)  # Store category name in userData
+
+        except Exception as e:
+            # Log error but don't crash - dropdown will just show "All Categories"
+            print(f"Error loading categories: {e}")
+
+        # Restore selection if it still exists
+        index = self.category_combo.findText(current_text)
+        if index >= 0:
+            self.category_combo.setCurrentIndex(index)
+
+    def _on_category_changed(self, text: str):
+        """
+        Handle category selection change (US-013).
+
+        Args:
+            text: Selected category text from dropdown
+
+        Behavior:
+            - "All Categories": Clears filter (emits empty list)
+            - Other selection: Extracts category name and emits as list
+            - Updates filter count
+            - Emits category_filter_changed signal for MainWindow
+
+        Signal Flow:
+            SearchPanelWidget.category_filter_changed(List[str])
+                ↓
+            MainWindow._on_category_filter_changed(categories)
+                ↓
+            MainWindow._reload_filtered_transactions()
+        """
+        if text == "All Categories":
+            # Clear filter
+            self.current_categories = []
+            self.category_filter_changed.emit([])
+        else:
+            # Extract category name from "Category (count)" format
+            category_name = self.category_combo.currentData()
+            if category_name:
+                self.current_categories = [category_name]
+                self.category_filter_changed.emit([category_name])
+            else:
+                # Fallback: parse from display text
+                category_name = text.split(" (")[0] if " (" in text else text
+                self.current_categories = [category_name]
+                self.category_filter_changed.emit([category_name])
+
+        # Update filter count
+        self._on_filter_changed()
+
+    def has_category_filter(self) -> bool:
+        """
+        Check if category filter is currently active (US-013).
+
+        Returns:
+            True if one or more categories are selected, False otherwise
+
+        Note:
+            "All Categories" is not considered an active filter.
+        """
+        return len(self.current_categories) > 0
+
+    def clear_category_filter(self):
+        """
+        Clear category filter and reset to "All Categories" (US-013).
+
+        Called by _on_clear_all() when user clicks "Clear All Filters" button.
+        Also called by MainWindow when clearing filters programmatically.
+        """
+        self.current_categories = []
+        self.category_combo.setCurrentText("All Categories")
+
     def set_active_filter_count(self, count: int):
         """
         Update active filter count display.
@@ -396,9 +704,6 @@ class SearchPanelWidget(QWidget):
             - Date filter: Active if date range is set (US-012)
             - Category filter: Active if category is selected (US-013)
             - Amount filter: Active if min or max is set (US-014)
-
-        Note: Currently only handles text search (US-011). Future stories
-        (US-012, 013, 014) will add additional filter count logic.
         """
         count = 0
 
@@ -406,8 +711,14 @@ class SearchPanelWidget(QWidget):
         if self.text_search_widget and self.text_search_widget.get_text():
             count += 1
 
-        # TODO: US-012 - Count date filter if set
-        # TODO: US-013 - Count category filter if selected
+        # US-012: Count date filter if set
+        if self.has_date_filter():
+            count += 1
+
+        # US-013: Count category filter if selected
+        if self.has_category_filter():
+            count += 1
+
         # TODO: US-014 - Count amount filter if min/max set
 
         # Update display
@@ -419,8 +730,9 @@ class SearchPanelWidget(QWidget):
 
         Clears all active filters by:
         1. Clearing text search widget (US-011)
-        2. Emitting filters_cleared signal for MainWindow to reload data
-        3. Resetting filter count to 0
+        2. Clearing date filter (US-012)
+        3. Emitting filters_cleared signal for MainWindow to reload data
+        4. Resetting filter count to 0
 
         Signal Flow:
             SearchPanelWidget.filters_cleared
@@ -433,8 +745,12 @@ class SearchPanelWidget(QWidget):
         if self.text_search_widget:
             self.text_search_widget.clear()
 
-        # TODO: US-012 - Clear date filter
-        # TODO: US-013 - Clear category filter
+        # US-012: Clear date filter
+        self.clear_date_filter()
+
+        # US-013: Clear category filter
+        self.clear_category_filter()
+
         # TODO: US-014 - Clear amount filter
 
         # Emit signal for MainWindow to reload data
@@ -445,31 +761,37 @@ class SearchPanelWidget(QWidget):
 
     def _configure_tab_order(self):
         """
-        Configure keyboard tab order for accessibility (US-016 Task F4).
+        Configure keyboard tab order for accessibility (US-016 Task F4 + US-012 + US-013).
 
         Tab Order:
-            1. Search box (text_search_widget) - primary interaction
-            2. Clear All button - secondary action
-            3. Collapse button - tertiary action
+            1. Search box (text_search_widget) - primary text filter
+            2. Date dropdown (date_combo) - date filter (US-012)
+            3. Category dropdown (category_combo) - category filter (US-013)
+            4. Clear All button - reset action
+            5. Collapse button - minimize action
 
         This ensures logical keyboard navigation where users can:
-        - Tab into search box to start filtering
-        - Tab to Clear All to reset filters
+        - Tab into search box to start text filtering
+        - Tab to date dropdown to change date range
+        - Tab to category dropdown to filter by category
+        - Tab to Clear All to reset all filters
         - Tab to Collapse to minimize panel
 
         Note: QWidget.setTabOrder() sets the order between two widgets.
         Call this after text_search_widget is set.
         """
         if not self.text_search_widget:
-            # No search widget yet, tab order is just: Clear All → Collapse
+            # No search widget yet, tab order: date_combo → category_combo → clear_all → collapse
+            self.setTabOrder(self.date_combo, self.category_combo)
+            self.setTabOrder(self.category_combo, self.clear_all_button)
             self.setTabOrder(self.clear_all_button, self.collapse_button)
             return
 
-        # Search widget has its own internal focus chain (QLineEdit inside)
-        # We need to link from search widget to our buttons
-
-        # Tab order: search_widget → clear_all_button → collapse_button
-        self.setTabOrder(self.text_search_widget, self.clear_all_button)
+        # Full tab order with all widgets
+        # search_widget → date_combo → category_combo → clear_all_button → collapse_button
+        self.setTabOrder(self.text_search_widget, self.date_combo)
+        self.setTabOrder(self.date_combo, self.category_combo)
+        self.setTabOrder(self.category_combo, self.clear_all_button)
         self.setTabOrder(self.clear_all_button, self.collapse_button)
 
     def _apply_styling(self):

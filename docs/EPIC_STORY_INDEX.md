@@ -1,6 +1,6 @@
 # Epic and Story Index
 
-**Last Updated:** 2025-11-10
+**Last Updated:** 2025-11-17
 **Project:** Personal Finance Manager v2.1
 
 ---
@@ -10,14 +10,14 @@
 | Metric | Count |
 |--------|-------|
 | **Total Epics** | 2 |
-| **Total Stories** | 13 |
-| **Stories in Backlog** | 1 |
+| **Total Stories** | 16 |
+| **Stories in Backlog** | 0 |
 | **Stories in Progress** | 0 |
-| **Stories Completed** | 12 |
-| **Total Story Points** | 94 |
-| **Points Completed** | 73 |
-| **Current Sprint** | Sprint 12 (✅ Complete - EPIC-001 DONE!) 🎉 |
-| **Next Sprint** | Sprint 13 (Planning - EPIC-002) |
+| **Stories Completed** | 16 |
+| **Total Story Points** | 106 |
+| **Points Completed** | 85 |
+| **Current Sprint** | Sprint 14 (✅ Complete - US-012 ✅ US-013 ✅) |
+| **Next Sprint** | Sprint 15 (Planning - EPIC-002 Phase 3) |
 
 ---
 
@@ -33,7 +33,7 @@
 
 | ID | Epic | Priority | Status | Stories | Points | Target Release |
 |----|------|----------|--------|---------|--------|----------------|
-| [EPIC-002](epics/EPIC-002-search-filter-transactions.md) | Search and Filter Transactions | High | Ready | 0/6 | 0/21 | v2.1.0 |
+| [EPIC-002](epics/EPIC-002-search-filter-transactions.md) | Search and Filter Transactions | High | 🚧 In Progress (Sprint 14-15) | 4/6 | 12/21 | v2.1.0 |
 
 ### Planned Epics (Not Yet Created)
 
@@ -50,11 +50,11 @@
 
 ## Stories by Status
 
-### 📋 Backlog (1)
+### 📋 Backlog (0)
 
 | ID | Story | Epic | Priority | Points | Assignee | Sprint |
 |----|-------|------|----------|--------|----------|--------|
-| [STORY-001](stories/backlog/STORY-001-basic-text-search.md) | Basic Text Search | EPIC-002 | High | 3 | Unassigned | TBD |
+| - | - | - | - | - | - | - |
 
 ### 🚧 In Progress (0)
 
@@ -62,7 +62,7 @@
 |----|-------|------|----------|--------|----------|---------|
 | - | - | - | - | - | - | - |
 
-### ✅ Completed (12)
+### ✅ Completed (16)
 
 | ID | Story | Epic | Points | Completed | Developer | Grade |
 |----|-------|------|--------|-----------|-----------|-------|
@@ -78,6 +78,10 @@
 | [US-010](stories/completed/US-010-account-balance-validation.md) | Account Balance Validation & Integrity | EPIC-001 | 8 | 2025-10-27 | Full Stack Team | A+ (Outstanding) |
 | [US-007](stories/completed/US-007-account-metadata.md) | Account Metadata & Organization | EPIC-001 | 5 | 2025-11-05 | Full Stack Team | A (98% coverage) |
 | [US-008](stories/completed/US-008-multi-currency-setup.md) | Multi-Currency Account Setup | EPIC-001 | 5 | 2025-11-10 | Full Stack Team | A (9/10) 🎉 |
+| [US-011](stories/completed/US-011-basic-text-search.md) | Basic Text Search | EPIC-002 | 3 | 2025-11-14 | Full Stack Team | A+ (Excellent) |
+| [US-016](stories/completed/US-016-search-filter-ui-panel.md) | Search & Filter UI Panel | EPIC-002 | 3 | 2025-11-15 | Full Stack Team | A+ (42 tests, theme support) |
+| [US-012](stories/completed/US-012-date-range-filter.md) | Date Range Filter | EPIC-002 | 3 | 2025-11-17 | Full Stack Team | A (95/100) |
+| [US-013](stories/completed/US-013-category-filter.md) | Category Filter | EPIC-002 | 3 | 2025-11-17 | Full Stack Team | A (100%) |
 
 ---
 
@@ -106,18 +110,22 @@
 **Total Development Time:** ~180 hours over 12 sprints
 **Quality Grade:** All stories Grade A or A+ ⭐
 
-### EPIC-002: Search and Filter Transactions (0/6 stories)
+### EPIC-002: Search and Filter Transactions (4/6 stories completed, 2 remaining) 🚧 IN PROGRESS
 
-| ID | Story | Status | Points | Assignee |
-|----|-------|--------|--------|----------|
-| [STORY-001](stories/backlog/STORY-001-basic-text-search.md) | Basic Text Search | Backlog | 3 | Unassigned |
-| STORY-002 | Date Range Filter | Not Created | 3 | - |
-| STORY-003 | Category Filter | Not Created | 3 | - |
-| STORY-004 | Amount Range Filter | Not Created | 4 | - |
-| STORY-005 | Combined Filters | Not Created | 5 | - |
-| STORY-006 | Filter UI Panel | Not Created | 3 | - |
+| ID | Story | Status | Points | Assignee | Sprint |
+|----|-------|--------|--------|----------|--------|
+| [US-011](stories/completed/US-011-basic-text-search.md) | Basic Text Search | ✅ Sprint 13 | 3 | Full Stack Team | Sprint 13 |
+| [US-016](stories/completed/US-016-search-filter-ui-panel.md) | Search & Filter UI Panel | ✅ Sprint 13 | 3 | Full Stack Team | Sprint 13 |
+| [US-012](stories/completed/US-012-date-range-filter.md) | Date Range Filter | ✅ Sprint 14 | 3 | Full Stack Team | Sprint 14 |
+| [US-013](stories/completed/US-013-category-filter.md) | Category Filter | ✅ Sprint 14 | 3 | Full Stack Team | Sprint 14 |
+| US-014 | Amount Range Filter | 📋 Backlog | 4 | Unassigned | Sprint 15 |
+| US-015 | Combined Filters & Saved Searches | 📋 Backlog | 5 | Unassigned | Sprint 15 |
 
-**Progress:** 0% (0/21 points completed)
+**Progress:** 57% (12/21 points completed) 🎯
+**Sprint 13 Status:** ✅ COMPLETE - US-011 (3 pts, A+) + US-016 (3 pts, A+, 42 tests)
+**Sprint 14 Status:** ✅ COMPLETE - US-012 (3 pts, A, 31 tests) + US-013 (3 pts, A, 22 tests) = **6 points**
+**Milestone Achieved:** Core filtering complete! Date + Category + Text search all operational
+**Next Sprint:** Sprint 15 - Final Filters (US-014 Amount + US-015 Saved Searches = 9 pts)
 
 ---
 
@@ -206,14 +214,14 @@ Low:      0 stories (0%)
 
 | Date | Activity | Story/Epic |
 |------|----------|------------|
+| 2025-11-17 | ✅ Completed US-012 | Date Range Filter (3 pts, 31 tests, Grade A, < 50ms!) |
+| 2025-11-17 | 📊 Sprint 14 Progress | US-012 delivered, core filtering operational |
+| 2025-11-16 | 🐛 Bug Fixes | US-016 dark theme + styling fixes (Bug #11, #12) |
+| 2025-11-15 | ✅ Completed US-016 | Search & Filter UI Panel (3 pts, 42 tests, A+) |
+| 2025-11-14 | ✅ Completed US-011 | Basic Text Search (3 pts, Grade A+) |
+| 2025-11-14 | 📊 Sprint 13 Complete | US-011 + US-016 delivered, EPIC-002 foundation ready! |
 | 2025-11-10 | 🎉 EPIC-001 COMPLETE! | All 12 stories delivered, 73/73 points! |
 | 2025-11-10 | ✅ Completed US-008 | Multi-Currency Setup (5 pts, 36 tests, 9/10 grade!) |
-| 2025-11-10 | 📊 Sprint 12 Complete | Final EPIC-001 story delivered, production-ready! |
-| 2025-11-05 | ✅ Completed US-007 | Account Metadata & Organization (5 pts, 40 tests, 98% coverage!) |
-| 2025-11-05 | 📊 Sprint 11 Complete | 5 pts delivered, Grade A, Production-ready |
-| 2025-10-27 | ✅ Completed US-009 | Account Color Coding (5 pts, Sprint 10) |
-| 2025-10-27 | ✅ Completed US-010 | Account Balance Validation (8 pts, Grade A+) |
-| 2025-10-25 | ✅ Completed US-004 | Account Reconciliation (8 pts, Grade A) |
 
 ---
 

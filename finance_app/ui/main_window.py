@@ -51,6 +51,14 @@ class MainWindow(QMainWindow):
         self.reconciliation_service = ReconciliationService(database)
         self.current_account_id: Optional[int] = None
 
+        # US-012: Date filter state
+        self.current_date_from = None
+        self.current_date_to = None
+        self.current_search_keyword = None  # Track text search state
+
+        # US-013: Category filter state
+        self.current_categories = []  # Track selected categories for filtering
+
         self.setup_ui()
         self.load_data()
 
@@ -310,6 +318,13 @@ class MainWindow(QMainWindow):
         self.search_panel.set_text_search_widget(self.transaction_search)
         self.transaction_search.search_changed.connect(self._on_search_changed)
 
+        # US-012: Connect date filter signal
+        self.search_panel.date_filter_changed.connect(self._on_date_filter_changed)
+
+        # US-013: Set transaction service and connect category filter signal
+        self.search_panel.set_transaction_service(self.transaction_service)
+        self.search_panel.category_filter_changed.connect(self._on_category_filter_changed)
+
         # Transaction controls
         control_layout = QHBoxLayout()
         control_layout.addWidget(QLabel("<b>Transactions</b>"))
@@ -370,6 +385,9 @@ class MainWindow(QMainWindow):
         try:
             self._load_accounts()
             self._load_transactions()
+
+            # US-013: Populate category dropdown with categories from database
+            self.search_panel.populate_categories(account_id=self.current_account_id)
         except FinanceAppError as e:
             logger.error(f"Failed to load data: {e}")
             QMessageBox.critical(self, "Error", f"Failed to load data: {e}")
@@ -458,6 +476,9 @@ class MainWindow(QMainWindow):
         self.current_account_id = account_id
         self._load_transactions(self.current_account_id)
 
+        # US-013: Repopulate category dropdown for selected account
+        self.search_panel.populate_categories(account_id=account_id)
+
         # Get account name for status bar
         try:
             account = self.account_service.get_account(account_id)
@@ -474,66 +495,104 @@ class MainWindow(QMainWindow):
             state: Checkbox state (Qt.Checked or Qt.Unchecked)
         """
         # Reload transactions with current filter state
-        self._load_transactions(self.current_account_id)
+        self._reload_filtered_transactions()
+
+    def _on_date_filter_changed(self, from_date, to_date) -> None:
+        """
+        Handle date filter change (US-012).
+
+        Stores the date filter state and reloads transactions with all active filters.
+
+        Args:
+            from_date: Start date (None if filter cleared)
+            to_date: End date (None if filter cleared)
+        """
+        # Store date filter state
+        self.current_date_from = from_date
+        self.current_date_to = to_date
+
+        # Reload transactions with combined filters
+        self._reload_filtered_transactions()
+
+        # Update status bar
+        if from_date and to_date:
+            self.statusBar().showMessage(
+                f"Filtered by date: {from_date.strftime('%b %d, %Y')} - {to_date.strftime('%b %d, %Y')}",
+                3000
+            )
+        else:
+            self.statusBar().showMessage("Date filter cleared", 2000)
+
+    def _on_category_filter_changed(self, categories: list) -> None:
+        """
+        Handle category filter change (US-013).
+
+        Stores the selected categories and reloads transactions with all active filters.
+
+        Args:
+            categories: List of selected category names (empty list if filter cleared)
+        """
+        # Store category filter state
+        self.current_categories = categories if categories else []
+
+        # Reload transactions with combined filters
+        self._reload_filtered_transactions()
+
+        # Update status bar
+        if categories:
+            if len(categories) == 1:
+                self.statusBar().showMessage(f"Filtered by category: {categories[0]}", 3000)
+            else:
+                self.statusBar().showMessage(
+                    f"Filtered by {len(categories)} categories: {', '.join(categories[:2])}{'...' if len(categories) > 2 else ''}",
+                    3000
+                )
+        else:
+            self.statusBar().showMessage("Category filter cleared", 2000)
 
     def _on_search_changed(self, keyword: str) -> None:
         """
-        Handle transaction search text change (US-011).
+        Handle transaction search text change (US-011 + US-012).
 
-        Filters transaction table by description keyword. Empty keyword
-        shows all transactions (respecting current account filter).
+        Stores the search keyword and reloads transactions with all active filters.
 
         Args:
             keyword: Search keyword (already trimmed by widget)
         """
-        try:
-            # Determine account filter (current account or all accounts)
-            account_id = self.current_account_id
+        # Store search keyword state
+        self.current_search_keyword = keyword if keyword else None
 
-            # Empty keyword = show all transactions
-            if not keyword:
-                self._load_transactions(account_id)
-                self.statusBar().showMessage("Showing all transactions", 2000)
-                return
+        # Reload transactions with combined filters
+        self._reload_filtered_transactions()
 
-            # Search transactions using backend service
-            transactions = self.transaction_service.search_transactions(keyword, account_id)
-
-            # Apply opening balance filter
-            show_opening_balance = self.show_opening_balance_checkbox.isChecked()
-            if not show_opening_balance:
-                transactions = [t for t in transactions if not t.is_opening_balance]
-
-            # Update table with search results
-            self._display_transactions(transactions)
-
-            # Update status bar with result count
-            count = len(transactions)
-            account_msg = "in this account" if account_id else "in all accounts"
-            if count == 0:
-                self.statusBar().showMessage(f"No transactions found for '{keyword}' {account_msg}", 3000)
-            else:
-                self.statusBar().showMessage(f"Found {count} transaction(s) for '{keyword}' {account_msg}", 3000)
-
-        except FinanceAppError as e:
-            logger.error(f"Search failed: {e}")
-            QMessageBox.warning(self, "Search Error", f"Search failed: {e}")
+        # Update status bar with result count
+        if keyword:
+            account_msg = "in this account" if self.current_account_id else "in all accounts"
+            self.statusBar().showMessage(f"Searching for '{keyword}' {account_msg}", 2000)
+        else:
+            self.statusBar().showMessage("Text search cleared", 2000)
 
     def _on_filters_cleared(self) -> None:
         """
         Handle Clear All Filters action (US-016).
 
         Called when user clicks "Clear All Filters" button in SearchPanelWidget.
-        Reloads all transactions for the current account with no filters applied.
+        Clears all filter state and reloads all transactions for the current account.
 
         Signal Flow:
             SearchPanelWidget.filters_cleared
                 ↓
             MainWindow._on_filters_cleared() ← THIS METHOD
                 ↓
-            _load_transactions(current_account_id)
+            Clear filter state + _load_transactions(current_account_id)
         """
         try:
+            # Clear all filter state (US-012, US-013)
+            self.current_date_from = None
+            self.current_date_to = None
+            self.current_categories = []
+            self.current_search_keyword = None
+
             # Reload transactions with no filters
             self._load_transactions(self.current_account_id)
 
@@ -545,6 +604,116 @@ class MainWindow(QMainWindow):
         except FinanceAppError as e:
             logger.error(f"Failed to clear filters: {e}")
             QMessageBox.warning(self, "Filter Error", f"Failed to clear filters: {e}")
+
+    def _reload_filtered_transactions(self) -> None:
+        """
+        Reload transactions with ALL active filters applied.
+
+        US-011 + US-012 + US-013: Combines date, category, text search, and opening balance filters.
+        Applies filters in order: date (backend) → category (Python) → text (Python) → opening balance (Python)
+
+        Filter Combination Strategy:
+            1. Date Filter (if active): Use backend transaction_service.filter_by_date_range()
+            2. No Date Filter: Use transaction_service.get_all_transactions()
+            3. Category Filter (if active): Post-filter results in Python (US-013)
+            4. Text Search (if active): Post-filter results in Python
+            5. Opening Balance Toggle: Post-filter to exclude opening balance transactions
+
+        Called by:
+            - _on_date_filter_changed() (US-012)
+            - _on_category_filter_changed() (US-013)
+            - _on_search_changed() (US-011)
+            - _on_opening_balance_filter_toggle()
+
+        Note:
+            This method combines all active filters without clearing any state.
+            To clear filters, use _on_filters_cleared() instead.
+        """
+        try:
+            account_id = self.current_account_id
+
+            # Step 1: Apply date filter if active (backend filtering)
+            if self.current_date_from and self.current_date_to:
+                transactions = self.transaction_service.filter_by_date_range(
+                    from_date=self.current_date_from,
+                    to_date=self.current_date_to,
+                    account_id=account_id
+                )
+                logger.debug(
+                    f"Applied date filter: {self.current_date_from} to {self.current_date_to}, "
+                    f"got {len(transactions)} transactions"
+                )
+            else:
+                # No date filter - get all transactions
+                transactions = self.transaction_service.get_all_transactions(account_id)
+                logger.debug(f"No date filter - loaded {len(transactions)} transactions")
+
+            # Step 2: Apply category filter (post-filter in Python) (US-013)
+            if self.current_categories:
+                before_count = len(transactions)
+                transactions = [
+                    t for t in transactions
+                    if t.category in self.current_categories
+                ]
+                logger.debug(
+                    f"Applied category filter {self.current_categories}: {before_count} → {len(transactions)} transactions"
+                )
+
+            # Step 3: Apply text search filter (post-filter in Python)
+            if self.current_search_keyword:
+                keyword = self.current_search_keyword.lower()
+                before_count = len(transactions)
+                transactions = [
+                    t for t in transactions
+                    if keyword in t.description.lower()
+                ]
+                logger.debug(
+                    f"Applied text search filter '{keyword}': {before_count} → {len(transactions)} transactions"
+                )
+
+            # Step 4: Apply opening balance filter (post-filter in Python)
+            show_opening_balance = self.show_opening_balance_checkbox.isChecked()
+            if not show_opening_balance:
+                before_count = len(transactions)
+                transactions = [
+                    t for t in transactions
+                    if not t.is_opening_balance
+                ]
+                logger.debug(
+                    f"Applied opening balance filter: {before_count} → {len(transactions)} transactions"
+                )
+
+            # Step 5: Display filtered results
+            self._display_transactions(transactions)
+
+            # Log final result
+            filter_summary = []
+            if self.current_date_from and self.current_date_to:
+                filter_summary.append(f"date: {self.current_date_from} to {self.current_date_to}")
+            if self.current_categories:
+                categories_str = ', '.join(self.current_categories[:2])
+                if len(self.current_categories) > 2:
+                    categories_str += f"... (+{len(self.current_categories) - 2} more)"
+                filter_summary.append(f"categories: {categories_str}")
+            if self.current_search_keyword:
+                filter_summary.append(f"text: '{self.current_search_keyword}'")
+            if not show_opening_balance:
+                filter_summary.append("hide opening balance")
+
+            if filter_summary:
+                logger.info(
+                    f"Reloaded {len(transactions)} transactions with filters: {', '.join(filter_summary)}"
+                )
+            else:
+                logger.info(f"Reloaded {len(transactions)} transactions (no filters active)")
+
+        except FinanceAppError as e:
+            logger.error(f"Failed to reload filtered transactions: {e}")
+            QMessageBox.warning(
+                self,
+                "Filter Error",
+                f"Failed to apply filters:\n\n{e}"
+            )
 
     def _focus_search_in_account(self) -> None:
         """
