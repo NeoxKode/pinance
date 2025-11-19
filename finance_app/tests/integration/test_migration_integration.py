@@ -28,13 +28,6 @@ class TestMigrationIntegration:
     """Integration tests for opening balance migration."""
 
     @pytest.fixture
-    def test_db(self):
-        """Create test database with sample accounts."""
-        db = Database(":memory:")  # Use in-memory database for testing
-        yield db
-        db.close()
-
-    @pytest.fixture
     def populated_db(self, test_db):
         """Create database with sample accounts (no journal entries)."""
         account_repo = AccountRepository(test_db)
@@ -101,10 +94,13 @@ class TestMigrationIntegration:
         journal_repo = JournalEntryRepository(populated_db)
 
         # Verify initial state: accounts have balances but no journal entries
+        # Note: Database auto-creates Opening Balance Equity account, so we have 5 accounts
         accounts = account_repo.get_all()
-        assert len(accounts) == 4
+        # Filter out the auto-created Opening Balance Equity for testing purposes
+        test_accounts = [a for a in accounts if a.account_subtype != AccountSubtype.OPENING_BALANCE]
+        assert len(test_accounts) == 4
 
-        for account in accounts:
+        for account in test_accounts:
             entries = journal_repo.get_by_account(account.id)
             assert len(entries) == 0, f"Account {account.name} should have no entries before migration"
 
@@ -114,12 +110,12 @@ class TestMigrationIntegration:
             opening_date="2025-01-01"
         )
 
-        # Verify migration results
+        # Verify migration results (Opening Balance Equity has 0 balance, so +1 skipped)
         assert migrated == 3, "Should migrate 3 accounts with non-zero balances"
-        assert skipped == 1, "Should skip 1 account with zero balance"
+        assert skipped == 2, "Should skip 2 accounts with zero balance (Zero Balance + Opening Balance Equity)"
 
         # Verify journal entries created
-        for account in accounts:
+        for account in test_accounts:
             entries = journal_repo.get_by_account(account.id)
 
             if account.balance == Decimal("0"):
@@ -181,7 +177,7 @@ class TestMigrationIntegration:
         )
 
         assert migrated1 == 3
-        assert skipped1 == 1
+        assert skipped1 == 2  # Zero Balance + Opening Balance Equity
 
         # Count entries after first migration
         accounts = account_repo.get_all()
@@ -198,7 +194,7 @@ class TestMigrationIntegration:
 
         # Should skip all accounts (already have opening entries)
         assert migrated2 == 0, "Second migration should not create new entries"
-        assert skipped2 == 4, "Second migration should skip all accounts"
+        assert skipped2 == 5, "Second migration should skip all accounts (4 test + 1 Opening Balance Equity)"
 
         # Verify entry counts unchanged
         for account in accounts:
@@ -241,10 +237,12 @@ class TestMigrationIntegration:
                 "expected_credit": Decimal("1000.00")
             },
             # Equity account (normal balance: CREDIT)
+            # Note: Use RETAINED_EARNINGS instead of OPENING_BALANCE to avoid conflict
+            # with auto-created Opening Balance Equity account
             {
-                "name": "Opening Balance Equity",
+                "name": "Retained Earnings",
                 "type": AccountType.EQUITY,
-                "subtype": AccountSubtype.OPENING_BALANCE,
+                "subtype": AccountSubtype.RETAINED_EARNINGS,
                 "balance": Decimal("2000.00"),  # Positive equity
                 "normal": NormalBalance.CREDIT,
                 "expected_debit": Decimal("0"),
@@ -272,7 +270,7 @@ class TestMigrationIntegration:
         )
 
         assert migrated == 3
-        assert skipped == 0
+        assert skipped == 1  # Auto-created Opening Balance Equity with 0 balance
 
         # Verify each account's journal entry
         for account, expected in created_accounts:

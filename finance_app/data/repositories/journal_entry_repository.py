@@ -528,12 +528,13 @@ class JournalEntryRepository:
                         f"credit={entry.credit_amount}"
                     )
 
-                    # Fetch the created entry to get timestamps
-                    created_entry = self.get_by_id(entry.id)
-                    created_entries.append(created_entry)
+                    created_entries.append(entry.id)
 
                 # Commit the transaction
                 conn.commit()
+
+                # Fetch the created entries after commit (so they're visible)
+                created_entries = [self.get_by_id(entry_id) for entry_id in created_entries]
 
                 # Fetch the created group with timestamps
                 group.id = group_id

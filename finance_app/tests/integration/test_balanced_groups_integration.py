@@ -23,13 +23,6 @@ class TestBalancedGroupsIntegration:
     """Integration tests for balanced transaction groups."""
 
     @pytest.fixture
-    def test_db(self):
-        """Create test database with sample accounts."""
-        db = Database(":memory:")
-        yield db
-        db.close()
-
-    @pytest.fixture
     def test_accounts(self, test_db):
         """Create test accounts."""
         account_repo = AccountRepository(test_db)
