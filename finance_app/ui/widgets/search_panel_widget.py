@@ -11,12 +11,13 @@ Story: US-016 - Search & Filter UI Panel (EPIC-002, Sprint 13)
 """
 
 from datetime import date
+from decimal import Decimal
 
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QGridLayout,
-    QLabel, QPushButton, QFrame, QComboBox, QDialog
+    QLabel, QPushButton, QFrame, QComboBox, QDialog, QLineEdit, QCheckBox
 )
-from PySide6.QtCore import Signal, Qt
+from PySide6.QtCore import Signal, Qt, QTimer
 
 from finance_app.business.date_range_utils import DateRange
 from finance_app.ui.dialogs import DateRangeDialog
@@ -74,8 +75,11 @@ class SearchPanelWidget(QWidget):
     search_changed = Signal(str)                      # Text search keyword
     date_filter_changed = Signal(object, object)      # from_date, to_date (US-012)
     category_filter_changed = Signal(list)            # Category names list (US-013)
-    amount_filter_changed = Signal(float, float)      # Min, max amount (US-014)
+    amount_filter_changed = Signal(object, object, bool)  # min_amount (Decimal), max_amount (Decimal), absolute (bool) (US-014)
     filters_cleared = Signal()                        # Clear all filters action
+    saved_filter_selected = Signal(int)               # Saved filter ID selected for loading (US-015)
+    save_current_filters_requested = Signal()         # User clicked "Save Current Filters" (US-015)
+    manage_filters_requested = Signal()               # User clicked "Manage Filters" (US-015)
 
     def __init__(self, parent=None):
         """
@@ -98,6 +102,15 @@ class SearchPanelWidget(QWidget):
         # US-013: Category filter state
         self.current_categories = []                  # Current selected categories
         self.transaction_service = None               # Service for loading categories
+
+        # US-014: Amount filter state
+        self.current_amount_min = None                # Current min amount filter
+        self.current_amount_max = None                # Current max amount filter
+        self.current_amount_absolute = False          # Absolute value mode
+        self.amount_debounce_timer = QTimer()         # Debounce timer for text input
+        self.amount_debounce_timer.setSingleShot(True)
+        self.amount_debounce_timer.setInterval(500)   # 500ms debounce
+        self.amount_debounce_timer.timeout.connect(self._emit_amount_filter)
 
         # Setup UI
         self._setup_ui()
@@ -238,15 +251,31 @@ class SearchPanelWidget(QWidget):
         self.category_combo.currentTextChanged.connect(self._on_category_changed)
         self.filters_layout.addWidget(self.category_combo, 2, 1)
 
-        # Row 3: Amount filter (US-014 placeholder)
+        # Row 3: Amount filter (US-014 implementation)
         amount_label = QLabel("Amount:")
         amount_label.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
         self.filters_layout.addWidget(amount_label, 3, 0)
 
-        self.amount_placeholder = QLabel("<i>[Amount filter - US-014]</i>")
-        self.amount_placeholder.setObjectName("placeholderLabel")
-        self.amount_placeholder.setToolTip("Amount range filter will be added in Sprint 15 (US-014)")
-        self.filters_layout.addWidget(self.amount_placeholder, 3, 1)
+        # Amount filter widget (inputs + absolute checkbox)
+        amount_widget = self._create_amount_filter_widget()
+        self.filters_layout.addWidget(amount_widget, 3, 1)
+
+        # Row 4: Amount presets (US-014)
+        presets_label = QLabel("")  # Empty label for alignment
+        self.filters_layout.addWidget(presets_label, 4, 0)
+
+        # Preset buttons
+        presets_widget = self._create_amount_presets_widget()
+        self.filters_layout.addWidget(presets_widget, 4, 1)
+
+        # Row 5: Saved Filters (US-015)
+        saved_label = QLabel("Saved:")
+        saved_label.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+        self.filters_layout.addWidget(saved_label, 5, 0)
+
+        # Saved filters widget (dropdown + buttons)
+        saved_widget = self._create_saved_filters_widget()
+        self.filters_layout.addWidget(saved_widget, 5, 1)
 
         return container
 
@@ -291,6 +320,234 @@ class SearchPanelWidget(QWidget):
         layout.addWidget(self.footer_filter_count)
 
         return footer
+
+    def _create_amount_filter_widget(self) -> QWidget:
+        """
+        Create amount filter input widget (US-014).
+
+        Returns:
+            QWidget containing min/max inputs and absolute checkbox
+
+        Layout:
+            [Min: $____] to [Max: $____] [✓ Absolute Value]
+        """
+        widget = QWidget()
+        layout = QHBoxLayout(widget)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(8)
+
+        # Min amount input
+        min_label = QLabel("Min:")
+        layout.addWidget(min_label)
+
+        self.amount_min_input = QLineEdit()
+        self.amount_min_input.setPlaceholderText("$0.00")
+        self.amount_min_input.setMaximumWidth(100)
+        self.amount_min_input.setToolTip(
+            "Minimum amount (e.g., 100, $50.99, 1,234.56)\n"
+            "Leave empty for no minimum"
+        )
+        self.amount_min_input.textChanged.connect(self._on_amount_input_changed)
+        layout.addWidget(self.amount_min_input)
+
+        # "to" separator
+        to_label = QLabel("to")
+        layout.addWidget(to_label)
+
+        # Max amount input
+        max_label = QLabel("Max:")
+        layout.addWidget(max_label)
+
+        self.amount_max_input = QLineEdit()
+        self.amount_max_input.setPlaceholderText("$999,999.99")
+        self.amount_max_input.setMaximumWidth(100)
+        self.amount_max_input.setToolTip(
+            "Maximum amount (e.g., 500, $1,000.00)\n"
+            "Leave empty for no maximum"
+        )
+        self.amount_max_input.textChanged.connect(self._on_amount_input_changed)
+        layout.addWidget(self.amount_max_input)
+
+        # Absolute value checkbox
+        self.amount_absolute_checkbox = QCheckBox("Absolute Value")
+        self.amount_absolute_checkbox.setToolTip(
+            "Filter by absolute value (ignores +/- sign)\n"
+            "Useful for finding 'any transaction over $100' regardless of income/expense"
+        )
+        self.amount_absolute_checkbox.stateChanged.connect(self._on_amount_absolute_changed)
+        layout.addWidget(self.amount_absolute_checkbox)
+
+        # Stretch to push everything left
+        layout.addStretch()
+
+        return widget
+
+    def _create_amount_presets_widget(self) -> QWidget:
+        """
+        Create amount filter preset buttons (US-014).
+
+        Returns:
+            QWidget containing 4 preset buttons
+
+        Buttons:
+            - "< $20" (Small Charges)
+            - "$20-$100" (Mid-range)
+            - "> $100" (Large)
+            - "> $500" (Very Large)
+        """
+        widget = QWidget()
+        layout = QHBoxLayout(widget)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(8)
+
+        # Preset buttons
+        self.preset_small_btn = QPushButton("< $20")
+        self.preset_small_btn.setObjectName("amountPresetButton")
+        self.preset_small_btn.setToolTip("Small charges (subscriptions, coffee)")
+        self.preset_small_btn.setCursor(Qt.PointingHandCursor)
+        self.preset_small_btn.clicked.connect(lambda: self._apply_amount_preset(None, Decimal("20"), True))
+        layout.addWidget(self.preset_small_btn)
+
+        self.preset_mid_btn = QPushButton("$20-$100")
+        self.preset_mid_btn.setObjectName("amountPresetButton")
+        self.preset_mid_btn.setToolTip("Mid-range purchases (groceries, gas)")
+        self.preset_mid_btn.setCursor(Qt.PointingHandCursor)
+        self.preset_mid_btn.clicked.connect(lambda: self._apply_amount_preset(Decimal("20"), Decimal("100"), True))
+        layout.addWidget(self.preset_mid_btn)
+
+        self.preset_large_btn = QPushButton("> $100")
+        self.preset_large_btn.setObjectName("amountPresetButton")
+        self.preset_large_btn.setToolTip("Large purchases (electronics, rent)")
+        self.preset_large_btn.setCursor(Qt.PointingHandCursor)
+        self.preset_large_btn.clicked.connect(lambda: self._apply_amount_preset(Decimal("100"), None, True))
+        layout.addWidget(self.preset_large_btn)
+
+        self.preset_very_large_btn = QPushButton("> $500")
+        self.preset_very_large_btn.setObjectName("amountPresetButton")
+        self.preset_very_large_btn.setToolTip("Very large purchases (furniture, appliances)")
+        self.preset_very_large_btn.setCursor(Qt.PointingHandCursor)
+        self.preset_very_large_btn.clicked.connect(lambda: self._apply_amount_preset(Decimal("500"), None, True))
+        layout.addWidget(self.preset_very_large_btn)
+
+        # Stretch to push buttons left
+        layout.addStretch()
+
+        return widget
+
+    def _create_saved_filters_widget(self) -> QWidget:
+        """
+        Create saved filters widget (US-015).
+
+        Returns:
+            QWidget containing saved filters dropdown and action buttons
+
+        Layout:
+            [Dropdown: Select saved filter...] [💾 Save] [⚙️ Manage...]
+
+        US-015: Allows users to:
+        - Select and load saved filters from dropdown
+        - Save current filter state
+        - Manage existing saved filters
+        """
+        widget = QWidget()
+        layout = QHBoxLayout(widget)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(8)
+
+        # Saved filters dropdown
+        self.saved_filters_combo = QComboBox()
+        self.saved_filters_combo.setMinimumWidth(250)
+        self.saved_filters_combo.setToolTip("Load a saved filter combination")
+        self.saved_filters_combo.addItem("-- Select saved filter --", None)  # Default placeholder
+        self.saved_filters_combo.currentIndexChanged.connect(self._on_saved_filter_selected)
+        layout.addWidget(self.saved_filters_combo)
+
+        # Save button
+        self.save_filter_btn = QPushButton("💾 Save")
+        self.save_filter_btn.setObjectName("saveFilterButton")
+        self.save_filter_btn.setToolTip("Save current filters for quick access later")
+        self.save_filter_btn.setCursor(Qt.PointingHandCursor)
+        self.save_filter_btn.clicked.connect(self._on_save_filter_clicked)
+        layout.addWidget(self.save_filter_btn)
+
+        # Manage button
+        self.manage_filters_btn = QPushButton("⚙️ Manage...")
+        self.manage_filters_btn.setToolTip("Edit, delete, or favorite saved filters")
+        self.manage_filters_btn.setCursor(Qt.PointingHandCursor)
+        self.manage_filters_btn.clicked.connect(self._on_manage_filters_clicked)
+        layout.addWidget(self.manage_filters_btn)
+
+        # Stretch to push buttons left
+        layout.addStretch()
+
+        return widget
+
+    def _on_saved_filter_selected(self, index: int):
+        """
+        Handle saved filter selection from dropdown.
+
+        Args:
+            index: Selected index in combo box
+        """
+        if index <= 0:  # Skip placeholder item
+            return
+
+        # Get filter ID from item data
+        filter_id = self.saved_filters_combo.itemData(index)
+        if filter_id is not None:
+            # Emit signal to load this filter
+            self.saved_filter_selected.emit(filter_id)
+
+    def _on_save_filter_clicked(self):
+        """Handle Save Current Filters button click."""
+        self.save_current_filters_requested.emit()
+
+    def _on_manage_filters_clicked(self):
+        """Handle Manage Filters button click."""
+        self.manage_filters_requested.emit()
+
+    def populate_saved_filters(self, saved_filters: list):
+        """
+        Populate the saved filters dropdown.
+
+        Args:
+            saved_filters: List of SavedFilter objects
+
+        US-015: Called by MainWindow when filters are loaded from database.
+        Favorites are shown first with a star icon.
+        """
+        # Store current selection to restore if possible
+        current_id = self.saved_filters_combo.currentData()
+
+        # Clear and repopulate
+        self.saved_filters_combo.clear()
+        self.saved_filters_combo.addItem("-- Select saved filter --", None)
+
+        if not saved_filters:
+            return
+
+        # Sort: favorites first, then alphabetically
+        sorted_filters = sorted(
+            saved_filters,
+            key=lambda f: (not f.is_favorite, f.name.lower())
+        )
+
+        for filter_obj in sorted_filters:
+            # Add star for favorites
+            display_name = f"⭐ {filter_obj.name}" if filter_obj.is_favorite else filter_obj.name
+
+            # Add item with filter ID as data
+            self.saved_filters_combo.addItem(display_name, filter_obj.id)
+
+        # Restore selection if it still exists
+        if current_id is not None:
+            index = self.saved_filters_combo.findData(current_id)
+            if index >= 0:
+                self.saved_filters_combo.setCurrentIndex(index)
+
+    def clear_saved_filter_selection(self):
+        """Reset saved filter dropdown to placeholder."""
+        self.saved_filters_combo.setCurrentIndex(0)
 
     def _toggle_collapse(self):
         """
@@ -649,6 +906,230 @@ class SearchPanelWidget(QWidget):
         self.current_categories = []
         self.category_combo.setCurrentText("All Categories")
 
+    def _on_amount_input_changed(self):
+        """
+        Handle amount input text change (US-014).
+
+        Implements 500ms debounce - waits for user to stop typing before
+        parsing input and emitting filter signal. This prevents excessive
+        filtering while user is typing.
+
+        Debounce Strategy:
+            - User types: Timer resets
+            - User stops typing for 500ms: Timer fires, parse & emit
+            - Invalid input: Ignore, wait for valid input
+        """
+        # Restart debounce timer (cancels previous timer if still running)
+        self.amount_debounce_timer.stop()
+        self.amount_debounce_timer.start()
+
+    def _on_amount_absolute_changed(self, state):
+        """
+        Handle absolute value checkbox state change (US-014).
+
+        Args:
+            state: Qt.CheckState (Checked or Unchecked)
+
+        Behavior:
+            - Checkbox checked: Sets absolute mode to True
+            - Checkbox unchecked: Sets absolute mode to False
+            - Immediately re-emits filter signal (no debounce)
+        """
+        self.current_amount_absolute = (state == Qt.Checked)
+
+        # Immediately apply (no debounce for checkbox)
+        self._emit_amount_filter()
+
+    def _emit_amount_filter(self):
+        """
+        Parse amount inputs and emit amount_filter_changed signal (US-014).
+
+        Parses min/max input text using TransactionService.parse_amount_string()
+        and emits signal with validated Decimal values.
+
+        Validation Rules:
+            - Empty inputs: Treated as None (no bound)
+            - Invalid input: Ignored (treated as empty)
+            - Min > Max: Validation handled by service layer
+
+        Signal Emission:
+            - Emits: (min_amount: Decimal|None, max_amount: Decimal|None, absolute: bool)
+            - Updates filter count
+        """
+        if not self.transaction_service:
+            return
+
+        # Parse min amount
+        min_text = self.amount_min_input.text().strip()
+        if min_text:
+            min_amount = self.transaction_service.parse_amount_string(min_text)
+        else:
+            min_amount = None
+
+        # Parse max amount
+        max_text = self.amount_max_input.text().strip()
+        if max_text:
+            max_amount = self.transaction_service.parse_amount_string(max_text)
+        else:
+            max_amount = None
+
+        # Store current state
+        self.current_amount_min = min_amount
+        self.current_amount_max = max_amount
+
+        # Emit signal
+        self.amount_filter_changed.emit(min_amount, max_amount, self.current_amount_absolute)
+
+        # Update filter count
+        self._on_filter_changed()
+
+    def _apply_amount_preset(self, min_amount, max_amount, absolute):
+        """
+        Apply amount filter preset (US-014).
+
+        Args:
+            min_amount: Minimum amount (Decimal or None)
+            max_amount: Maximum amount (Decimal or None)
+            absolute: Absolute value mode (bool)
+
+        Behavior:
+            - Updates input fields with preset values
+            - Sets absolute checkbox state
+            - Immediately applies filter (bypasses debounce)
+
+        Presets:
+            - "< $20": (None, 20, True)
+            - "$20-$100": (20, 100, True)
+            - "> $100": (100, None, True)
+            - "> $500": (500, None, True)
+        """
+        # Update input fields
+        if min_amount is not None:
+            self.amount_min_input.setText(str(min_amount))
+        else:
+            self.amount_min_input.clear()
+
+        if max_amount is not None:
+            self.amount_max_input.setText(str(max_amount))
+        else:
+            self.amount_max_input.clear()
+
+        # Update absolute checkbox
+        self.amount_absolute_checkbox.setChecked(absolute)
+
+        # Immediately apply (bypass debounce)
+        self.current_amount_absolute = absolute
+        self._emit_amount_filter()
+
+    def has_amount_filter(self) -> bool:
+        """
+        Check if amount filter is currently active (US-014).
+
+        Returns:
+            True if min or max amount is set, False otherwise
+
+        Note:
+            Amount filter is active if either bound is set.
+            Empty inputs are not considered active filters.
+        """
+        return self.current_amount_min is not None or self.current_amount_max is not None
+
+    def clear_amount_filter(self):
+        """
+        Clear amount filter and reset inputs (US-014).
+
+        Called by _on_clear_all() when user clicks "Clear All Filters" button.
+        Also called by MainWindow when clearing filters programmatically.
+        """
+        self.current_amount_min = None
+        self.current_amount_max = None
+        self.current_amount_absolute = False
+        self.amount_min_input.clear()
+        self.amount_max_input.clear()
+        self.amount_absolute_checkbox.setChecked(False)
+
+    def apply_date_filter(self, from_date, to_date):
+        """
+        Apply date filter programmatically (US-015).
+
+        Sets the date range and updates the UI to reflect the filter.
+        Called when loading a saved filter.
+
+        Args:
+            from_date: Start date (datetime.date) or None
+            to_date: End date (datetime.date) or None
+        """
+        self.current_date_from = from_date
+        self.current_date_to = to_date
+
+        if from_date and to_date:
+            # Update combo box to show custom range
+            date_str = f"{from_date.strftime('%b %d, %Y')} - {to_date.strftime('%b %d, %Y')}"
+            self.date_combo.setCurrentText(date_str)
+        else:
+            self.date_combo.setCurrentText("All Time")
+
+        # Emit signal
+        self.date_filter_changed.emit(from_date, to_date)
+
+    def apply_category_filter(self, categories):
+        """
+        Apply category filter programmatically (US-015).
+
+        Sets the selected categories and updates the UI.
+        Called when loading a saved filter.
+
+        Args:
+            categories: List of category names to filter by
+        """
+        self.current_categories = categories if categories else []
+
+        if categories:
+            # Update combo box to show category selection
+            if len(categories) == 1:
+                self.category_combo.setCurrentText(categories[0])
+            else:
+                # Multiple categories: show count
+                self.category_combo.setCurrentText(f"{len(categories)} categories selected")
+        else:
+            self.category_combo.setCurrentText("All Categories")
+
+        # Emit signal
+        self.category_filter_changed.emit(self.current_categories)
+
+    def apply_amount_filter(self, min_amount, max_amount, absolute=False):
+        """
+        Apply amount filter programmatically (US-015).
+
+        Sets the amount range and absolute mode, updates UI.
+        Called when loading a saved filter.
+
+        Args:
+            min_amount: Minimum amount (Decimal) or None
+            max_amount: Maximum amount (Decimal) or None
+            absolute: Whether to use absolute value mode (bool)
+        """
+        self.current_amount_min = min_amount
+        self.current_amount_max = max_amount
+        self.current_amount_absolute = absolute
+
+        # Update input fields
+        if min_amount is not None:
+            self.amount_min_input.setText(str(min_amount))
+        else:
+            self.amount_min_input.clear()
+
+        if max_amount is not None:
+            self.amount_max_input.setText(str(max_amount))
+        else:
+            self.amount_max_input.clear()
+
+        # Update checkbox
+        self.amount_absolute_checkbox.setChecked(absolute)
+
+        # Emit signal
+        self.amount_filter_changed.emit(min_amount, max_amount, absolute)
+
     def set_active_filter_count(self, count: int):
         """
         Update active filter count display.
@@ -719,7 +1200,9 @@ class SearchPanelWidget(QWidget):
         if self.has_category_filter():
             count += 1
 
-        # TODO: US-014 - Count amount filter if min/max set
+        # US-014: Count amount filter if min/max set
+        if self.has_amount_filter():
+            count += 1
 
         # Update display
         self.set_active_filter_count(count)
@@ -731,8 +1214,10 @@ class SearchPanelWidget(QWidget):
         Clears all active filters by:
         1. Clearing text search widget (US-011)
         2. Clearing date filter (US-012)
-        3. Emitting filters_cleared signal for MainWindow to reload data
-        4. Resetting filter count to 0
+        3. Clearing category filter (US-013)
+        4. Clearing amount filter (US-014)
+        5. Emitting filters_cleared signal for MainWindow to reload data
+        6. Resetting filter count to 0
 
         Signal Flow:
             SearchPanelWidget.filters_cleared
@@ -751,7 +1236,8 @@ class SearchPanelWidget(QWidget):
         # US-013: Clear category filter
         self.clear_category_filter()
 
-        # TODO: US-014 - Clear amount filter
+        # US-014: Clear amount filter
+        self.clear_amount_filter()
 
         # Emit signal for MainWindow to reload data
         self.filters_cleared.emit()
@@ -900,5 +1386,30 @@ class SearchPanelWidget(QWidget):
                 border: 2px solid #2196F3;
                 outline: 2px solid #93C5FD;
                 outline-offset: 2px;
+            }
+
+            /* Amount preset buttons (US-014) */
+            QPushButton#amountPresetButton {
+                background-color: palette(button);
+                color: palette(button-text);
+                border: 1px solid palette(mid);
+                padding: 4px 12px;
+                border-radius: 4px;
+                font-size: 12px;
+            }
+
+            QPushButton#amountPresetButton:hover {
+                background-color: #2196F3;
+                color: white;
+                border-color: #1976D2;
+            }
+
+            QPushButton#amountPresetButton:pressed {
+                background-color: #1565C0;
+            }
+
+            QPushButton#amountPresetButton:focus {
+                border: 2px solid #2196F3;
+                outline: 1px solid #93C5FD;
             }
         """)

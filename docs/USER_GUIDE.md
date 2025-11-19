@@ -81,6 +81,7 @@
    - [Text Search Filter (US-011)](#text-search-filter-us-011)
    - [Date Range Filter (US-012)](#date-range-filter-us-012)
    - [Category Filter (US-013)](#category-filter-us-013)
+   - [Amount Range Filter (US-014)](#amount-range-filter-us-014)
    - [Opening Balance Filter](#opening-balance-filter)
    - [Combining Multiple Filters](#combining-multiple-filters)
    - [Keyboard Shortcuts](#keyboard-shortcuts)
@@ -4675,6 +4676,529 @@ Action: Verify December deposits
 1. Select "All Categories" from the dropdown (1 click)
 2. Click "Clear All Filters" button (clears ALL filters)
 3. Keyboard: Tab to category dropdown, press Down arrow, select "All Categories"
+
+---
+
+### Amount Range Filter (US-014)
+
+> **Feature**: US-014 Amount Range Filter (EPIC-002, Sprint 15)
+> **Version**: 2.3.0 (Released 2025-11-18)
+
+The amount range filter allows you to find transactions by monetary value, making it easy to hunt for subscription charges, review large purchases, or analyze spending in specific ranges.
+
+#### **How to Filter by Amount Range**
+
+**Step 1: Locate the Amount Filter Inputs**
+
+The amount filter is in Row 3 of the Search & Filter panel:
+
+```
+Amount:  Min: [______] to Max: [______] [✓ Absolute Value]
+         [< $20] [$20-$100] [> $100] [> $500]
+```
+
+**Step 2: Choose Your Filter Method**
+
+**Method A: Use Preset Buttons (Quick & Easy)**
+- Click any preset button for instant filtering
+- No typing required!
+
+**Method B: Enter Custom Range (Precise Control)**
+- Type minimum amount, maximum amount, or both
+- Results appear after 500ms (debounce delay)
+
+**Step 3: Review Filtered Results**
+- Transaction list updates automatically
+- Status bar shows filter details: "Filtered by amount: >= $100"
+- Filter counter increases by 1
+
+**Step 4: Clear Amount Filter (Optional)**
+- Clear Min/Max inputs manually
+- Or click **Clear All Filters** button
+
+#### **Preset Buttons**
+
+Four convenient preset buttons provide one-click filtering for common use cases:
+
+**Preset 1: < $20 (Small Charges)**
+- **Use Case**: Subscription hunting, find recurring charges
+- **What It Finds**: Coffee purchases, streaming services, monthly subscriptions
+- **Example Results**: Netflix ($15.99), Spotify ($9.99), Coffee Shop ($5.50)
+
+**Preset 2: $20-$100 (Mid-Range)**
+- **Use Case**: Regular expenses, groceries, gas, dining out
+- **What It Finds**: Grocery trips, restaurant meals, utility bills
+- **Example Results**: Grocery Store ($67.30), Gas Station ($45.00), Restaurant ($85.50)
+
+**Preset 3: > $100 (Large Purchases)**
+- **Use Case**: Major expenses, electronics, appliances, rent
+- **What It Finds**: Significant purchases, large bills, major expenses
+- **Example Results**: Electronics Store ($250), Furniture ($500), Rent ($1,200)
+
+**Preset 4: > $500 (Very Large Purchases)**
+- **Use Case**: Major financial events, furniture, appliances, large bills
+- **What It Finds**: High-value transactions worth special attention
+- **Example Results**: Furniture Store ($800), Appliance Store ($1,500), Car Repair ($750)
+
+**Preset Behavior:**
+- ✅ All presets use **Absolute Value mode** automatically
+- ✅ Finds matching transactions regardless of income/expense
+- ✅ Applies instantly (no 500ms delay)
+
+#### **Custom Amount Ranges**
+
+**Enter Min Amount Only:**
+```
+Min: 100
+Max: (empty)
+```
+**Finds**: All transactions >= $100
+
+**Use Cases:**
+- "Show me all large purchases this month"
+- "Find transactions over $50"
+- "Review significant expenses"
+
+---
+
+**Enter Max Amount Only:**
+```
+Min: (empty)
+Max: 20
+```
+**Finds**: All transactions <= $20
+
+**Use Cases:**
+- "Find small subscription charges"
+- "Show me transactions under $10"
+- "Hunt for forgotten recurring payments"
+
+---
+
+**Enter Both Min and Max:**
+```
+Min: 20
+Max: 100
+```
+**Finds**: All transactions between $20 and $100 (inclusive)
+
+**Use Cases:**
+- "Show mid-range grocery purchases"
+- "Find transactions in my budget range"
+- "Analyze typical daily spending"
+
+---
+
+**Validation:**
+- If Min > Max, you'll see an error: "Min amount must be <= Max amount"
+- Invalid input (non-numeric) is ignored gracefully
+- Empty inputs mean "no bound"
+
+#### **Absolute Value Mode**
+
+The "Absolute Value" checkbox changes how amounts are compared.
+
+**Checkbox Unchecked (Default - Respects Sign):**
+- Expenses are negative (e.g., -$50.00)
+- Income is positive (e.g., +$3,000.00)
+- Filter respects the sign
+
+```
+Example: Min: 100, Max: (empty), Absolute: OFF
+Finds: Income >= $100 (salary deposits, bonuses)
+Does NOT find: Expenses >= $100 (those are negative)
+```
+
+**Checkbox Checked (Absolute Mode - Ignores Sign):**
+- Treats all amounts by magnitude only
+- Ignores whether it's income or expense
+- Useful for "any transaction over $X"
+
+```
+Example: Min: 100, Max: (empty), Absolute: ON
+Finds: ANY transaction with value >= $100
+Includes: Expenses ($250, $1,200) AND Income ($3,000)
+```
+
+**When to Use Absolute Mode:**
+
+✅ **Use Absolute Mode When:**
+- Finding "any large transaction regardless of type"
+- Budget milestone tracking ("all transactions over $500")
+- Fraud detection ("unusual amounts")
+- Financial review ("significant financial events")
+
+❌ **Don't Use Absolute Mode When:**
+- Looking for expense-only transactions
+- Analyzing income separately
+- Negative ranges (filter won't work as expected)
+
+#### **Amount Filter Input Formats**
+
+The amount filter accepts multiple input formats:
+
+**Basic Numbers:**
+```
+100      → $100.00
+50.99    → $50.99
+1234.56  → $1,234.56
+```
+
+**With Currency Symbols:**
+```
+$100     → $100.00
+£50.50   → $50.50
+€75.25   → $75.25
+```
+
+**With Thousands Separators:**
+```
+1,234.56 → $1,234.56
+$5,000   → $5,000.00
+10,000   → $10,000.00
+```
+
+**Whitespace Handling:**
+```
+  100.00   → $100.00 (trimmed)
+$ 50.99    → $50.99 (spaces removed)
+```
+
+**Invalid Input (Ignored):**
+- Empty string → No filter
+- "invalid" → Ignored
+- "100.50.25" → Ignored (multiple decimals)
+
+#### **Combining Amount Filter with Other Filters**
+
+Amount filter works seamlessly with all other filters using **AND logic**.
+
+**Amount + Date Range:**
+```
+Amount: Min: 100
+Date: Last 30 Days
+```
+**Result**: Large purchases in the last month
+
+**Use Case**: "What major expenses did I have recently?"
+
+---
+
+**Amount + Category:**
+```
+Amount: > $100
+Category: Entertainment
+```
+**Result**: Expensive entertainment purchases
+
+**Use Case**: "How much did I spend on entertainment items over $100?"
+
+---
+
+**Amount + Text Search:**
+```
+Amount: < $20
+Search: "subscription"
+```
+**Result**: Small subscription charges
+
+**Use Case**: "Find all my small recurring subscription payments"
+
+---
+
+**Amount + Date + Category:**
+```
+Amount: $20-$100
+Date: This Month
+Category: Groceries
+```
+**Result**: This month's mid-range grocery purchases
+
+**Use Case**: "Track typical grocery spending this month"
+
+---
+
+**All Filters Combined:**
+```
+Amount: > $100
+Date: Last Quarter
+Category: Transportation
+Search: "uber"
+```
+**Result**: Large Uber charges in the last quarter
+
+**Use Case**: "Review expensive Uber rides from last quarter"
+
+#### **Amount Filter Tips & Best Practices**
+
+**Tip 1: Start with Presets**
+- Try preset buttons first before custom ranges
+- Presets cover 80% of common use cases
+- Faster than typing amounts
+
+**Tip 2: Use Absolute Mode for Large Transactions**
+- When looking for "significant financial events"
+- Captures both large expenses AND large income
+- Good for monthly financial review
+
+**Tip 3: Combine with Date for Budget Tracking**
+```
+Amount: $20-$100
+Date: This Month
+Category: Groceries
+```
+**Result**: Track grocery budget compliance this month
+
+**Tip 4: Hunt Subscriptions Monthly**
+```
+Amount: < $20
+Date: Last 30 Days
+Search: (try "subscription", "monthly", "service")
+```
+**Result**: Find forgotten subscription charges
+
+**Tip 5: Review Large Purchases Before Tax Season**
+```
+Amount: > $500
+Date: Last Year
+```
+**Result**: All major purchases for tax deductions
+
+**Tip 6: Use Empty Min/Max for One-Sided Ranges**
+- `Min: 100, Max: (empty)` = "at least $100"
+- `Min: (empty), Max: 20` = "at most $20"
+- More intuitive than using very large/small numbers
+
+**Tip 7: Debounce Delay (500ms)**
+- After typing, wait 500ms for results
+- Prevents excessive filtering while typing
+- Preset buttons bypass this delay (instant)
+
+#### **Amount Filter Examples**
+
+**Example 1: Monthly Subscription Audit**
+
+```
+Goal: Find all subscription charges this month
+Filters:
+  Amount: < $20 (using preset button)
+  Date: This Month
+  Category: All Categories
+  Search: (empty)
+```
+
+**Expected Results**: Netflix, Spotify, iCloud, etc.
+
+**Action**: Review list, cancel unwanted subscriptions
+
+---
+
+**Example 2: Quarterly Large Purchase Review**
+
+```
+Goal: Review all major expenses last quarter
+Filters:
+  Amount: > $500 (using preset button)
+  Date: Last Quarter
+  Category: All Categories
+  Search: (empty)
+```
+
+**Expected Results**: Rent payments, furniture, electronics, appliances
+
+**Action**: Categorize correctly, note for budgeting
+
+---
+
+**Example 3: Grocery Budget Compliance**
+
+```
+Goal: Check if grocery spending is in budget range
+Filters:
+  Amount: Min: 50, Max: 150
+  Date: This Month
+  Category: Groceries
+  Search: (empty)
+```
+
+**Expected Results**: Weekly grocery trips within budget
+
+**Action**: Count transactions, calculate total, compare to budget
+
+---
+
+**Example 4: Find Unusual Transactions**
+
+```
+Goal: Identify any large or unusual transactions
+Filters:
+  Amount: Min: 1000, Absolute: ON
+  Date: Last 30 Days
+  Category: All Categories
+  Search: (empty)
+```
+
+**Expected Results**: Very large expenses OR income over $1,000
+
+**Action**: Verify legitimacy, check for fraud
+
+---
+
+**Example 5: Mid-Range Dining Analysis**
+
+```
+Goal: How much do I spend on typical restaurant meals?
+Filters:
+  Amount: $20-$100 (using preset)
+  Date: Last 30 Days
+  Category: Dining Out
+  Search: (empty)
+```
+
+**Expected Results**: Restaurant meals in typical price range
+
+**Action**: Count frequency, calculate average, adjust habits
+
+#### **Common Questions (FAQ)**
+
+**Q: Why do I see income when filtering expenses?**
+
+**A:** You're using **Absolute Value mode**:
+- Absolute mode ignores the +/- sign
+- Finds ANY transaction matching the magnitude
+- **Solution**: Uncheck "Absolute Value" to respect sign
+
+---
+
+**Q: My filter shows no results, but I know I have transactions in that range**
+
+**A:** Check these:
+1. **Absolute Value** - Try toggling it ON/OFF
+2. **Min > Max** - Swap the values if needed
+3. **Other active filters** - Check date/category filters aren't too restrictive
+4. **Income vs Expense** - Remember expenses are negative without absolute mode
+
+---
+
+**Q: Can I filter for exactly $100.00 (not a range)?**
+
+**A:** Yes! Set both Min and Max to the same value:
+```
+Min: 100
+Max: 100
+```
+**Result**: Only transactions exactly $100.00
+
+---
+
+**Q: How do I find all expenses between $50-$200?**
+
+**A:** Two methods:
+
+**Method 1 (With Absolute OFF - Recommended):**
+```
+Min: -200
+Max: -50
+Absolute: OFF
+```
+
+**Method 2 (With Absolute ON):**
+```
+Min: 50
+Max: 200
+Absolute: ON
+```
+(But this also includes income in that range)
+
+---
+
+**Q: The filter isn't applying immediately when I type**
+
+**A:** This is intentional (500ms debounce):
+- Prevents excessive filtering while typing
+- Results appear 500ms after you stop typing
+- **Workaround**: Use preset buttons for instant results
+
+---
+
+**Q: Can I save my favorite amount filters?**
+
+**A:** Not yet. Saved filter presets are planned for a future release (US-015).
+
+**Current workaround**: Note your common ranges and use preset buttons or type quickly
+
+---
+
+**Q: Does amount filter work with split transactions?**
+
+**A:** Yes! The filter uses the transaction amount:
+- For regular transactions: uses the transaction amount
+- For split transactions: uses the **total** transaction amount (not individual split amounts)
+- To filter by split amounts, use category filter instead
+
+---
+
+**Q: Can I filter by negative amounts (expenses only)?**
+
+**A:** Yes! With Absolute Value **OFF**:
+```
+Max: -0.01
+```
+**Result**: All expenses (negative amounts)
+
+```
+Min: 0.01
+```
+**Result**: All income (positive amounts)
+
+---
+
+**Q: Why does the preset button use absolute mode automatically?**
+
+**A:** Preset buttons are designed for common use cases:
+- "< $20" helps find subscriptions (regardless of refunds)
+- "> $100" helps find large transactions (expenses OR income)
+- Most users want to find "transactions around $X" not "expenses/income"
+
+**If you want expense-only:** Type the range manually with absolute OFF
+
+---
+
+**Q: What's the maximum amount I can filter?**
+
+**A:** The filter supports amounts up to $999,999.99 (SQLite decimal limit).
+
+For most personal finance uses, this is more than sufficient.
+
+---
+
+**Q: How do I clear the amount filter quickly?**
+
+**A:** Four ways:
+1. **Clear inputs manually** - Delete text from Min/Max fields
+2. **Click "Clear All Filters"** - Clears ALL filters at once
+3. **Select a different preset** - Overwrites current filter
+4. **Reload account** - Clears all filters and reloads
+
+---
+
+**Q: Can I use amount filter with reconciliation?**
+
+**A:** Yes! Amount filter works everywhere:
+- Main transaction list ✅
+- Reconciliation dialog ✅ (helps find specific transactions)
+- Reports ✅ (filters before generating)
+- Export ✅ (exports only filtered transactions)
+
+---
+
+**Q: Does amount filter affect account balance?**
+
+**A:** No! The filter only affects **visibility**, not calculations:
+- Account balance always shows the true balance
+- Filter just hides/shows transactions temporarily
+- No data is modified
+- Balance remains accurate
 
 ---
 

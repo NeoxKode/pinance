@@ -20,12 +20,14 @@ from finance_app.business.account_service import AccountService
 from finance_app.business.double_entry_service import DoubleEntryService
 from finance_app.business.split_transaction_service import SplitTransactionService
 from finance_app.business.reconciliation_service import ReconciliationService
+from finance_app.business.saved_filter_service import SavedFilterService  # US-015
 from finance_app.ui.dialogs.transaction_dialog import AddTransactionDialog
 from finance_app.ui.dialogs.account_dialog import AccountDialog
 from finance_app.ui.dialogs.transfer_dialog import TransferDialog
 from finance_app.ui.dialogs.unified_transaction_dialog import UnifiedTransactionDialog
 from finance_app.ui.dialogs.reconciliation_dialog import ReconciliationDialog
 from finance_app.ui.dialogs.set_opening_balance_dialog import SetOpeningBalanceDialog
+from finance_app.ui.dialogs import SaveFilterDialog, ManageFiltersDialog  # US-015
 from finance_app.utils.logger import setup_logger
 from finance_app.utils.exceptions import FinanceAppError
 
@@ -49,6 +51,7 @@ class MainWindow(QMainWindow):
         self.double_entry_service = DoubleEntryService(database)
         self.split_service = SplitTransactionService(database)
         self.reconciliation_service = ReconciliationService(database)
+        self.saved_filter_service = SavedFilterService(database)  # US-015
         self.current_account_id: Optional[int] = None
 
         # US-012: Date filter state
@@ -58,6 +61,11 @@ class MainWindow(QMainWindow):
 
         # US-013: Category filter state
         self.current_categories = []  # Track selected categories for filtering
+
+        # US-014: Amount filter state
+        self.current_amount_min = None
+        self.current_amount_max = None
+        self.current_amount_absolute = False
 
         self.setup_ui()
         self.load_data()
@@ -325,6 +333,14 @@ class MainWindow(QMainWindow):
         self.search_panel.set_transaction_service(self.transaction_service)
         self.search_panel.category_filter_changed.connect(self._on_category_filter_changed)
 
+        # US-014: Connect amount filter signal
+        self.search_panel.amount_filter_changed.connect(self._on_amount_filter_changed)
+
+        # US-015: Connect saved filter signals
+        self.search_panel.saved_filter_selected.connect(self._on_saved_filter_selected)
+        self.search_panel.save_current_filters_requested.connect(self._on_save_filter_requested)
+        self.search_panel.manage_filters_requested.connect(self._on_manage_filters_requested)
+
         # Transaction controls
         control_layout = QHBoxLayout()
         control_layout.addWidget(QLabel("<b>Transactions</b>"))
@@ -388,6 +404,9 @@ class MainWindow(QMainWindow):
 
             # US-013: Populate category dropdown with categories from database
             self.search_panel.populate_categories(account_id=self.current_account_id)
+
+            # US-015: Populate saved filters dropdown
+            self._load_saved_filters()
         except FinanceAppError as e:
             logger.error(f"Failed to load data: {e}")
             QMessageBox.critical(self, "Error", f"Failed to load data: {e}")
@@ -550,6 +569,42 @@ class MainWindow(QMainWindow):
         else:
             self.statusBar().showMessage("Category filter cleared", 2000)
 
+    def _on_amount_filter_changed(self, min_amount, max_amount, absolute: bool) -> None:
+        """
+        Handle amount filter change (US-014).
+
+        Stores the amount filter criteria and reloads transactions with all active filters.
+
+        Args:
+            min_amount: Minimum amount (Decimal or None)
+            max_amount: Maximum amount (Decimal or None)
+            absolute: Whether to use absolute value mode (bool)
+        """
+        # Store amount filter state
+        self.current_amount_min = min_amount
+        self.current_amount_max = max_amount
+        self.current_amount_absolute = absolute
+
+        # Reload transactions with combined filters
+        self._reload_filtered_transactions()
+
+        # Update status bar
+        if min_amount is not None or max_amount is not None:
+            parts = []
+            if min_amount is not None and max_amount is not None:
+                parts.append(f"${min_amount} - ${max_amount}")
+            elif min_amount is not None:
+                parts.append(f">= ${min_amount}")
+            elif max_amount is not None:
+                parts.append(f"<= ${max_amount}")
+
+            if absolute:
+                parts.append("(absolute)")
+
+            self.statusBar().showMessage(f"Filtered by amount: {' '.join(parts)}", 3000)
+        else:
+            self.statusBar().showMessage("Amount filter cleared", 2000)
+
     def _on_search_changed(self, keyword: str) -> None:
         """
         Handle transaction search text change (US-011 + US-012).
@@ -572,6 +627,201 @@ class MainWindow(QMainWindow):
         else:
             self.statusBar().showMessage("Text search cleared", 2000)
 
+    def _on_saved_filter_selected(self, filter_id: int) -> None:
+        """
+        Handle saved filter selection - load and apply to UI.
+
+        US-015: Load filter from database and apply all criteria to UI widgets.
+
+        Args:
+            filter_id: ID of saved filter to load
+        """
+        try:
+            # Load filter from service (also marks as used)
+            saved_filter = self.saved_filter_service.load_filter(filter_id)
+
+            # Apply filter criteria to UI
+            criteria = saved_filter.filter_criteria
+
+            # Text search
+            if "text_search" in criteria and criteria["text_search"]:
+                self.transaction_search.set_search_text(criteria["text_search"])
+            else:
+                self.transaction_search.clear_search()
+
+            # Date range
+            if "date_from" in criteria or "date_to" in criteria:
+                from datetime import date
+                date_from = date.fromisoformat(criteria["date_from"]) if "date_from" in criteria else None
+                date_to = date.fromisoformat(criteria["date_to"]) if "date_to" in criteria else None
+                self.search_panel.apply_date_filter(date_from, date_to)
+            else:
+                self.search_panel.clear_date_filter()
+
+            # Categories
+            if "categories" in criteria and criteria["categories"]:
+                self.search_panel.apply_category_filter(criteria["categories"])
+            else:
+                self.search_panel.clear_category_filter()
+
+            # Amount range
+            if "amount_min" in criteria or "amount_max" in criteria:
+                from decimal import Decimal
+                min_amt = Decimal(criteria["amount_min"]) if "amount_min" in criteria else None
+                max_amt = Decimal(criteria["amount_max"]) if "amount_max" in criteria else None
+                absolute = criteria.get("amount_absolute", False)
+                self.search_panel.apply_amount_filter(min_amt, max_amt, absolute)
+            else:
+                self.search_panel.clear_amount_filter()
+
+            # Update status bar
+            self.statusBar().showMessage(f"Loaded saved filter: {saved_filter.name}", 3000)
+            logger.info(f"Loaded saved filter: {saved_filter.name} (ID: {filter_id})")
+
+        except Exception as e:
+            logger.error(f"Failed to load saved filter: {e}")
+            QMessageBox.warning(self, "Error", f"Failed to load filter: {str(e)}")
+
+    def _on_save_filter_requested(self) -> None:
+        """
+        Handle save filter request - show dialog and save to database.
+
+        US-015: Collect current filter state and prompt user to save.
+        """
+        # Collect current filter criteria
+        current_filters = {}
+
+        if self.current_search_keyword:
+            current_filters["text_search"] = self.current_search_keyword
+
+        if self.current_date_from:
+            current_filters["date_from"] = self.current_date_from.isoformat()
+        if self.current_date_to:
+            current_filters["date_to"] = self.current_date_to.isoformat()
+
+        if self.current_categories:
+            current_filters["categories"] = self.current_categories
+
+        if self.current_amount_min is not None:
+            current_filters["amount_min"] = str(self.current_amount_min)
+        if self.current_amount_max is not None:
+            current_filters["amount_max"] = str(self.current_amount_max)
+        if self.current_amount_absolute:
+            current_filters["amount_absolute"] = self.current_amount_absolute
+
+        # Check if any filters are active
+        if not current_filters:
+            QMessageBox.information(
+                self,
+                "No Filters Active",
+                "Please set some filters before saving."
+            )
+            return
+
+        # Show save dialog
+        dialog = SaveFilterDialog(current_filters, self)
+        dialog.filter_saved.connect(self._on_filter_saved)
+        dialog.exec()
+
+    def _on_filter_saved(self, filter_data: dict) -> None:
+        """
+        Handle filter saved from dialog - persist to database.
+
+        Args:
+            filter_data: Dict with name, description, filter_criteria, is_favorite
+        """
+        try:
+            # Save to database via service
+            saved_filter = self.saved_filter_service.save_filter(
+                name=filter_data["name"],
+                filter_criteria=filter_data["filter_criteria"],
+                description=filter_data.get("description"),
+                is_favorite=filter_data.get("is_favorite", False)
+            )
+
+            # Refresh saved filters dropdown
+            self._load_saved_filters()
+
+            # Show success message
+            logger.info(f"Saved filter: {saved_filter.name}")
+            QMessageBox.information(
+                self,
+                "Filter Saved",
+                f"Filter '{saved_filter.name}' saved successfully!"
+            )
+
+        except Exception as e:
+            logger.error(f"Failed to save filter: {e}")
+            QMessageBox.warning(self, "Error", f"Failed to save filter: {str(e)}")
+
+    def _on_manage_filters_requested(self) -> None:
+        """
+        Handle manage filters request - show management dialog.
+
+        US-015: Show dialog with all saved filters for editing/deleting.
+        """
+        try:
+            # Get all saved filters
+            saved_filters = self.saved_filter_service.get_all_filters()
+
+            # Show manage dialog
+            dialog = ManageFiltersDialog(saved_filters, self)
+            dialog.filter_deleted.connect(self._on_filter_deleted)
+            dialog.filter_updated.connect(self._on_filter_updated)
+            dialog.filter_favorited.connect(self._on_filter_favorited)
+            dialog.exec()
+
+            # Refresh dropdown after dialog closes
+            self._load_saved_filters()
+
+        except Exception as e:
+            logger.error(f"Failed to load filters for management: {e}")
+            QMessageBox.warning(self, "Error", f"Failed to load filters: {str(e)}")
+
+    def _on_filter_deleted(self, filter_id: int) -> None:
+        """
+        Handle filter deletion from ManageFiltersDialog.
+
+        Args:
+            filter_id: ID of filter that was deleted
+        """
+        try:
+            self.saved_filter_service.delete_filter(filter_id)
+            logger.info(f"Deleted saved filter: {filter_id}")
+        except Exception as e:
+            logger.error(f"Failed to delete filter: {e}")
+
+    def _on_filter_updated(self, filter_id: int) -> None:
+        """
+        Handle filter update from ManageFiltersDialog.
+
+        Args:
+            filter_id: ID of filter that was updated
+        """
+        logger.info(f"Updated saved filter: {filter_id}")
+
+    def _on_filter_favorited(self, filter_id: int, is_favorite: bool) -> None:
+        """
+        Handle filter favorite toggle from ManageFiltersDialog.
+
+        Args:
+            filter_id: ID of filter
+            is_favorite: New favorite status
+        """
+        try:
+            self.saved_filter_service.toggle_favorite(filter_id)
+            logger.info(f"Toggled favorite for filter {filter_id}: {is_favorite}")
+        except Exception as e:
+            logger.error(f"Failed to toggle favorite: {e}")
+
+    def _load_saved_filters(self) -> None:
+        """Load saved filters from database and populate dropdown (US-015)."""
+        try:
+            saved_filters = self.saved_filter_service.get_all_filters()
+            self.search_panel.populate_saved_filters(saved_filters)
+        except Exception as e:
+            logger.error(f"Failed to load saved filters: {e}")
+
     def _on_filters_cleared(self) -> None:
         """
         Handle Clear All Filters action (US-016).
@@ -587,10 +837,13 @@ class MainWindow(QMainWindow):
             Clear filter state + _load_transactions(current_account_id)
         """
         try:
-            # Clear all filter state (US-012, US-013)
+            # Clear all filter state (US-012, US-013, US-014)
             self.current_date_from = None
             self.current_date_to = None
             self.current_categories = []
+            self.current_amount_min = None
+            self.current_amount_max = None
+            self.current_amount_absolute = False
             self.current_search_keyword = None
 
             # Reload transactions with no filters
@@ -609,19 +862,21 @@ class MainWindow(QMainWindow):
         """
         Reload transactions with ALL active filters applied.
 
-        US-011 + US-012 + US-013: Combines date, category, text search, and opening balance filters.
-        Applies filters in order: date (backend) → category (Python) → text (Python) → opening balance (Python)
+        US-011 + US-012 + US-013 + US-014: Combines date, category, amount, text search, and opening balance filters.
+        Applies filters in order: date (backend) → amount (backend) → category (Python) → text (Python) → opening balance (Python)
 
         Filter Combination Strategy:
             1. Date Filter (if active): Use backend transaction_service.filter_by_date_range()
             2. No Date Filter: Use transaction_service.get_all_transactions()
-            3. Category Filter (if active): Post-filter results in Python (US-013)
-            4. Text Search (if active): Post-filter results in Python
-            5. Opening Balance Toggle: Post-filter to exclude opening balance transactions
+            3. Amount Filter (if active): Use backend transaction_service.filter_by_amount_range() (US-014)
+            4. Category Filter (if active): Post-filter results in Python (US-013)
+            5. Text Search (if active): Post-filter results in Python
+            6. Opening Balance Toggle: Post-filter to exclude opening balance transactions
 
         Called by:
             - _on_date_filter_changed() (US-012)
             - _on_category_filter_changed() (US-013)
+            - _on_amount_filter_changed() (US-014)
             - _on_search_changed() (US-011)
             - _on_opening_balance_filter_toggle()
 
@@ -648,7 +903,25 @@ class MainWindow(QMainWindow):
                 transactions = self.transaction_service.get_all_transactions(account_id)
                 logger.debug(f"No date filter - loaded {len(transactions)} transactions")
 
-            # Step 2: Apply category filter (post-filter in Python) (US-013)
+            # Step 2: Apply amount filter if active (backend filtering) (US-014)
+            if self.current_amount_min is not None or self.current_amount_max is not None:
+                before_count = len(transactions)
+                # Filter by amount range using backend
+                amount_filtered = self.transaction_service.filter_by_amount_range(
+                    min_amount=self.current_amount_min,
+                    max_amount=self.current_amount_max,
+                    absolute=self.current_amount_absolute,
+                    account_id=account_id
+                )
+                # Intersect with existing filtered results
+                transaction_ids = {t.id for t in transactions}
+                transactions = [t for t in amount_filtered if t.id in transaction_ids]
+                logger.debug(
+                    f"Applied amount filter (min: {self.current_amount_min}, max: {self.current_amount_max}, "
+                    f"absolute: {self.current_amount_absolute}): {before_count} → {len(transactions)} transactions"
+                )
+
+            # Step 3: Apply category filter (post-filter in Python) (US-013)
             if self.current_categories:
                 before_count = len(transactions)
                 transactions = [
@@ -659,7 +932,7 @@ class MainWindow(QMainWindow):
                     f"Applied category filter {self.current_categories}: {before_count} → {len(transactions)} transactions"
                 )
 
-            # Step 3: Apply text search filter (post-filter in Python)
+            # Step 4: Apply text search filter (post-filter in Python)
             if self.current_search_keyword:
                 keyword = self.current_search_keyword.lower()
                 before_count = len(transactions)
@@ -671,7 +944,7 @@ class MainWindow(QMainWindow):
                     f"Applied text search filter '{keyword}': {before_count} → {len(transactions)} transactions"
                 )
 
-            # Step 4: Apply opening balance filter (post-filter in Python)
+            # Step 5: Apply opening balance filter (post-filter in Python)
             show_opening_balance = self.show_opening_balance_checkbox.isChecked()
             if not show_opening_balance:
                 before_count = len(transactions)
@@ -683,13 +956,24 @@ class MainWindow(QMainWindow):
                     f"Applied opening balance filter: {before_count} → {len(transactions)} transactions"
                 )
 
-            # Step 5: Display filtered results
+            # Step 6: Display filtered results
             self._display_transactions(transactions)
 
             # Log final result
             filter_summary = []
             if self.current_date_from and self.current_date_to:
                 filter_summary.append(f"date: {self.current_date_from} to {self.current_date_to}")
+            if self.current_amount_min is not None or self.current_amount_max is not None:
+                amount_str = f"amount: "
+                if self.current_amount_min and self.current_amount_max:
+                    amount_str += f"${self.current_amount_min}-${self.current_amount_max}"
+                elif self.current_amount_min:
+                    amount_str += f">=${self.current_amount_min}"
+                else:
+                    amount_str += f"<=${self.current_amount_max}"
+                if self.current_amount_absolute:
+                    amount_str += " (abs)"
+                filter_summary.append(amount_str)
             if self.current_categories:
                 categories_str = ', '.join(self.current_categories[:2])
                 if len(self.current_categories) > 2:

@@ -476,6 +476,164 @@ class TransactionService:
             account_id=account_id
         )
 
+    def filter_by_amount_range(
+        self,
+        min_amount: Optional[Decimal] = None,
+        max_amount: Optional[Decimal] = None,
+        absolute: bool = False,
+        account_id: Optional[int] = None
+    ) -> List[Transaction]:
+        """
+        Filter transactions by amount range with validation.
+
+        US-014: Amount Range Filter - Service layer method with comprehensive
+        validation and business rules enforcement.
+
+        Args:
+            min_amount: Minimum amount (inclusive), None = no lower bound
+            max_amount: Maximum amount (inclusive), None = no upper bound
+            absolute: If True, use absolute values (ignore sign)
+            account_id: Optional account ID filter
+
+        Returns:
+            List of matching Transaction objects, sorted by date DESC
+
+        Raises:
+            ValueError: If validation fails (min > max, invalid types)
+
+        Business Rules:
+            - At least one bound (min or max) must be specified
+            - If both specified: min_amount <= max_amount
+            - Amounts must be Decimal type
+            - Results sorted by date DESC, id DESC
+
+        Examples:
+            >>> from decimal import Decimal
+            >>> # Large purchases
+            >>> service.filter_by_amount_range(min_amount=Decimal("100"))
+            [Transaction(...), ...]
+
+            >>> # Small charges
+            >>> service.filter_by_amount_range(max_amount=Decimal("20"))
+            [Transaction(...), ...]
+
+            >>> # Mid-range
+            >>> service.filter_by_amount_range(
+            ...     min_amount=Decimal("20"),
+            ...     max_amount=Decimal("100")
+            ... )
+            [Transaction(...), ...]
+
+            >>> # Absolute value mode
+            >>> service.filter_by_amount_range(
+            ...     min_amount=Decimal("100"),
+            ...     absolute=True
+            ... )
+            [Transaction(...), ...]
+
+            >>> # Invalid: min > max
+            >>> service.filter_by_amount_range(
+            ...     min_amount=Decimal("100"),
+            ...     max_amount=Decimal("50")
+            ... )
+            ValueError: Min amount (100) must be <= Max amount (50)
+        """
+        # Validate at least one bound specified
+        if min_amount is None and max_amount is None:
+            logger.debug("No amount range specified, returning empty list")
+            return []  # No criteria = no results
+
+        # Validate types
+        if min_amount is not None and not isinstance(min_amount, Decimal):
+            logger.error(f"Invalid min_amount type: {type(min_amount)}")
+            raise ValueError(f"min_amount must be Decimal, got {type(min_amount).__name__}")
+
+        if max_amount is not None and not isinstance(max_amount, Decimal):
+            logger.error(f"Invalid max_amount type: {type(max_amount)}")
+            raise ValueError(f"max_amount must be Decimal, got {type(max_amount).__name__}")
+
+        # Validate range: min <= max
+        if min_amount is not None and max_amount is not None:
+            if min_amount > max_amount:
+                logger.error(f"Invalid range: min ({min_amount}) > max ({max_amount})")
+                raise ValueError(
+                    f"Min amount ({min_amount}) must be <= Max amount ({max_amount})"
+                )
+
+        # Call repository method
+        logger.info(
+            f"Filtering transactions by amount range: "
+            f"min={min_amount}, max={max_amount}, absolute={absolute}, account_id={account_id}"
+        )
+
+        return self.transaction_repo.filter_by_amount_range(
+            min_amount=min_amount,
+            max_amount=max_amount,
+            absolute=absolute,
+            account_id=account_id
+        )
+
+    def parse_amount_string(self, amount_str: str) -> Optional[Decimal]:
+        """
+        Parse amount string to Decimal, handling currency symbols.
+
+        US-014: Amount Range Filter - Helper method for parsing user input
+        from amount filter text fields.
+
+        Args:
+            amount_str: Amount string (e.g., "$100", "50.99", "20", "1,234.56")
+
+        Returns:
+            Decimal value or None if invalid/empty
+
+        Handles:
+            - Currency symbols: $, £, €
+            - Thousands separators: , (comma)
+            - Decimal points: .
+            - Whitespace: trimmed
+            - Empty strings: returns None
+            - Negative values: -100
+
+        Examples:
+            >>> service.parse_amount_string("$100")
+            Decimal('100')
+
+            >>> service.parse_amount_string("50.99")
+            Decimal('50.99')
+
+            >>> service.parse_amount_string("1,234.56")
+            Decimal('1234.56')
+
+            >>> service.parse_amount_string("  $  100.00  ")
+            Decimal('100.00')
+
+            >>> service.parse_amount_string("")
+            None
+
+            >>> service.parse_amount_string("invalid")
+            None
+
+            >>> service.parse_amount_string("-50.25")
+            Decimal('-50.25')
+        """
+        # Handle None or empty input
+        if not amount_str or not amount_str.strip():
+            return None
+
+        # Remove common currency symbols and whitespace
+        cleaned = amount_str.strip()
+        cleaned = cleaned.replace('$', '').replace('£', '').replace('€', '')
+        cleaned = cleaned.replace(',', '')  # Remove thousands separator
+        cleaned = cleaned.strip()
+
+        # Try to convert to Decimal
+        try:
+            from decimal import InvalidOperation
+            return Decimal(cleaned)
+        except (InvalidOperation, ValueError):
+            logger.warning(f"Failed to parse amount string: '{amount_str}'")
+            return None
+
     def calculate_total(
         self,
         transactions: List[Transaction],

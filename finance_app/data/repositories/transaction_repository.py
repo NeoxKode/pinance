@@ -561,6 +561,123 @@ class TransactionRepository:
             logger.error(f"Failed to filter transactions by categories: {e}")
             raise DatabaseError(f"Failed to filter transactions by categories: {e}") from e
 
+    def filter_by_amount_range(
+        self,
+        min_amount: Optional[Decimal] = None,
+        max_amount: Optional[Decimal] = None,
+        absolute: bool = False,
+        account_id: Optional[int] = None
+    ) -> List[Transaction]:
+        """
+        Filter transactions by amount range.
+
+        US-014: Amount Range Filter - Enables filtering transactions by monetary
+        value using SQL range queries with optional absolute value mode.
+
+        Args:
+            min_amount: Minimum amount (inclusive), None = no lower bound
+            max_amount: Maximum amount (inclusive), None = no upper bound
+            absolute: If True, use absolute values (ignore sign)
+            account_id: Optional account ID filter
+
+        Returns:
+            List of Transaction objects within amount range, sorted by date DESC, id DESC
+
+        Performance:
+            - Uses idx_transactions_amount index
+            - Expected: < 100ms for 10,000+ transactions
+            - ABS() function may prevent index usage (acceptable for absolute mode)
+
+        Raises:
+            DatabaseError: If query fails
+
+        Examples:
+            >>> # Large purchases (> $100)
+            >>> repo.filter_by_amount_range(min_amount=Decimal("100"))
+            [Transaction(...), Transaction(...)]
+
+            >>> # Small charges (< $20)
+            >>> repo.filter_by_amount_range(max_amount=Decimal("20"))
+            [Transaction(...), Transaction(...)]
+
+            >>> # Mid-range ($20-$100)
+            >>> repo.filter_by_amount_range(
+            ...     min_amount=Decimal("20"),
+            ...     max_amount=Decimal("100")
+            ... )
+            [Transaction(...), Transaction(...)]
+
+            >>> # Absolute value (any transaction >= $100, ignore sign)
+            >>> repo.filter_by_amount_range(min_amount=Decimal("100"), absolute=True)
+            [Transaction(...), Transaction(...)]
+
+            >>> # With account filter
+            >>> repo.filter_by_amount_range(
+            ...     min_amount=Decimal("50"),
+            ...     account_id=5
+            ... )
+            [Transaction(...)]
+
+        Note:
+            - Both min_amount and max_amount None returns empty list
+            - Amounts are inclusive (>= min, <= max)
+            - Absolute mode uses ABS() SQL function (may not use index)
+            - Uses parameterized queries (SQL injection safe)
+        """
+        # No range specified = no results
+        if min_amount is None and max_amount is None:
+            return []
+
+        try:
+            with self.db.get_connection() as conn:
+                cursor = conn.cursor()
+
+                # Build dynamic query based on parameters
+                conditions = []
+                params = []
+
+                if absolute:
+                    # Use absolute values (ignore sign)
+                    if min_amount is not None:
+                        conditions.append("ABS(amount) >= ?")
+                        params.append(float(min_amount))
+                    if max_amount is not None:
+                        conditions.append("ABS(amount) <= ?")
+                        params.append(float(max_amount))
+                else:
+                    # Use actual amounts (preserves positive/negative)
+                    if min_amount is not None:
+                        conditions.append("amount >= ?")
+                        params.append(float(min_amount))
+                    if max_amount is not None:
+                        conditions.append("amount <= ?")
+                        params.append(float(max_amount))
+
+                # Add account filter if specified
+                if account_id:
+                    conditions.append("account_id = ?")
+                    params.append(account_id)
+
+                # Build final query
+                where_clause = " AND ".join(conditions)
+                query = f"""
+                    SELECT id, account_id, date, description, category, amount, type,
+                           is_split, split_count,
+                           reconciliation_status, reconciled_date, statement_date,
+                           is_opening_balance
+                    FROM transactions
+                    WHERE {where_clause}
+                    ORDER BY date DESC, id DESC
+                """
+
+                cursor.execute(query, params)
+                rows = cursor.fetchall()
+                return [self._row_to_transaction(row) for row in rows]
+
+        except sqlite3.Error as e:
+            logger.error(f"Failed to filter transactions by amount range: {e}")
+            raise DatabaseError(f"Failed to filter transactions by amount range: {e}") from e
+
     @staticmethod
     def _row_to_transaction(row: sqlite3.Row) -> Transaction:
         """

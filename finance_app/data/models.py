@@ -1140,3 +1140,164 @@ class TrialBalance:
         ])
 
         return "\n".join(lines)
+
+
+@dataclass
+class SavedFilter:
+    """
+    Saved filter configuration model.
+
+    US-015: Combined Filters & Saved Searches (Sprint 16)
+
+    Stores user-created filter combinations for quick reuse. Each saved filter
+    captures the complete state of all active filters (text search, date range,
+    categories, amount range).
+
+    Filter criteria JSON format (schema_version 1):
+    {
+        "text_search": str,           # Optional - US-011 text search keyword
+        "date_from": str,              # Optional - US-012 start date (ISO format)
+        "date_to": str,                # Optional - US-012 end date (ISO format)
+        "categories": List[str],       # Optional - US-013 category list
+        "amount_min": str,             # Optional - US-014 minimum amount (decimal string)
+        "amount_max": str,             # Optional - US-014 maximum amount (decimal string)
+        "amount_absolute": bool        # Optional - US-014 absolute value filter
+    }
+
+    Example:
+        >>> filter_criteria = {
+        ...     "text_search": "coffee",
+        ...     "date_from": "2025-01-01",
+        ...     "date_to": "2025-12-31",
+        ...     "categories": ["Groceries", "Dining Out"],
+        ...     "amount_min": "5.00",
+        ...     "amount_max": "50.00"
+        ... }
+        >>> saved_filter = SavedFilter(
+        ...     name="Coffee Purchases 2025",
+        ...     description="All coffee-related expenses this year",
+        ...     filter_criteria=filter_criteria,
+        ...     is_favorite=True
+        ... )
+    """
+    name: str
+    filter_criteria: dict  # JSON-serializable dict of filter criteria
+    id: Optional[int] = None
+    description: Optional[str] = None
+    schema_version: int = 1  # Schema version for future compatibility
+    is_favorite: bool = False
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
+    last_used_at: Optional[datetime] = None
+
+    def __post_init__(self):
+        """Validate saved filter after initialization."""
+        # Validate name
+        if not self.name or len(self.name.strip()) == 0:
+            raise ValueError("Filter name cannot be empty")
+
+        if len(self.name) > 100:
+            raise ValueError("Filter name cannot exceed 100 characters")
+
+        # Validate filter_criteria is a dictionary
+        if not isinstance(self.filter_criteria, dict):
+            raise ValueError("Filter criteria must be a dictionary")
+
+        # Validate schema_version
+        if self.schema_version < 1:
+            raise ValueError("Schema version must be >= 1")
+
+        # Strip whitespace from name
+        self.name = self.name.strip()
+
+        # Strip whitespace from description if provided
+        if self.description:
+            self.description = self.description.strip()
+            if len(self.description) == 0:
+                self.description = None
+
+    @property
+    def has_text_search(self) -> bool:
+        """Check if filter includes text search."""
+        return bool(self.filter_criteria.get('text_search'))
+
+    @property
+    def has_date_filter(self) -> bool:
+        """Check if filter includes date range."""
+        return bool(self.filter_criteria.get('date_from') or self.filter_criteria.get('date_to'))
+
+    @property
+    def has_category_filter(self) -> bool:
+        """Check if filter includes category selection."""
+        categories = self.filter_criteria.get('categories', [])
+        return bool(categories and len(categories) > 0)
+
+    @property
+    def has_amount_filter(self) -> bool:
+        """Check if filter includes amount range."""
+        return bool(
+            self.filter_criteria.get('amount_min') is not None or
+            self.filter_criteria.get('amount_max') is not None
+        )
+
+    @property
+    def filter_count(self) -> int:
+        """Count how many filters are active in this saved filter."""
+        count = 0
+        if self.has_text_search:
+            count += 1
+        if self.has_date_filter:
+            count += 1
+        if self.has_category_filter:
+            count += 1
+        if self.has_amount_filter:
+            count += 1
+        return count
+
+    def get_summary(self) -> str:
+        """
+        Get human-readable summary of filter criteria.
+
+        Returns:
+            Short description of what this filter includes
+
+        Examples:
+            "Text + Date + 2 Categories"
+            "Amount Range + Date"
+            "Text Search Only"
+        """
+        parts = []
+
+        if self.has_text_search:
+            parts.append("Text")
+
+        if self.has_date_filter:
+            parts.append("Date")
+
+        if self.has_category_filter:
+            category_count = len(self.filter_criteria.get('categories', []))
+            if category_count == 1:
+                parts.append("1 Category")
+            else:
+                parts.append(f"{category_count} Categories")
+
+        if self.has_amount_filter:
+            parts.append("Amount")
+
+        if not parts:
+            return "No Filters"
+
+        return " + ".join(parts)
+
+    def __str__(self) -> str:
+        """String representation of saved filter."""
+        summary = self.get_summary()
+        favorite_star = "⭐ " if self.is_favorite else ""
+        return f"{favorite_star}{self.name} ({summary})"
+
+    def __repr__(self) -> str:
+        """Developer representation of saved filter."""
+        return (
+            f"SavedFilter(id={self.id}, name='{self.name}', "
+            f"filter_count={self.filter_count}, is_favorite={self.is_favorite})"
+        )

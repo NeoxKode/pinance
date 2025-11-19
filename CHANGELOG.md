@@ -7,6 +7,75 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added - Sprint 17 (EPIC-003 Kickoff: Reporting & Charts) 🎬
+
+#### Epic Planning (November 19, 2025)
+- **EPIC-003: Reporting and Charts** - NEW EPIC! (7 stories, 35 points, 5 sprints)
+  - Complete epic document with vision, goals, and success metrics
+  - User stories: US-017 through US-027 (infrastructure, charts, dashboard)
+  - Target release: v2.1.0
+  - Expected impact: +15 NPS, 70%+ user adoption of reports
+  - RICE Score: 9.0 (Excellent - High Priority)
+- **Sprint 17 Planning** (2 weeks, 7 story points):
+  - US-017: Reporting Infrastructure & Dashboard Layout (4 pts) - Foundation
+  - US-018: Spending by Category Report - Pie Chart (3 pts) - First visual report
+  - Sprint goal: Build reporting foundation and deliver first visual report
+  - Sprint kickoff document created with 10-day detailed schedule
+- **Documentation Updates**:
+  - EPIC_STORY_INDEX.md updated (3 epics, 25 stories, 150 total points)
+  - 7 new stories added to backlog (US-017 through US-023)
+  - Sprint 17 kickoff document (10-day schedule, tasks, risks)
+  - Updated roadmap: v2.1.0 now includes EPIC-002 + EPIC-003
+
+#### Planned Features (Sprint 17 - Next Up)
+- **Reporting Infrastructure** (US-017):
+  - `ReportService` base class for all reports
+  - Chart widget base classes (Pie, Line, Bar)
+  - Dashboard window with grid layout (2×3 widgets)
+  - Global date range selector for all reports
+  - Common UI components (loading, error, empty states)
+- **Spending by Category Report** (US-018):
+  - Interactive pie chart showing category breakdown
+  - Hover tooltips with percentages and amounts
+  - Double-click drill-down to transactions
+  - Configuration: Include income, absolute values
+  - Top 10 categories, rest grouped as "Other"
+
+#### Upcoming Sprints (EPIC-003 Roadmap)
+- **Sprint 18** (Trend Analysis):
+  - US-019: Spending Trends Over Time - Line Chart (3 pts)
+  - US-020: Income vs Expense Comparison - Bar Chart (3 pts)
+- **Sprint 19** (Account Analysis):
+  - US-021: Account Balances Over Time - Multi-line Chart (4 pts)
+  - US-022: Net Worth Tracking Report (3 pts)
+- **Sprint 20** (Advanced Features):
+  - US-023: Report Export - PDF & CSV (3 pts)
+  - US-024: Interactive Report Drill-Down (3 pts)
+  - US-025: Custom Report Date Ranges & Filters (2 pts)
+- **Sprint 21** (Dashboard & Polish):
+  - US-026: Financial Dashboard - Summary View (4 pts)
+  - US-027: Report Performance Optimization (3 pts)
+
+#### Architecture Changes (Planned)
+- **New Components**:
+  - `finance_app/business/report_service.py` - Base report service
+  - `finance_app/business/spending_report_service.py` - Spending reports
+  - `finance_app/data/repositories/report_repository.py` - Report queries
+  - `finance_app/ui/widgets/chart_widgets.py` - Chart base classes
+  - `finance_app/ui/windows/dashboard_window.py` - Main dashboard
+- **Estimated Code**: ~2,500 lines Python + ~100 lines SQL + ~1,500 lines tests
+- **New Database Tables** (Future sprints):
+  - `balance_snapshots` (Migration 015) - Historical balance cache
+  - Report configurations (extends `saved_filters` from US-015)
+
+#### Success Metrics (EPIC-003 Targets)
+- Report generation: < 500ms for 10K transactions
+- Chart rendering: < 200ms for all chart types
+- Dashboard load: < 2 seconds (6 reports)
+- User adoption: 70%+ view reports within first week
+- NPS increase: +15 points (compound with EPIC-002)
+- Export usage: 20%+ users export reports
+
 ### Added - Sprint 14 (US-012: Date Range Filter)
 
 #### Backend Features
@@ -170,6 +239,92 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **US-013 Story Document**: Complete Definition of Done, implementation summaries
 - **Filter Panel Layout**: Updated diagram to show category dropdown
 - **Filter Combinations**: Updated with 7 category-based examples
+- **Code Documentation**: All methods have comprehensive docstrings (Google style)
+
+### Added - Sprint 15 (US-014: Amount Range Filter)
+
+#### Backend Features
+- **TransactionRepository.filter_by_amount_range()** method (83 lines):
+  - SQL-based filtering with BETWEEN and comparison operators
+  - Supports min_amount, max_amount, and absolute value modes
+  - Uses idx_transactions_amount index for performance
+  - Handles all 4 filtering modes:
+    - Both min and max: `BETWEEN min_amount AND max_amount`
+    - Min only: `>= min_amount`
+    - Max only: `<= max_amount`
+    - Absolute mode: `ABS(amount) BETWEEN/>=/<= threshold`
+  - Supports optional account_id filtering
+  - Returns List[Transaction] in date DESC order
+- **TransactionService.filter_by_amount_range()** method (68 lines):
+  - High-level service interface for amount filtering
+  - Input validation: min_amount <= max_amount (raises ValueError if violated)
+  - Type validation: ensures Decimal types
+  - Comprehensive error handling with FinanceAppError
+  - Debug logging for troubleshooting
+  - Delegates to repository layer
+
+#### UI Features
+- **SearchPanelWidget Amount Filter** (~311 lines):
+  - Min/max amount input fields with placeholders ("$0.00", "$999,999.99")
+  - Absolute value checkbox with tooltip explanation
+  - 4 preset buttons for common scenarios:
+    - **< $20** - Small charges (subscriptions, coffee, small purchases)
+    - **$20 - $100** - Mid-range expenses (groceries, utilities, gas)
+    - **> $100** - Large purchases (rent, electronics, major expenses)
+    - **> $500** - Very large transactions (rent, bonuses, big purchases)
+  - 500ms debounce timer on text input (prevents excessive filtering)
+  - Signal emission: `amount_filter_changed.emit(min_amount, max_amount, absolute)`
+  - Filter state tracking: `current_amount_min`, `current_amount_max`, `current_amount_absolute`
+  - Helper methods: `has_amount_filter()`, `clear_amount_filter()`
+  - Integration with filter count badge
+  - Clear All Filters button support
+  - Tab order keyboard navigation
+- **MainWindow Amount Filter Integration** (~115 lines):
+  - State tracking: `current_amount_min`, `current_amount_max`, `current_amount_absolute`
+  - Signal handler: `_on_amount_filter_changed(min_amount, max_amount, absolute)`
+  - Multi-stage filter pipeline (now 5 stages):
+    1. Date filter (SQL backend)
+    2. **Amount filter (SQL backend with set intersection)** - NEW!
+    3. Category filter (Python post-filter)
+    4. Text search filter (Python post-filter)
+    5. Opening balance filter (Python post-filter)
+  - Status bar feedback: "Filtered by amount: $100 - $500" or ">= $50 (absolute)"
+  - Smart AND logic: intersects amount results with date results
+  - Filter state clearing in `_on_filters_cleared()`
+
+#### Testing
+- **Backend Unit Tests**: 14 comprehensive tests (100% passing in 0.05s)
+  - Repository filter_by_amount_range() (min only, max only, both, absolute mode, account filter)
+  - Service filter_by_amount_range() (delegation, validation, min > max error, type checking)
+  - Edge cases: zero amounts, negative amounts, Decimal precision
+- **Integration Tests**: 8 complete workflow tests (100% passing in 2.47s)
+  - Filter by min amount only (>= $50)
+  - Filter by max amount only (<= $100)
+  - Filter by range ($50 - $200)
+  - Filter by absolute value (|amount| >= $100 catches both income and expenses)
+  - Filter with account_id restriction
+  - Combined filters (date + amount)
+  - Empty results (no transactions in range)
+  - **Performance test**: 1,000+ transactions < 100ms ✅ (meets performance target)
+- **Total Tests**: 22/22 passing (100% pass rate)
+
+#### Documentation
+- **USER_GUIDE.md** (+520 lines, Section 7.4):
+  - "Amount Range Filter (US-014)" comprehensive guide
+  - How to filter by amount range (4-step guide)
+  - Preset button explanations with use cases:
+    - < $20: Subscription hunting, recurring charges
+    - $20-$100: Groceries, utilities, gas
+    - > $100: Rent, electronics, major expenses
+    - > $500: Large transactions, bonuses
+  - Custom amount ranges (min only, max only, both)
+  - Absolute value mode (when to use / not use)
+  - Amount filter input formats (basic, with symbols, with commas)
+  - Combining amount filter with other filters (7 examples)
+  - Tips and best practices (7 tips)
+  - 5 detailed examples (subscription hunt, large purchase review, budget variance, etc.)
+  - FAQ section (16 questions answered)
+- **US-014 Story Document**: Complete Definition of Done, task breakdown with actual times
 - **Code Documentation**: All methods have comprehensive docstrings (Google style)
 
 ### Changed - Sprint 14

@@ -779,6 +779,78 @@ def _apply_account_metadata_migration(conn: sqlite3.Connection) -> None:
         logger.debug("Account metadata migration already applied, skipping")
 
 
+def _apply_saved_filters_migration(conn: sqlite3.Connection) -> None:
+    """
+    Apply saved filters migration (014_saved_filters.sql).
+
+    This creates the saved_filters table for US-015 Combined Filters & Saved Searches.
+    Story: US-015 - Combined Filters & Saved Searches (Sprint 16)
+
+    Args:
+        conn: Database connection
+    """
+    cursor = conn.cursor()
+
+    # Check if migration is needed (look for saved_filters table)
+    cursor.execute("""
+        SELECT name FROM sqlite_master
+        WHERE type='table' AND name='saved_filters'
+    """)
+
+    if cursor.fetchone() is None:
+        logger.info("Applying saved filters migration (014)...")
+
+        # Read and execute migration file
+        migration_path = Path(__file__).parent / "migrations" / "014_saved_filters.sql"
+
+        if not migration_path.exists():
+            logger.warning(f"Migration file not found: {migration_path}")
+            return
+
+        with open(migration_path, 'r') as f:
+            migration_sql = f.read()
+
+        # Execute migration
+        cursor.executescript(migration_sql)
+
+        conn.commit()
+        logger.info("Saved filters migration (014) completed")
+
+        # Verify table created
+        cursor.execute("""
+            SELECT name FROM sqlite_master
+            WHERE type='table' AND name='saved_filters'
+        """)
+        if cursor.fetchone():
+            logger.info("Migration verification: ✓ saved_filters table created")
+        else:
+            logger.error("Migration verification failed: saved_filters table not found")
+
+        # Verify indices created
+        cursor.execute("""
+            SELECT name FROM sqlite_master
+            WHERE type='index' AND name IN (
+                'idx_saved_filters_favorite',
+                'idx_saved_filters_name',
+                'idx_saved_filters_last_used'
+            )
+        """)
+        indices = [row[0] for row in cursor.fetchall()]
+
+        if len(indices) >= 3:
+            logger.info(f"Migration verification: ✓ All 3 saved filters indices created")
+            for index_name in indices:
+                logger.info(f"  - {index_name}")
+        else:
+            logger.warning(f"Migration verification: Found {len(indices)}/3 indices: {indices}")
+
+        # Log summary
+        logger.info("Saved filters migration (014) verification complete")
+        logger.info("✓ Ready for saved filter persistence (US-015 Sprint 16)")
+    else:
+        logger.debug("Saved filters migration already applied, skipping")
+
+
 class Database:
     """
     Database manager with connection pooling and lifecycle management.
@@ -954,6 +1026,9 @@ class Database:
                 # Apply account metadata migration for new databases
                 _apply_account_metadata_migration(conn)
 
+                # Apply saved filters migration for new databases
+                _apply_saved_filters_migration(conn)
+
                 # Add sample data if empty
                 self._add_sample_data(conn)
 
@@ -975,6 +1050,7 @@ class Database:
                 _apply_balance_validation_migration(conn)
                 _apply_account_visual_metadata_migration(conn)
                 _apply_account_metadata_migration(conn)
+                _apply_saved_filters_migration(conn)
                 logger.info("All migrations applied successfully")
         except Exception as e:
             logger.error(f"Failed to apply migrations: {e}")
