@@ -71,7 +71,8 @@ class TestCreateAccountWithHierarchy:
 
         with patch.object(service.account_repo, 'get_by_id', return_value=parent_account), \
              patch.object(service, '_would_create_cycle', return_value=False), \
-             patch.object(service.account_repo, 'create', return_value=child_account):
+             patch.object(service.account_repo, 'create', return_value=child_account), \
+             patch.object(service, 'validate_account_balance_after_operation'):
 
             result = service.create_account(
                 name="Checking Account",

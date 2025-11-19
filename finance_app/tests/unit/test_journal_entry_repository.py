@@ -288,29 +288,9 @@ class TestJournalEntryRepositoryGetAccountBalance:
         # Verify result
         assert balance == Decimal("1500.50")
 
-    def test_get_account_balance_with_date(self, repository, mock_db):
-        """Test get_account_balance() with as_of_date."""
-        mock_conn = MagicMock()
-        mock_cursor = MagicMock()
-        mock_conn.cursor.return_value = mock_cursor
-        mock_conn.__enter__ = Mock(return_value=mock_conn)
-        mock_conn.__exit__ = Mock(return_value=False)
-        mock_db.get_connection.return_value = mock_conn
-
-        mock_cursor.fetchone.return_value = [1000.00]
-
-        balance = repository.get_account_balance(
-            account_id=1,
-            as_of_date="2025-10-15"
-        )
-
-        # Verify date filter was added
-        query = mock_cursor.execute.call_args[0][0]
-        params = mock_cursor.execute.call_args[0][1]
-
-        assert "AND entry_date <= ?" in query
-        assert "2025-10-15" in params
-        assert balance == Decimal("1000.00")
+    # Note: test_get_account_balance_with_date was removed because the as_of_date
+    # parameter was removed when get_account_balance was simplified for US-010.
+    # The date-filtered balance calculation is now done elsewhere.
 
     def test_get_account_balance_returns_zero_for_no_entries(self, repository, mock_db):
         """Test get_account_balance() returns zero when no entries exist."""

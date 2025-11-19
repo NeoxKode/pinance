@@ -220,7 +220,7 @@ class TestReconciliationServiceMarkTransactionCleared:
 
             assert result.reconciliation_status == ReconciliationStatus.CLEARED
             assert result.statement_date == "2025-10-31"
-            assert result.reconciled_date is not None
+            # Note: reconciled_date is only set when reconciliation completes, not when marking as cleared
             mock_update.assert_called_once()
 
     def test_mark_transaction_cleared_raises_not_found_for_invalid_transaction(self, service):
@@ -483,10 +483,17 @@ class TestReconciliationServiceCompleteReconciliation:
             transaction_count=5
         )
 
+        # Create proper mock transactions with all required attributes
+        mock_transactions = [
+            Mock(reconciliation_status=ReconciliationStatus.CLEARED, id=i)
+            for i in range(1, 6)
+        ]
+
         with patch.object(service.account_repo, 'get_by_id', return_value=mock_account), \
              patch.object(service, 'calculate_cleared_balance', return_value=Decimal("1200.00")), \
              patch.object(service, 'calculate_discrepancy', return_value=Decimal("0.00")), \
-             patch.object(service.transaction_repo, 'get_all', return_value=[Mock(reconciliation_status=ReconciliationStatus.CLEARED)] * 5), \
+             patch.object(service.transaction_repo, 'get_all', return_value=mock_transactions), \
+             patch.object(service.transaction_repo, 'update'), \
              patch.object(service.reconciliation_repo, 'create', return_value=mock_saved_reconciliation) as mock_create, \
              patch.object(service.account_repo, 'update') as mock_update:
 
@@ -524,10 +531,17 @@ class TestReconciliationServiceCompleteReconciliation:
             transaction_count=5
         )
 
+        # Create proper mock transactions with all required attributes
+        mock_transactions = [
+            Mock(reconciliation_status=ReconciliationStatus.CLEARED, id=i)
+            for i in range(1, 6)
+        ]
+
         with patch.object(service.account_repo, 'get_by_id', return_value=mock_account), \
              patch.object(service, 'calculate_cleared_balance', return_value=Decimal("1200.00")), \
              patch.object(service, 'calculate_discrepancy', return_value=Decimal("0.00")), \
-             patch.object(service.transaction_repo, 'get_all', return_value=[Mock(reconciliation_status=ReconciliationStatus.CLEARED)] * 5), \
+             patch.object(service.transaction_repo, 'get_all', return_value=mock_transactions), \
+             patch.object(service.transaction_repo, 'update'), \
              patch.object(service.reconciliation_repo, 'create', return_value=mock_saved_reconciliation), \
              patch.object(service.account_repo, 'update') as mock_update:
 
@@ -553,13 +567,13 @@ class TestReconciliationServiceCompleteReconciliation:
             normal_balance=NormalBalance.DEBIT
         )
 
-        # 3 cleared, 2 unreconciled
+        # 3 cleared, 2 unreconciled - add id attribute for transaction updates
         mock_transactions = [
-            Mock(reconciliation_status=ReconciliationStatus.CLEARED),
-            Mock(reconciliation_status=ReconciliationStatus.CLEARED),
-            Mock(reconciliation_status=ReconciliationStatus.CLEARED),
-            Mock(reconciliation_status=ReconciliationStatus.UNRECONCILED),
-            Mock(reconciliation_status=ReconciliationStatus.UNRECONCILED),
+            Mock(reconciliation_status=ReconciliationStatus.CLEARED, id=1),
+            Mock(reconciliation_status=ReconciliationStatus.CLEARED, id=2),
+            Mock(reconciliation_status=ReconciliationStatus.CLEARED, id=3),
+            Mock(reconciliation_status=ReconciliationStatus.UNRECONCILED, id=4),
+            Mock(reconciliation_status=ReconciliationStatus.UNRECONCILED, id=5),
         ]
 
         mock_saved_reconciliation = Reconciliation(
@@ -577,6 +591,7 @@ class TestReconciliationServiceCompleteReconciliation:
              patch.object(service, 'calculate_cleared_balance', return_value=Decimal("1200.00")), \
              patch.object(service, 'calculate_discrepancy', return_value=Decimal("0.00")), \
              patch.object(service.transaction_repo, 'get_all', return_value=mock_transactions), \
+             patch.object(service.transaction_repo, 'update'), \
              patch.object(service.reconciliation_repo, 'create', return_value=mock_saved_reconciliation), \
              patch.object(service.account_repo, 'update'):
 
@@ -611,10 +626,17 @@ class TestReconciliationServiceCompleteReconciliation:
             notes="Missing ATM withdrawal"
         )
 
+        # Create mock transactions with id attribute for updates
+        mock_transactions = [
+            Mock(reconciliation_status=ReconciliationStatus.CLEARED, id=i)
+            for i in range(1, 6)
+        ]
+
         with patch.object(service.account_repo, 'get_by_id', return_value=mock_account), \
              patch.object(service, 'calculate_cleared_balance', return_value=Decimal("1150.00")), \
              patch.object(service, 'calculate_discrepancy', return_value=Decimal("50.00")), \
-             patch.object(service.transaction_repo, 'get_all', return_value=[Mock(reconciliation_status=ReconciliationStatus.CLEARED)] * 5), \
+             patch.object(service.transaction_repo, 'get_all', return_value=mock_transactions), \
+             patch.object(service.transaction_repo, 'update'), \
              patch.object(service.reconciliation_repo, 'create', return_value=mock_saved_reconciliation) as mock_create, \
              patch.object(service.account_repo, 'update'):
 

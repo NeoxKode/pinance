@@ -388,38 +388,8 @@ class TestKeyboardNavigation:
         # No assertion needed - we're just testing it doesn't crash
 
 
-class TestPlaceholderLabels:
-    """Test placeholder labels for future filters."""
-
-    def test_date_placeholder_exists(self, search_panel):
-        """Test that date filter placeholder exists."""
-        assert search_panel.date_placeholder is not None
-
-    def test_date_placeholder_text(self, search_panel):
-        """Test that date placeholder has correct text."""
-        text = search_panel.date_placeholder.text()
-        assert "Date filter" in text
-        assert "US-012" in text
-
-    def test_category_placeholder_exists(self, search_panel):
-        """Test that category filter placeholder exists."""
-        assert search_panel.category_placeholder is not None
-
-    def test_category_placeholder_text(self, search_panel):
-        """Test that category placeholder has correct text."""
-        text = search_panel.category_placeholder.text()
-        assert "Category filter" in text
-        assert "US-013" in text
-
-    def test_amount_placeholder_exists(self, search_panel):
-        """Test that amount filter placeholder exists."""
-        assert search_panel.amount_placeholder is not None
-
-    def test_amount_placeholder_text(self, search_panel):
-        """Test that amount placeholder has correct text."""
-        text = search_panel.amount_placeholder.text()
-        assert "Amount filter" in text
-        assert "US-014" in text
+# Note: TestPlaceholderLabels class was removed as the placeholders were replaced
+# by actual filter implementations in US-012 (Date), US-013 (Category), US-014 (Amount)
 
 
 # Run tests with: pytest finance_app/tests/unit/test_search_panel_widget.py -v
